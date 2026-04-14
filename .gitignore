@@ -11,3 +11,4 @@ build/
 docs/
 AGENTS.md
 PROJECT.md.ecc-hooks-disable
+.ecc-hooks-disable
