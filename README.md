@@ -165,6 +165,10 @@ uv run ruff check src/ tests/
 - [ ] **Phase 4** — RAG 系统（文档向量化、语义检索）
 - [ ] **Phase 5** — MCP 集成（Stdio / HTTP / SSE）
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=DarkFanta3y/lifeops&type=Date)](https://star-history.com/#DarkFanta3y/lifeops&Date)
+
 ## License
 
 MIT
