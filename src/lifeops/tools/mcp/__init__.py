@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from lifeops.tools.mcp.client import MCPClient
 from lifeops.tools.mcp.manager import MCPManager, MCPServerStatus
 from lifeops.tools.mcp.types import (
     MCPServerConfig,
@@ -11,6 +12,7 @@ from lifeops.tools.mcp.types import (
 )
 
 __all__ = [
+    "MCPClient",
     "MCPManager",
     "MCPServerConfig",
     "MCPServerStatus",

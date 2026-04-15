@@ -51,7 +51,7 @@ LifeOps 是一个 AI 驱动的生活助手智能体，基于 ReAct (Reasoning + 
 
 | Task | 状态 | 说明 |
 |------|------|------|
-| MCP Client Core | ✅ | stdio 传输、生命周期管理、工具发现与调用 |
+| MCP Client Core | ✅ | stdio 传输 + AsyncExitStack 生命周期管理、list_tools/resources/prompts、call_tool → ToolResult、连接失败→FAILED 状态、async context manager |
 | GitHub MCP Server 接入 | ✅ | Docker stdio 模式，需 GITHUB_PERSONAL_ACCESS_TOKEN |
 | 多 Server 注册机制 | ✅ | 支持 CLI/ENV/JSON 三种配置方式动态注册 MCP Server |
 | 配置方式 | ✅ | CLI 参数（`--mcp-enabled`/`--mcp-disabled`/`--mcp-servers`）、环境变量（`LIFEOPS_MCP_ENABLED`/`LIFEOPS_MCP_SERVERS`）、JSON 配置文件 |
@@ -78,12 +78,20 @@ lifeops/
 │   │   ├── __init__.py
 │   │   ├── base.py                # Tool 基类
 │   │   ├── registry.py            # 工具注册中心
-│   │   └── builtin/
+│   │   ├── builtin/
+│   │   │   ├── __init__.py
+│   │   │   ├── bash.py
+│   │   │   ├── file_read.py
+│   │   │   ├── file_edit.py
+│   │   │   └── web_search.py
+│   │   └── mcp/
 │   │       ├── __init__.py
-│   │       ├── bash.py
-│   │       ├── file_read.py
-│   │       ├── file_edit.py
-│   │       └── web_search.py
+│   │       ├── client.py           # MCP 客户端 (stdio 传输 + 会话管理)
+│   │       ├── manager.py          # MCP Server 注册与状态管理
+│   │       ├── types.py            # MCP 类型定义
+│   │       └── servers/
+│   │           ├── __init__.py
+│   │           └── github.py       # GitHub MCP Server 配置
 │   └── utils/
 │       ├── __init__.py
 │       └── logging.py
@@ -93,6 +101,8 @@ lifeops/
 │   ├── test_builtin_tools.py
 │   ├── test_context_manager.py
 │   ├── test_llm_client.py
+│   ├── test_mcp_manager.py
+│   ├── test_mcp_types.py
 │   └── test_tool_registry.py
 └── docs/
     ├── architecture.md

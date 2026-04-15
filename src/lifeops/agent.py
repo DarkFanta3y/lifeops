@@ -9,6 +9,8 @@ from lifeops.llm.client import LLMClient
 from lifeops.llm.types import Message, MessageRole, ToolCallResult
 from lifeops.tools.base import ToolDefinition, ToolResult
 from lifeops.tools.builtin import register_all_builtin_tools
+from lifeops.tools.mcp.manager import MCPManager
+from lifeops.tools.mcp.types import MCPServerConfig
 from lifeops.tools.registry import ToolRegistry
 from lifeops.utils.logging import get_logger
 
@@ -38,6 +40,7 @@ class Agent:
             timeout=config.llm.timeout,
         )
         self.tools = ToolRegistry()
+        self.mcp_manager = MCPManager()
         self.context = ContextManager(
             max_tokens=config.context.max_context_tokens,
             l1_budget_ratio=config.context.l1_budget_ratio,
@@ -51,6 +54,10 @@ class Agent:
 
         self._register_default_tools()
 
+        # MCP 静态配置加载
+        if config.mcp.enabled and config.mcp.servers_raw.strip():
+            self.mcp_manager.load_from_config(config.mcp.servers_raw)
+
         self.context.add_content(
             "system_prompt",
             self.system_prompt,
@@ -63,6 +70,14 @@ class Agent:
 
     def add_tool(self, definition: ToolDefinition, handler: Any) -> None:
         self.tools.register(definition, handler)
+
+    def add_mcp_server(self, name: str, config: MCPServerConfig) -> None:
+        """动态注册 MCP server 配置。连接和工具注册在 Wave 2 Adapter 中完成。"""
+        self.mcp_manager.add_server(name, config)
+
+    def remove_mcp_server(self, name: str) -> None:
+        """动态移除 MCP server 配置。工具解绑在 Wave 2 Adapter 中完成。"""
+        self.mcp_manager.remove_server(name)
 
     def _build_messages(self) -> list[Message]:
         result = [Message(role=MessageRole.SYSTEM, content=self.system_prompt)]
