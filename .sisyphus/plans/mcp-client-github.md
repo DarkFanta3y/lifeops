@@ -575,7 +575,7 @@ PY`
     Expected Result: prompt 列表可用
     Evidence: .sisyphus/evidence/task-9-prompts.txt
 
-- [ ] 10. 单元测试（adapter/manager/client）
+- [x] 10. 单元测试（adapter/manager/client）
 
   **What to do**:
   - 为 MCP Client Core、Adapter、Server Manager 编写单元测试
@@ -612,7 +612,7 @@ PY`
     Expected Result: 全部通过
     Evidence: .sisyphus/evidence/task-10-unit.txt
 
-- [ ] 11. 集成测试（启动 MCP server 走完整链路）
+- [x] 11. 集成测试（启动 MCP server 走完整链路）
 
   **What to do**:
   - 模拟或启动 GitHub MCP Server（Docker stdio）
