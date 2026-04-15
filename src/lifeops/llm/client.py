@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
+from httpx import Timeout
 from openai import AsyncOpenAI
 
 from lifeops.llm.types import ChatResponse, Message
+from lifeops.tools.base import ToolDefinition
 from lifeops.utils.logging import get_logger
 
-if TYPE_CHECKING:
-    from lifeops.tools.base import ToolDefinition
 
 logger = get_logger(__name__)
 
@@ -17,36 +15,37 @@ class LLMClient:
     def __init__(
         self,
         api_key: str,
-        model: str = "gpt-4o",
-        api_base: str = "https://api.openai.com/v1",
+        model: str = "glm-4-flash",
+        api_base: str = "https://open.bigmodel.cn/api/paas/v4",
         max_tokens: int = 4096,
         temperature: float = 0.7,
+        timeout: float = 60.0,
     ):
         self.model = model
         self.max_tokens = max_tokens
         self.temperature = temperature
-        self._client = AsyncOpenAI(api_key=api_key, base_url=api_base)
+        self._client = AsyncOpenAI(
+            api_key=api_key,
+            base_url=api_base,
+            timeout=Timeout(connect=10.0, read=timeout, write=timeout, pool=timeout),
+        )
 
-    def _build_tool_schemas(self, tools: list["ToolDefinition"]) -> list[dict]:
+    def _build_tool_schemas(self, tools: list[ToolDefinition]) -> list[dict]:
         schemas = []
         for t in tools:
-            props: dict[str, object] = {}
-            required: list[str] = []
-            for p in t.parameters:
-                props[p.name] = {"type": p.type, "description": p.description}
-                if p.required:
-                    required.append(p.name)
+            json_schema = t.parameters_model.model_json_schema()
+            parameters = {
+                "type": "object",
+                "properties": json_schema.get("properties", {}),
+                "required": json_schema.get("required", []),
+            }
             schemas.append(
                 {
                     "type": "function",
                     "function": {
                         "name": t.name,
                         "description": t.description,
-                        "parameters": {
-                            "type": "object",
-                            "properties": props,
-                            "required": required,
-                        },
+                        "parameters": parameters,
                     },
                 }
             )
@@ -55,7 +54,7 @@ class LLMClient:
     async def chat(
         self,
         messages: list[Message],
-        tools: list["ToolDefinition"] | None = None,
+        tools: list[ToolDefinition] | None = None,
         **kwargs: object,
     ) -> ChatResponse:
         msg_dicts = [m.to_dict() for m in messages]
@@ -73,7 +72,13 @@ class LLMClient:
 
         response = await self._client.chat.completions.create(**request_kwargs)
 
-        tc_count = len(response.choices[0].message.tool_calls) if response.choices[0].message.tool_calls else 0
-        logger.debug(f"LLM response: content={'yes' if response.choices[0].message.content else 'no'}, tool_calls={tc_count}")
+        tc_count = (
+            len(response.choices[0].message.tool_calls)
+            if response.choices[0].message.tool_calls
+            else 0
+        )
+        logger.debug(
+            f"LLM response: content={'yes' if response.choices[0].message.content else 'no'}, tool_calls={tc_count}"
+        )
 
         return ChatResponse.from_openai_response(response)

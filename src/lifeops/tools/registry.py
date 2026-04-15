@@ -49,30 +49,24 @@ class ToolRegistry:
             return ToolResult(success=False, output="", error=str(e))
 
     def _validate_params(self, definition: ToolDefinition, params: dict[str, Any]) -> None:
-        for p in definition.parameters:
-            if p.required and p.name not in params:
-                raise ValueError(f"Missing required parameter '{p.name}' for tool '{definition.name}'")
+        definition.parameters_model.model_validate(params)
 
     def get_openai_tool_schemas(self) -> list[dict]:
         schemas = []
         for tool_def in self._definitions.values():
-            props: dict[str, Any] = {}
-            required: list[str] = []
-            for p in tool_def.parameters:
-                props[p.name] = {"type": p.type, "description": p.description}
-                if p.required:
-                    required.append(p.name)
+            json_schema = tool_def.parameters_model.model_json_schema()
+            parameters = {
+                "type": "object",
+                "properties": json_schema.get("properties", {}),
+                "required": json_schema.get("required", []),
+            }
             schemas.append(
                 {
                     "type": "function",
                     "function": {
                         "name": tool_def.name,
                         "description": tool_def.description,
-                        "parameters": {
-                            "type": "object",
-                            "properties": props,
-                            "required": required,
-                        },
+                        "parameters": parameters,
                     },
                 }
             )

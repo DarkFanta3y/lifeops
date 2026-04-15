@@ -35,6 +35,7 @@ class Agent:
             api_base=config.llm.api_base,
             max_tokens=config.llm.max_tokens,
             temperature=config.llm.temperature,
+            timeout=config.llm.timeout,
         )
         self.tools = ToolRegistry()
         self.context = ContextManager(
@@ -50,7 +51,12 @@ class Agent:
 
         self._register_default_tools()
 
-        self.context.add_content("system_prompt", self.system_prompt, ContextLayer.L1, token_count=len(self.system_prompt) // 4)
+        self.context.add_content(
+            "system_prompt",
+            self.system_prompt,
+            ContextLayer.L1,
+            token_count=len(self.system_prompt) // 4,
+        )
 
     def _register_default_tools(self) -> None:
         register_all_builtin_tools(self.tools)
@@ -66,7 +72,10 @@ class Agent:
     async def run(self, user_input: str) -> str:
         self.messages.append(Message(role=MessageRole.USER, content=user_input))
         self.context.add_content(
-            f"user_{len(self.messages)}", user_input, ContextLayer.L1, token_count=len(user_input) // 4
+            f"user_{len(self.messages)}",
+            user_input,
+            ContextLayer.L1,
+            token_count=len(user_input) // 4,
         )
 
         for iteration in range(self.max_iterations):
@@ -105,7 +114,9 @@ class Agent:
                     try:
                         result = await self.tools.execute(tc.name, params)
                     except KeyError:
-                        result = ToolResult(success=False, output="", error=f"Unknown tool: {tc.name}")
+                        result = ToolResult(
+                            success=False, output="", error=f"Unknown tool: {tc.name}"
+                        )
                     except Exception as e:
                         result = ToolResult(success=False, output="", error=str(e))
 
@@ -153,7 +164,12 @@ class Agent:
             l3_budget_ratio=self.config.context.l3_budget_ratio,
             reserve_ratio=self.config.context.reserve_ratio,
         )
-        self.context.add_content("system_prompt", self.system_prompt, ContextLayer.L1, token_count=len(self.system_prompt) // 4)
+        self.context.add_content(
+            "system_prompt",
+            self.system_prompt,
+            ContextLayer.L1,
+            token_count=len(self.system_prompt) // 4,
+        )
 
 
 def main() -> None:
@@ -162,18 +178,23 @@ def main() -> None:
     from rich.console import Console
     from rich.panel import Panel
 
-    from lifeops.core.config import AppConfig
+    from lifeops.core.config import AppConfig, clear_proxy_env
     from lifeops.utils.logging import setup_logger
 
-    config = AppConfig.from_yaml("configs/default.yaml")
+    clear_proxy_env()
+
+    config = AppConfig()
     setup_logger(level=config.log_level)
 
     console = Console()
 
     if not config.llm.api_key:
-        console.print("[red]Error: LLM_API_KEY not set. Set it in .env or environment.[/red]")
-        console.print("[dim]  export LLM_API_KEY=your-key-here[/dim]")
-        console.print("[dim]  Or set llm.api_key in configs/default.yaml[/dim]")
+        console.print("[red]Error: LLM_API_KEY not set.[/red]")
+        console.print("[dim]  1. Copy .env.example to .env: cp .env.example .env[/dim]")
+        console.print("[dim]  2. Edit .env and set LLM_API_KEY=your-key-here[/dim]")
+        console.print(
+            "[dim]  Or set it via environment variable: export LLM_API_KEY=your-key-here[/dim]"
+        )
         return
 
     agent = Agent(config)
@@ -204,15 +225,17 @@ def main() -> None:
 
         if user_input.lower() == "context":
             summary = agent.context.get_summary()
-            console.print(Panel(
-                f"Total: {summary['total_used']:,} / {agent.context.max_tokens:,} tokens\n"
-                f"L1: {summary['l1_tokens']:,} tokens ({summary['l1_entries']} entries)\n"
-                f"L2: {summary['l2_tokens']:,} tokens ({summary['l2_entries']} entries)\n"
-                f"L3: {summary['l3_tokens']:,} tokens ({summary['l3_entries']} entries)\n"
-                f"Remaining: {summary['remaining']:,} tokens",
-                title="Context Usage",
-                style="cyan",
-            ))
+            console.print(
+                Panel(
+                    f"Total: {summary['total_used']:,} / {agent.context.max_tokens:,} tokens\n"
+                    f"L1: {summary['l1_tokens']:,} tokens ({summary['l1_entries']} entries)\n"
+                    f"L2: {summary['l2_tokens']:,} tokens ({summary['l2_entries']} entries)\n"
+                    f"L3: {summary['l3_tokens']:,} tokens ({summary['l3_entries']} entries)\n"
+                    f"Remaining: {summary['remaining']:,} tokens",
+                    title="Context Usage",
+                    style="cyan",
+                )
+            )
             continue
 
         console.print("[dim]Thinking...[/dim]")

@@ -19,7 +19,11 @@ def test_message_to_dict():
 
 
 def test_message_with_tool_calls():
-    tc = {"id": "call_1", "type": "function", "function": {"name": "bash", "arguments": '{"command":"ls"}'}}
+    tc = {
+        "id": "call_1",
+        "type": "function",
+        "function": {"name": "bash", "arguments": '{"command":"ls"}'},
+    }
     msg = Message(role=MessageRole.ASSISTANT, content=None, tool_calls=[tc])
     d = msg.to_dict()
     assert d["tool_calls"] == [tc]
@@ -84,7 +88,7 @@ async def test_llm_client_chat_simple():
 
 @pytest.mark.asyncio
 async def test_llm_client_chat_with_tools():
-    from lifeops.tools.base import ToolDefinition, ToolParameter
+    from lifeops.tools.base import ToolDefinition, ToolParams
 
     mock_tc = MagicMock()
     mock_tc.id = "call_1"
@@ -105,10 +109,14 @@ async def test_llm_client_chat_with_tools():
         mock_cls.return_value = mock_client
 
         client = LLMClient(api_key="test", model="gpt-4o")
+
+        class BashParams(ToolParams):
+            command: str
+
         tool_def = ToolDefinition(
             name="bash",
             description="Execute bash",
-            parameters=[ToolParameter(name="command", type="string", description="cmd", required=True)],
+            parameters_model=BashParams,
         )
 
         messages = [Message(role=MessageRole.USER, content="list files")]

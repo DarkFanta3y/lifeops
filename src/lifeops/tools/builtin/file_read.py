@@ -1,16 +1,28 @@
-from pathlib import Path
+from __future__ import annotations
 
-from lifeops.tools.base import ToolDefinition, ToolParameter, ToolResult
+from pathlib import Path
+from typing import Any
+
+from lifeops.tools.base import ToolDefinition, ToolParams, ToolResult
 from lifeops.tools.registry import ToolRegistry
 from lifeops.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-async def _file_read_handler(params: dict) -> ToolResult:
-    file_path = params["path"]
-    offset = params.get("offset", 1)
-    limit = params.get("limit", 2000)
+class FileReadParams(ToolParams):
+    path: str
+    encoding: str = "utf-8"
+    offset: int = 1
+    limit: int = 2000
+
+
+async def _file_read_handler(params: dict[str, Any]) -> ToolResult:
+    validated = FileReadParams.model_validate(params)
+    file_path = validated.path
+    offset = validated.offset
+    limit = validated.limit
+    encoding = validated.encoding
 
     try:
         path = Path(file_path)
@@ -21,7 +33,7 @@ async def _file_read_handler(params: dict) -> ToolResult:
             lines = [f"{e.name}{'/' if e.is_dir() else ''}" for e in entries]
             return ToolResult(success=True, output="\n".join(lines))
 
-        text = path.read_text(encoding="utf-8", errors="replace")
+        text = path.read_text(encoding=encoding, errors="replace")
         all_lines = text.splitlines()
         start = max(0, offset - 1)
         end = min(len(all_lines), start + limit)
@@ -46,11 +58,7 @@ def create_file_read_tool(registry: ToolRegistry) -> None:
     definition = ToolDefinition(
         name="file_read",
         description="Read a file or list a directory",
-        parameters=[
-            ToolParameter(name="path", type="string", description="Path to file or directory", required=True),
-            ToolParameter(name="offset", type="integer", description="Line number to start reading from (1-indexed)", required=False),
-            ToolParameter(name="limit", type="integer", description="Maximum number of lines to read", required=False),
-        ],
+        parameters_model=FileReadParams,
         category="builtin",
     )
     registry.register(definition, _file_read_handler)

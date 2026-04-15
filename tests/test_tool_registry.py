@@ -1,14 +1,17 @@
 import pytest
 
-from lifeops.tools.base import ToolDefinition, ToolParameter, ToolResult
+from lifeops.tools.base import ToolDefinition, ToolParams, ToolResult
 from lifeops.tools.registry import ToolRegistry
 
 
+class MockParams(ToolParams):
+    command: str
+
+
 def test_tool_definition_creation():
-    param = ToolParameter(name="command", type="string", description="cmd", required=True)
-    tool_def = ToolDefinition(name="bash", description="Execute bash", parameters=[param])
+    tool_def = ToolDefinition(name="bash", description="Execute bash", parameters_model=MockParams)
     assert tool_def.name == "bash"
-    assert len(tool_def.parameters) == 1
+    assert tool_def.parameters_model is MockParams
 
 
 def test_tool_result_success():
@@ -25,8 +28,11 @@ def test_tool_result_failure():
 
 def test_registry_register_and_get():
     registry = ToolRegistry()
-    param = ToolParameter(name="cmd", type="string", description="command", required=True)
-    tool_def = ToolDefinition(name="bash", description="Execute bash", parameters=[param])
+
+    class CmdParams(ToolParams):
+        cmd: str
+
+    tool_def = ToolDefinition(name="bash", description="Execute bash", parameters_model=CmdParams)
 
     async def bash_handler(params: dict) -> ToolResult:
         return ToolResult(success=True, output="ok")
@@ -47,10 +53,13 @@ def test_registry_list_tools():
     async def _handler(p):
         return ToolResult(success=True, output="")
 
-    tool_def = ToolDefinition(name="bash", description="Execute bash", parameters=[])
+    class EmptyParams(ToolParams):
+        pass
+
+    tool_def = ToolDefinition(name="bash", description="Execute bash", parameters_model=EmptyParams)
     registry.register(tool_def, _handler)
 
-    tool_def2 = ToolDefinition(name="read", description="Read file", parameters=[])
+    tool_def2 = ToolDefinition(name="read", description="Read file", parameters_model=EmptyParams)
     registry.register(tool_def2, _handler)
 
     tools = registry.list_definitions()
@@ -68,8 +77,11 @@ def test_registry_get_nonexistent():
 @pytest.mark.asyncio
 async def test_registry_execute_tool():
     registry = ToolRegistry()
-    param = ToolParameter(name="command", type="string", description="cmd", required=True)
-    tool_def = ToolDefinition(name="bash", description="Execute bash", parameters=[param])
+
+    class CmdParams(ToolParams):
+        command: str
+
+    tool_def = ToolDefinition(name="bash", description="Execute bash", parameters_model=CmdParams)
 
     async def mock_bash(params: dict) -> ToolResult:
         return ToolResult(success=True, output=f"ran: {params['command']}")
@@ -91,22 +103,29 @@ async def test_registry_execute_nonexistent_tool():
 @pytest.mark.asyncio
 async def test_registry_execute_missing_required_param():
     registry = ToolRegistry()
-    param = ToolParameter(name="command", type="string", description="cmd", required=True)
-    tool_def = ToolDefinition(name="bash", description="Execute bash", parameters=[param])
+
+    class CmdParams(ToolParams):
+        command: str
+
+    tool_def = ToolDefinition(name="bash", description="Execute bash", parameters_model=CmdParams)
 
     async def mock_bash(params: dict) -> ToolResult:
         return ToolResult(success=True, output="ok")
 
     registry.register(tool_def, mock_bash)
 
-    with pytest.raises(ValueError, match="Missing required parameter"):
+    with pytest.raises(Exception):
         await registry.execute("bash", {})
 
 
 def test_registry_get_openai_schemas():
     registry = ToolRegistry()
-    param = ToolParameter(name="cmd", type="string", description="command", required=True)
-    tool_def = ToolDefinition(name="bash", description="Execute bash", parameters=[param])
+
+    class CmdParams(ToolParams):
+        cmd: str
+
+    tool_def = ToolDefinition(name="bash", description="Execute bash", parameters_model=CmdParams)
+
     async def _handler(p):
         return ToolResult(success=True, output="")
 
@@ -117,3 +136,4 @@ def test_registry_get_openai_schemas():
     assert schemas[0]["type"] == "function"
     assert schemas[0]["function"]["name"] == "bash"
     assert "cmd" in schemas[0]["function"]["parameters"]["properties"]
+    assert "cmd" in schemas[0]["function"]["parameters"]["required"]

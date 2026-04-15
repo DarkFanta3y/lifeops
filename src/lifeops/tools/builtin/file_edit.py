@@ -1,30 +1,42 @@
-from pathlib import Path
+from __future__ import annotations
 
-from lifeops.tools.base import ToolDefinition, ToolParameter, ToolResult
+from pathlib import Path
+from typing import Any, Literal
+
+from lifeops.tools.base import ToolDefinition, ToolParams, ToolResult
 from lifeops.tools.registry import ToolRegistry
 from lifeops.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-async def _file_edit_handler(params: dict) -> ToolResult:
-    file_path = params["path"]
-    operation = params.get("operation", "replace")
+class FileEditParams(ToolParams):
+    path: str
+    operation: Literal["create", "replace", "append"]
+    content: str | None = None
+    old_text: str | None = None
+    new_text: str | None = None
+
+
+async def _file_edit_handler(params: dict[str, Any]) -> ToolResult:
+    validated = FileEditParams.model_validate(params)
+    file_path = validated.path
+    operation = validated.operation
 
     try:
         path = Path(file_path)
 
         if operation == "create":
             path.parent.mkdir(parents=True, exist_ok=True)
-            content = params.get("content", "")
+            content = validated.content or ""
             path.write_text(content, encoding="utf-8")
             return ToolResult(success=True, output=f"Created {file_path}")
 
         elif operation == "replace":
             if not path.exists():
                 return ToolResult(success=False, output="", error=f"File not found: {file_path}")
-            old_text = params.get("old_text", "")
-            new_text = params.get("new_text", "")
+            old_text = validated.old_text or ""
+            new_text = validated.new_text or ""
             content = path.read_text(encoding="utf-8")
             if old_text not in content:
                 return ToolResult(success=False, output="", error="Text not found in file")
@@ -33,7 +45,7 @@ async def _file_edit_handler(params: dict) -> ToolResult:
             return ToolResult(success=True, output=f"Replaced in {file_path}")
 
         elif operation == "append":
-            content = params.get("content", "")
+            content = validated.content or ""
             if path.exists():
                 existing = path.read_text(encoding="utf-8")
                 if not existing.endswith("\n"):
@@ -53,13 +65,7 @@ def create_file_edit_tool(registry: ToolRegistry) -> None:
     definition = ToolDefinition(
         name="file_edit",
         description="Create, replace text, or append to files",
-        parameters=[
-            ToolParameter(name="path", type="string", description="Path to the file", required=True),
-            ToolParameter(name="operation", type="string", description="Operation: create, replace, or append", required=True),
-            ToolParameter(name="content", type="string", description="Content to write (for create/append)", required=False),
-            ToolParameter(name="old_text", type="string", description="Text to find (for replace)", required=False),
-            ToolParameter(name="new_text", type="string", description="Replacement text (for replace)", required=False),
-        ],
+        parameters_model=FileEditParams,
         category="builtin",
     )
     registry.register(definition, _file_edit_handler)

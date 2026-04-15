@@ -1,16 +1,26 @@
-import asyncio
+from __future__ import annotations
 
-from lifeops.tools.base import ToolDefinition, ToolParameter, ToolResult
+import asyncio
+from typing import Any
+
+from lifeops.tools.base import ToolDefinition, ToolParams, ToolResult
 from lifeops.tools.registry import ToolRegistry
 from lifeops.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-async def _bash_handler(params: dict) -> ToolResult:
-    command = params["command"]
-    timeout = params.get("timeout", 30)
-    workdir = params.get("workdir")
+class BashParams(ToolParams):
+    command: str
+    timeout: int = 30
+    workdir: str | None = None
+
+
+async def _bash_handler(params: dict[str, Any]) -> ToolResult:
+    validated = BashParams.model_validate(params)
+    command = validated.command
+    timeout = validated.timeout
+    workdir = validated.workdir
 
     try:
         process = await asyncio.create_subprocess_shell(
@@ -41,11 +51,7 @@ def create_bash_tool(registry: ToolRegistry) -> None:
     definition = ToolDefinition(
         name="bash",
         description="Execute a bash command and return the output",
-        parameters=[
-            ToolParameter(name="command", type="string", description="The bash command to execute", required=True),
-            ToolParameter(name="timeout", type="integer", description="Timeout in seconds", required=False),
-            ToolParameter(name="workdir", type="string", description="Working directory", required=False),
-        ],
+        parameters_model=BashParams,
         category="builtin",
     )
     registry.register(definition, _bash_handler)

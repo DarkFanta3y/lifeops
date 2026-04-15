@@ -5,7 +5,7 @@ import pytest
 from lifeops.agent import Agent, DEFAULT_SYSTEM_PROMPT
 from lifeops.core.config import AppConfig, LLMConfig
 from lifeops.llm.types import ChatResponse, MessageRole, ToolCallResult
-from lifeops.tools.base import ToolDefinition, ToolParameter, ToolResult
+from lifeops.tools.base import ToolDefinition, ToolParams, ToolResult
 
 
 @pytest.fixture
@@ -40,10 +40,13 @@ def test_agent_add_tool(mock_config: AppConfig):
     agent = Agent(mock_config)
     initial_count = len(agent.tools.list_definitions())
 
+    class CustomParams(ToolParams):
+        input: str
+
     tool_def = ToolDefinition(
         name="custom_tool",
         description="A custom tool",
-        parameters=[ToolParameter(name="input", type="string", description="The input", required=True)],
+        parameters_model=CustomParams,
     )
 
     async def custom_handler(params: dict) -> ToolResult:
@@ -64,10 +67,12 @@ async def test_agent_simple_response(mock_config: AppConfig):
 
     with patch("lifeops.agent.LLMClient") as MockLLM:
         mock_llm_instance = AsyncMock()
-        mock_llm_instance.chat = AsyncMock(return_value=ChatResponse(
-            content="Hello! How can I help you?",
-            tool_calls=None,
-        ))
+        mock_llm_instance.chat = AsyncMock(
+            return_value=ChatResponse(
+                content="Hello! How can I help you?",
+                tool_calls=None,
+            )
+        )
         MockLLM.return_value = mock_llm_instance
 
         agent = Agent(mock_config)
@@ -91,7 +96,12 @@ async def test_agent_tool_call_loop(mock_config: AppConfig):
             return ChatResponse(
                 content=None,
                 tool_calls=[
-                    ToolCallResult(id="call_1", name="bash", arguments='{"command":"echo hello"}', type="function")
+                    ToolCallResult(
+                        id="call_1",
+                        name="bash",
+                        arguments='{"command":"echo hello"}',
+                        type="function",
+                    )
                 ],
             )
         else:
@@ -114,7 +124,9 @@ async def test_agent_unknown_tool(mock_config: AppConfig):
         return ChatResponse(
             content=None,
             tool_calls=[
-                ToolCallResult(id="call_1", name="nonexistent_tool", arguments='{}', type="function")
+                ToolCallResult(
+                    id="call_1", name="nonexistent_tool", arguments="{}", type="function"
+                )
             ],
         )
 

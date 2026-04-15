@@ -9,7 +9,7 @@
 [![pytest](https://img.shields.io/badge/tests-48%20passed-green.svg)](https://docs.pytest.org)
 [![Ruff](https://img.shields.io/badge/linter-ruff-FCC624.svg)](https://docs.astral.sh/ruff/)
 
-[English](#features) · [快速开始](#快速开始) · [架构](#架构) · [配置](#配置) · [开发](#开发)
+[快速开始](#快速开始) · [架构](#架构) · [配置](#配置) · [开发](#开发)
 
 </div>
 

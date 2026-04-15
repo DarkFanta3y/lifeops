@@ -2,6 +2,7 @@ import os
 import tempfile
 
 import pytest
+from pydantic import ValidationError
 
 from lifeops.tools.builtin import register_all_builtin_tools
 from lifeops.tools.registry import ToolRegistry
@@ -39,7 +40,7 @@ async def test_bash_tool_with_error(registry: ToolRegistry):
 
 @pytest.mark.asyncio
 async def test_bash_tool_missing_param(registry: ToolRegistry):
-    with pytest.raises(ValueError, match="Missing required parameter"):
+    with pytest.raises(ValidationError):
         await registry.execute("bash", {})
 
 
