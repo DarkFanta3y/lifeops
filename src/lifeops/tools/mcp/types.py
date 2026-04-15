@@ -55,6 +55,16 @@ def make_mcp_tool_name(server_name: str, tool_name: str) -> str:
     return f"mcp.{server_name}.{tool_name}"
 
 
+def make_mcp_resource_uri(server_name: str, path: str) -> str:
+    """生成 mcp://<server>/<path> 格式的资源 URI。"""
+    return f"mcp://{server_name}/{path}"
+
+
+def make_mcp_prompt_name(server_name: str, prompt_name: str) -> str:
+    """生成 mcp.<server>.<prompt> 格式的提示词全名。"""
+    return f"mcp.{server_name}.{prompt_name}"
+
+
 def is_conflicting_name(name: str, registry: ToolRegistry) -> bool:
     """检查给定名称是否已存在于工具注册中心（与本地工具冲突）。"""
     return registry.get_definition(name) is not None

@@ -117,6 +117,59 @@ class MCPClient:
 
         return self._tools
 
+    async def read_resource(self, uri: str) -> str:
+        """读取指定资源的内容，返回文本内容。
+
+        Args:
+            uri: 资源 URI（如 `mcp://github/repos/owner/repo`）。
+        """
+        self._ensure_connected()
+        assert self._session is not None
+
+        result: mcp_types.ReadResourceResult = await self._session.read_resource(
+            uri=mcp_types.AnyUrl(uri),
+        )
+
+        texts: list[str] = []
+        for content in result.contents:
+            if isinstance(content, mcp_types.TextResourceContents):
+                texts.append(content.text)
+            elif isinstance(content, mcp_types.BlobResourceContents):
+                texts.append(content.blob)
+            else:
+                texts.append(content.model_dump_json(exclude_none=True))
+
+        return "\n".join(texts)
+
+    async def get_prompt(self, name: str, arguments: dict[str, str] | None = None) -> str:
+        """获取指定提示词的内容，返回格式化的提示词文本。
+
+        Args:
+            name: MCP server 上的原始提示词名称。
+            arguments: 提示词参数字典。
+        """
+        self._ensure_connected()
+        assert self._session is not None
+
+        result: mcp_types.GetPromptResult = await self._session.get_prompt(
+            name=name,
+            arguments=arguments,
+        )
+
+        parts: list[str] = []
+        if result.description:
+            parts.append(f"# {result.description}")
+
+        for msg in result.messages:
+            role = msg.role
+            content = msg.content
+            if isinstance(content, mcp_types.TextContent):
+                parts.append(f"[{role}]: {content.text}")
+            else:
+                parts.append(f"[{role}]: {content.model_dump_json(exclude_none=True)}")
+
+        return "\n\n".join(parts)
+
     async def list_resources(self) -> list[MCPResourceInfo]:
         self._ensure_connected()
         assert self._session is not None

@@ -10,6 +10,8 @@ from lifeops.tools.mcp.types import (
     MCPResourceInfo,
     is_conflicting_name,
     make_mcp_tool_name,
+    make_mcp_resource_uri,
+    make_mcp_prompt_name,
 )
 
 __all__ = [
@@ -22,5 +24,7 @@ __all__ = [
     "MCPResourceInfo",
     "MCPPromptInfo",
     "make_mcp_tool_name",
+    "make_mcp_resource_uri",
+    "make_mcp_prompt_name",
     "is_conflicting_name",
 ]
