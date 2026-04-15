@@ -15,10 +15,10 @@ logger = get_logger(__name__)
 
 
 class WebSearchParams(ToolParams):
-    query: str
-    num_results: int = Field(default=10, ge=1, le=100)
-    location: str | None = None
-    language: str = Field(default="zh-cn")
+    query: str = Field(description="搜索查询关键词")
+    num_results: int = Field(default=10, ge=1, le=100, description="返回结果数量")
+    location: str | None = Field(default=None, description="搜索地理位置，如'Shanghai,China'")
+    language: str = Field(default="zh-cn", description="搜索语言，默认中文")
 
 
 def create_web_search_tool(registry: ToolRegistry, config: AppConfig | None = None) -> None:

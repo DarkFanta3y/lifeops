@@ -35,7 +35,11 @@ async def _file_edit_handler(params: dict[str, Any]) -> ToolResult:
         elif operation == "replace":
             if not path.exists():
                 return ToolResult(success=False, output="", error=f"File not found: {file_path}")
-            old_text = validated.old_text or ""
+            if validated.old_text is None or validated.old_text == "":
+                return ToolResult(
+                    success=False, output="", error="old_text is required for replace operation"
+                )
+            old_text = validated.old_text
             new_text = validated.new_text or ""
             content = path.read_text(encoding="utf-8")
             if old_text not in content:

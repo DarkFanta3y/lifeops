@@ -1,4 +1,5 @@
 import pytest
+from pydantic import ValidationError
 
 from lifeops.tools.base import ToolDefinition, ToolParams, ToolResult
 from lifeops.tools.registry import ToolRegistry
@@ -114,7 +115,7 @@ async def test_registry_execute_missing_required_param():
 
     registry.register(tool_def, mock_bash)
 
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         await registry.execute("bash", {})
 
 

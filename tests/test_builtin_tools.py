@@ -264,3 +264,13 @@ async def test_web_search_http_error():
     result = await r.execute("web_search", {"query": "test"})
     assert result.success is False
     assert "搜索失败" in result.error
+
+
+@pytest.mark.asyncio
+async def test_web_search_serpapi_error_catchall():
+    import serpapi
+
+    r = _make_registry_with_mocked_client(side_effect=serpapi.SerpApiError("unexpected error"))
+    result = await r.execute("web_search", {"query": "test"})
+    assert result.success is False
+    assert "搜索错误" in result.error
