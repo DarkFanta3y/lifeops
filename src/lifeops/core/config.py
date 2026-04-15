@@ -71,10 +71,24 @@ class SerpApiConfig(BaseSettings):
     }
 
 
+class MCPConfig(BaseSettings):
+    enabled: bool = True
+    default_transport: str = "stdio"
+    servers_raw: str = ""
+
+    model_config = {
+        "env_prefix": "LIFEOPS_MCP_",
+        "env_file": _ENV_FILE,
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+    }
+
+
 class AppConfig(BaseSettings):
     llm: LLMConfig = Field(default_factory=LLMConfig)
     context: ContextConfig = Field(default_factory=ContextConfig)
     serpapi: SerpApiConfig = Field(default_factory=SerpApiConfig)
+    mcp: MCPConfig = Field(default_factory=MCPConfig)
     debug: bool = False
     log_level: str = "INFO"
 

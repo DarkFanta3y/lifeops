@@ -8,7 +8,7 @@ LifeOps 是一个 AI 驱动的生活助手智能体，基于 ReAct (Reasoning + 
 
 - **语言**: Python 3.12+
 - **包管理**: uv
-- **LLM**: OpenAI 兼容接口 (支持 GPT-4o / Claude / 本地模型)
+- **LLM**: 智谱 BigModel OpenAI 兼容接口 (默认 glm-4-flash, 支持 GPT-4o / Claude / 本地模型)
 - **向量数据库**: ChromaDB (Phase 3)
 - **测试**: pytest + pytest-asyncio
 - **Lint**: ruff
@@ -47,18 +47,22 @@ LifeOps 是一个 AI 驱动的生活助手智能体，基于 ReAct (Reasoning + 
 - ChromaDB 索引管理
 - 语义检索 + 重排
 
-### Phase 5: MCP 集成 (待开发)
+### Phase 5: MCP 集成 🔧
 
-- Stdio/HTTP/SSE 传输
-- MCP 服务器发现与工具注册
-- 健康检查与降级
+| Task | 状态 | 说明 |
+|------|------|------|
+| MCP Client Core | ✅ | stdio 传输、生命周期管理、工具发现与调用 |
+| GitHub MCP Server 接入 | ✅ | Docker stdio 模式，需 GITHUB_PERSONAL_ACCESS_TOKEN |
+| 多 Server 注册机制 | ✅ | 支持 CLI/ENV/JSON 三种配置方式动态注册 MCP Server |
+| 配置方式 | ✅ | CLI 参数（`--mcp-enabled`/`--mcp-disabled`/`--mcp-servers`）、环境变量（`LIFEOPS_MCP_ENABLED`/`LIFEOPS_MCP_SERVERS`）、JSON 配置文件 |
+| 资源与提示暴露 | ✅ | MCP 资源/提示通过 Manager API 暴露，不混入 ToolRegistry |
+| 健康检查与降级 | 待开发 | Server 连接状态检测、自动降级 |
 
 ## 文件结构
 
 ```
 lifeops/
 ├── pyproject.toml
-├── configs/default.yaml
 ├── src/lifeops/
 │   ├── __init__.py
 │   ├── agent.py                   # Agent 主类 + CLI 入口
@@ -68,7 +72,7 @@ lifeops/
 │   │   └── types.py               # Message, ChatResponse, ToolCallResult
 │   ├── core/
 │   │   ├── __init__.py
-│   │   ├── config.py              # 配置管理 (YAML + env)
+│   │   ├── config.py              # 配置管理 (env + 默认值)
 │   │   └── context_manager.py     # 上下文窗口管理 (L1/L2/L3)
 │   ├── tools/
 │   │   ├── __init__.py
@@ -121,12 +125,13 @@ uv run ruff check src/ tests/
 
 ## 配置
 
-配置优先级: 环境变量 > .env 文件 > configs/default.yaml
+配置优先级: 环境变量 > .env 文件 > 默认值
 
 | 环境变量 | 说明 | 默认值 |
 |---------|------|--------|
 | LLM_API_KEY | LLM API密钥 | - |
-| LLM_MODEL | 模型名称 | gpt-4o |
-| LLM_API_BASE | API地址 | https://api.openai.com/v1 |
+| LLM_MODEL | 模型名称 | glm-4-flash |
+| LLM_API_BASE | API地址 | https://open.bigmodel.cn/api/paas/v4 |
+| LLM_TIMEOUT | 请求超时(秒) | 60 |
 | LIFEOPS_DEBUG | 调试模式 | false |
 | LIFEOPS_LOG_LEVEL | 日志级别 | INFO |

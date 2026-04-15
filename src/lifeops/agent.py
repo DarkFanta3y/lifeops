@@ -173,6 +173,7 @@ class Agent:
 
 
 def main() -> None:
+    import argparse
     import asyncio
 
     from rich.console import Console
@@ -183,7 +184,40 @@ def main() -> None:
 
     clear_proxy_env()
 
+    parser = argparse.ArgumentParser(description="LifeOps Agent")
+    mcp_group = parser.add_mutually_exclusive_group()
+    mcp_group.add_argument("--mcp-enabled", action="store_true", default=None, help="启用 MCP 功能")
+    mcp_group.add_argument(
+        "--mcp-disabled", action="store_true", default=None, help="禁用 MCP 功能"
+    )
+    parser.add_argument(
+        "--mcp-servers",
+        type=str,
+        default=None,
+        help="MCP 服务器配置（JSON 字符串）",
+    )
+    args = parser.parse_args()
+
     config = AppConfig()
+
+    # CLI 参数覆盖配置，优先级：CLI > ENV > 默认值
+    if args.mcp_enabled:
+        config.mcp.enabled = True
+    elif args.mcp_disabled:
+        config.mcp.enabled = False
+
+    if args.mcp_servers is not None:
+        try:
+            json.loads(args.mcp_servers)
+        except json.JSONDecodeError as e:
+            console = Console()
+            console.print(f"[red]错误：--mcp-servers 参数 JSON 解析失败：{e}[/red]")
+            console.print(
+                '[dim]  示例格式：\'{"github": {"transport": "stdio", "command": "docker"}}\'[/dim]'
+            )
+            return
+        config.mcp.servers_raw = args.mcp_servers
+
     setup_logger(level=config.log_level)
 
     console = Console()

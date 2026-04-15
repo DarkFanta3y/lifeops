@@ -87,15 +87,15 @@ Thinking...
 
 ## 配置
 
-优先级: 环境变量 > `.env` 文件 > `configs/default.yaml`
+优先级: 环境变量 > `.env` 文件 > 默认值
 
 ### 环境变量
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
 | `LLM_API_KEY` | LLM API 密钥（**必填**） | — |
-| `LLM_MODEL` | 模型名称 | `gpt-4o` |
-| `LLM_API_BASE` | API 地址 | `https://api.openai.com/v1` |
+| `LLM_MODEL` | 模型名称 | `glm-4-flash` |
+| `LLM_API_BASE` | API 地址 | `https://open.bigmodel.cn/api/paas/v4` |
 | `LIFEOPS_DEBUG` | 调试模式 | `false` |
 | `LIFEOPS_LOG_LEVEL` | 日志级别 | `INFO` |
 
@@ -107,6 +107,16 @@ Thinking...
 | `LIFEOPS_CONTEXT_L1_BUDGET_RATIO` | L1 预算占比 | `0.10` |
 | `LIFEOPS_CONTEXT_L2_BUDGET_RATIO` | L2 预算占比 | `0.60` |
 | `LIFEOPS_CONTEXT_L3_BUDGET_RATIO` | L3 预算占比 | `0.20` |
+
+### MCP 配置
+
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `LIFEOPS_MCP_ENABLED` | 启用 MCP 工具 | `true` |
+| `LIFEOPS_MCP_SERVERS` | MCP Server JSON 配置路径 | — |
+| `GITHUB_PERSONAL_ACCESS_TOKEN` | GitHub MCP Server 所需 | — |
+
+CLI 参数: `--mcp-enabled` / `--mcp-disabled` / `--mcp-servers <path>`
 
 ## 项目结构
 
@@ -163,7 +173,7 @@ uv run ruff check src/ tests/
 - [ ] **Phase 2** — Skill 系统（发现、匹配、加载）
 - [ ] **Phase 3** — Memory 系统（STM / LTM / Working Memory）
 - [ ] **Phase 4** — RAG 系统（文档向量化、语义检索）
-- [ ] **Phase 5** — MCP 集成（Stdio / HTTP / SSE）
+- [ ] **Phase 5** — MCP 集成 🔧（Client Core、GitHub Server、多 Server 注册已完成）
 
 ## Star History
 
