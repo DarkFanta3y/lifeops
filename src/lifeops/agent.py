@@ -59,7 +59,7 @@ class Agent:
         )
 
     def _register_default_tools(self) -> None:
-        register_all_builtin_tools(self.tools)
+        register_all_builtin_tools(self.tools, self.config)
 
     def add_tool(self, definition: ToolDefinition, handler: Any) -> None:
         self.tools.register(definition, handler)
