@@ -1,11 +1,17 @@
 from __future__ import annotations
 
-from contextlib import AsyncExitStack
+import asyncio
+import os
+import sys
 from typing import Any
 
+import anyio
+import anyio.lowlevel
 import mcp.types as mcp_types
+from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
+from anyio.streams.text import TextReceiveStream
 from mcp.client.session import ClientSession
-from mcp.client.stdio import StdioServerParameters, stdio_client
+from mcp.shared.message import SessionMessage
 
 from lifeops.tools.base import ToolResult
 from lifeops.tools.mcp.manager import MCPManager, MCPServerStatus
@@ -30,12 +36,21 @@ class MCPClient:
             result = await client.call_tool("search_repositories", {"q": "lifeops"})
     """
 
+    # 进程终止前的等待超时（秒）
+    _TERMINATION_TIMEOUT = 2.0
+
     def __init__(self, server_name: str, config: MCPServerConfig, manager: MCPManager) -> None:
         self._server_name = server_name
         self._config = config
         self._manager = manager
         self._session: ClientSession | None = None
-        self._exit_stack: AsyncExitStack | None = None
+        self._process: anyio.abc.Process | None = None
+        self._read_stream: MemoryObjectReceiveStream[SessionMessage | Exception] | None = None
+        self._write_stream: MemoryObjectSendStream[SessionMessage] | None = None
+        self._read_stream_writer: MemoryObjectSendStream[SessionMessage | Exception] | None = None
+        self._write_stream_reader: MemoryObjectReceiveStream[SessionMessage] | None = None
+        self._reader_task: asyncio.Task[None] | None = None
+        self._writer_task: asyncio.Task[None] | None = None
         self._tools: list[MCPToolInfo] = []
         self._resources: list[MCPResourceInfo] = []
         self._prompts: list[MCPPromptInfo] = []
@@ -46,21 +61,12 @@ class MCPClient:
         logger.info(f"正在连接 MCP server: {self._server_name}")
 
         try:
-            server_params = StdioServerParameters(
-                command=self._config.command,
-                args=self._config.args,
-                env=self._config.env or None,
-            )
+            self._setup_memory_streams()
+            await self._start_process()
+            self._start_io_tasks()
 
-            exit_stack = AsyncExitStack()
-            self._exit_stack = exit_stack
-
-            read_stream, write_stream = await exit_stack.enter_async_context(
-                stdio_client(server_params)
-            )
-
-            session = ClientSession(read_stream, write_stream)
-            self._session = await exit_stack.enter_async_context(session)
+            session = ClientSession(self._read_stream, self._write_stream)  # type: ignore[arg-type]
+            self._session = await session.__aenter__()
 
             await self._session.initialize()
 
@@ -73,24 +79,151 @@ class MCPClient:
             await self._cleanup()
             raise
 
+    def _setup_memory_streams(self) -> None:
+        """创建 anyio 内存流用于进程 I/O 与 ClientSession 之间的消息传递。"""
+        self._read_stream_writer, self._read_stream = anyio.create_memory_object_stream(0)
+        self._write_stream, self._write_stream_reader = anyio.create_memory_object_stream(0)
+
+    async def _start_process(self) -> None:
+        """启动子进程，使用配置中的 command/args/env。"""
+        env = self._build_env()
+        self._process = await anyio.open_process(
+            [self._config.command, *self._config.args],
+            env=env,
+            stderr=sys.stderr,
+            start_new_session=True,
+        )
+
+    def _build_env(self) -> dict[str, str]:
+        """合并默认环境变量与用户配置的 env。"""
+        base = _get_default_environment()
+        if self._config.env:
+            base.update(self._config.env)
+        return base
+
+    def _start_io_tasks(self) -> None:
+        """启动 stdout 读取和 stdin 写入的后台任务。"""
+        loop = asyncio.get_running_loop()
+        self._reader_task = loop.create_task(self._stdout_reader())
+        self._writer_task = loop.create_task(self._stdin_writer())
+
+    async def _stdout_reader(self) -> None:
+        """从子进程 stdout 读取 JSONRPC 行，解析后写入内存流供 ClientSession 消费。"""
+        assert self._process is not None
+        assert self._process.stdout is not None
+        assert self._read_stream_writer is not None
+
+        try:
+            async with self._read_stream_writer:
+                buffer = ""
+                async for chunk in TextReceiveStream(self._process.stdout):
+                    lines = (buffer + chunk).split("\n")
+                    buffer = lines.pop()
+
+                    for line in lines:
+                        try:
+                            message = mcp_types.JSONRPCMessage.model_validate_json(line)
+                        except Exception:
+                            logger.exception("解析 JSONRPC 消息失败")
+                            await self._read_stream_writer.send(
+                                ValueError(f"无法解析 JSONRPC 消息: {line[:120]}")
+                            )
+                            continue
+
+                        session_message = SessionMessage(message)
+                        await self._read_stream_writer.send(session_message)
+        except anyio.ClosedResourceError:
+            await anyio.lowlevel.checkpoint()
+
+    async def _stdin_writer(self) -> None:
+        """从内存流读取 SessionMessage，序列化后写入子进程 stdin。"""
+        assert self._process is not None
+        assert self._process.stdin is not None
+        assert self._write_stream_reader is not None
+
+        try:
+            async with self._write_stream_reader:
+                async for session_message in self._write_stream_reader:
+                    json_str = session_message.message.model_dump_json(
+                        by_alias=True, exclude_none=True
+                    )
+                    await self._process.stdin.send((json_str + "\n").encode())
+        except anyio.ClosedResourceError:
+            await anyio.lowlevel.checkpoint()
+
     async def close(self) -> None:
         """关闭连接，清理子进程和会话资源。"""
         await self._cleanup()
 
     async def _cleanup(self) -> None:
-        self._session = None
+        """清理所有资源：关闭会话、终止进程、取消任务、关闭流。"""
+        if self._session is not None:
+            try:
+                await self._session.__aexit__(None, None, None)
+            except Exception:
+                logger.debug(f"关闭 MCP session '{self._server_name}' 时出错（可忽略）")
+            self._session = None
+
         self._tools.clear()
         self._resources.clear()
         self._prompts.clear()
 
-        if self._exit_stack is not None:
-            try:
-                await self._exit_stack.aclose()
-            except Exception:
-                logger.exception(f"关闭 MCP server '{self._server_name}' 时出错")
-            self._exit_stack = None
+        await self._terminate_process()
+        await self._cancel_io_tasks()
+        await self._close_streams()
 
         self._manager._status[self._server_name] = MCPServerStatus.DISCONNECTED
+
+    async def _terminate_process(self) -> None:
+        """关闭子进程 stdin，等待退出，超时后强制终止。"""
+        if self._process is None:
+            return
+
+        if self._process.stdin is not None:
+            try:
+                await self._process.stdin.aclose()
+            except Exception:
+                pass
+
+        try:
+            with anyio.fail_after(self._TERMINATION_TIMEOUT):
+                await self._process.wait()
+        except TimeoutError:
+            self._process.kill()
+            await self._process.wait()
+        except ProcessLookupError:
+            pass
+
+    async def _cancel_io_tasks(self) -> None:
+        """取消并等待 I/O 后台任务完成。"""
+        for task in (self._reader_task, self._writer_task):
+            if task is not None and not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+        self._reader_task = None
+        self._writer_task = None
+
+    async def _close_streams(self) -> None:
+        """关闭所有内存流。"""
+        for stream in (
+            self._read_stream,
+            self._write_stream,
+            self._read_stream_writer,
+            self._write_stream_reader,
+        ):
+            if stream is not None:
+                try:
+                    await stream.aclose()
+                except Exception:
+                    pass
+        self._read_stream = None
+        self._write_stream = None
+        self._read_stream_writer = None
+        self._write_stream_reader = None
+        self._process = None
 
     async def __aenter__(self) -> MCPClient:
         await self.connect()
@@ -263,3 +396,16 @@ def _extract_text_from_content(content: list[mcp_types.ContentBlock]) -> str:
             parts.append(block.model_dump_json(exclude_none=True))
 
     return "\n".join(parts)
+
+
+_DEFAULT_ENV_VARS = ["HOME", "LOGNAME", "PATH", "SHELL", "TERM", "USER"]
+
+
+def _get_default_environment() -> dict[str, str]:
+    """返回默认的安全环境变量（仅 Linux/macOS）。"""
+    env: dict[str, str] = {}
+    for key in _DEFAULT_ENV_VARS:
+        value = os.environ.get(key)
+        if value is not None and not value.startswith("()"):
+            env[key] = value
+    return env

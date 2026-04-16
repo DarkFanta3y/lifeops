@@ -33,15 +33,11 @@ async def test_connect_failure_sets_status_failed():
     manager = _make_manager()
     client = MCPClient("test-server", _make_config(), manager)
 
-    with patch("lifeops.tools.mcp.client.stdio_client", side_effect=ConnectionError("拒绝连接")):
-        with patch("lifeops.tools.mcp.client.AsyncExitStack") as mock_stack_cls:
-            mock_stack = AsyncMock()
-            mock_stack.enter_async_context = AsyncMock(side_effect=ConnectionError("拒绝连接"))
-            mock_stack.aclose = AsyncMock()
-            mock_stack_cls.return_value = mock_stack
-
-            with pytest.raises(ConnectionError, match="拒绝连接"):
-                await client.connect()
+    with patch(
+        "lifeops.tools.mcp.client.anyio.open_process", side_effect=ConnectionError("拒绝连接")
+    ):
+        with pytest.raises(ConnectionError, match="拒绝连接"):
+            await client.connect()
 
     assert manager.get_status("test-server") == MCPServerStatus.DISCONNECTED
 
@@ -50,12 +46,9 @@ async def test_connect_failure_does_not_create_session():
     manager = _make_manager()
     client = MCPClient("test-server", _make_config(), manager)
 
-    with patch("lifeops.tools.mcp.client.AsyncExitStack") as mock_stack_cls:
-        mock_stack = AsyncMock()
-        mock_stack.enter_async_context = AsyncMock(side_effect=OSError("子进程启动失败"))
-        mock_stack.aclose = AsyncMock()
-        mock_stack_cls.return_value = mock_stack
-
+    with patch(
+        "lifeops.tools.mcp.client.anyio.open_process", side_effect=OSError("子进程启动失败")
+    ):
         with pytest.raises(OSError, match="子进程启动失败"):
             await client.connect()
 
@@ -180,14 +173,11 @@ async def test_close_clears_session_and_tools():
     client = MCPClient("test-server", _make_config(), manager)
 
     mock_session = AsyncMock()
+    mock_session.__aexit__ = AsyncMock(return_value=None)
     client._session = mock_session
     client._tools = [MagicMock()]
     client._resources = [MagicMock()]
     client._prompts = [MagicMock()]
-
-    mock_stack = AsyncMock()
-    mock_stack.aclose = AsyncMock()
-    client._exit_stack = mock_stack
 
     await client.close()
 
@@ -195,33 +185,65 @@ async def test_close_clears_session_and_tools():
     assert len(client._tools) == 0
     assert len(client._resources) == 0
     assert len(client._prompts) == 0
-    assert client._exit_stack is None
+    assert client._process is None
+    assert client._reader_task is None
+    assert client._writer_task is None
     assert manager.get_status("test-server") == MCPServerStatus.DISCONNECTED
 
 
-async def test_close_without_exit_stack():
+async def test_close_without_process_or_tasks():
     manager = _make_manager()
     client = MCPClient("test-server", _make_config(), manager)
     client._session = None
-    client._exit_stack = None
+    client._process = None
+    client._reader_task = None
+    client._writer_task = None
 
     await client.close()
 
     assert client._session is None
-    assert client._exit_stack is None
+    assert client._process is None
 
 
-async def test_cleanup_handles_exit_stack_error():
+async def test_cleanup_handles_process_kill_on_timeout():
     manager = _make_manager()
     client = MCPClient("test-server", _make_config(), manager)
 
-    mock_stack = AsyncMock()
-    mock_stack.aclose = AsyncMock(side_effect=RuntimeError("清理失败"))
-    client._exit_stack = mock_stack
+    mock_session = AsyncMock()
+    mock_session.__aexit__ = AsyncMock(return_value=None)
+    client._session = mock_session
+
+    mock_process = AsyncMock()
+    mock_process.stdin = AsyncMock()
+    mock_process.stdin.aclose = AsyncMock()
+    mock_process.wait = AsyncMock(side_effect=[TimeoutError, None])
+    mock_process.kill = MagicMock()
+    client._process = mock_process
 
     await client.close()
 
-    assert client._exit_stack is None
+    mock_process.kill.assert_called_once()
+    assert client._process is None
+    assert manager.get_status("test-server") == MCPServerStatus.DISCONNECTED
+
+
+async def test_cleanup_handles_process_already_exited():
+    manager = _make_manager()
+    client = MCPClient("test-server", _make_config(), manager)
+
+    mock_session = AsyncMock()
+    mock_session.__aexit__ = AsyncMock(return_value=None)
+    client._session = mock_session
+
+    mock_process = AsyncMock()
+    mock_process.stdin = AsyncMock()
+    mock_process.stdin.aclose = AsyncMock()
+    mock_process.wait = AsyncMock(side_effect=ProcessLookupError)
+    client._process = mock_process
+
+    await client.close()
+
+    assert client._process is None
     assert manager.get_status("test-server") == MCPServerStatus.DISCONNECTED
 
 
@@ -263,23 +285,19 @@ async def test_context_manager_connects_and_closes():
 
     mock_session = AsyncMock()
     mock_session.initialize = AsyncMock()
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=None)
     mock_session.list_tools = AsyncMock(return_value=MagicMock(tools=[]))
 
-    with patch("lifeops.tools.mcp.client.stdio_client") as mock_stdio:
-        mock_read = AsyncMock()
-        mock_write = AsyncMock()
-        mock_stdio.return_value = (mock_read, mock_write)
+    with patch("lifeops.tools.mcp.client.anyio.open_process") as mock_open_proc:
+        mock_process = AsyncMock()
+        mock_process.stdin = AsyncMock()
+        mock_process.stdout = AsyncMock()
+        mock_process.wait = AsyncMock()
+        mock_open_proc.return_value = mock_process
 
         with patch("lifeops.tools.mcp.client.ClientSession", return_value=mock_session):
-            with patch("lifeops.tools.mcp.client.AsyncExitStack") as mock_stack_cls:
-                mock_stack = AsyncMock()
-                mock_stack.enter_async_context = AsyncMock(
-                    side_effect=[(mock_read, mock_write), mock_session]
-                )
-                mock_stack.aclose = AsyncMock()
-                mock_stack_cls.return_value = mock_stack
-
-                async with client:
-                    pass
+            async with client:
+                pass
 
     assert manager.get_status("test-server") == MCPServerStatus.DISCONNECTED

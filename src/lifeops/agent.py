@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any
 
@@ -275,6 +276,15 @@ def main() -> None:
     console.print("[dim]Type 'reset' to clear conversation history.[/dim]")
     console.print("[dim]Type 'context' to view context usage.[/dim]\n")
 
+    asyncio.run(_run_repl(agent))
+
+
+async def _run_repl(agent: Agent) -> None:
+    from rich.console import Console
+    from rich.panel import Panel
+
+    console = Console()
+
     while True:
         try:
             user_input = console.input("[bold blue]You:[/bold blue] ").strip()
@@ -312,7 +322,7 @@ def main() -> None:
         console.print("[dim]Thinking...[/dim]")
 
         try:
-            response = asyncio.run(agent.run(user_input))
+            response = await agent.run(user_input)
             console.print(Panel(response, title="[bold green]Agent[/bold green]", style="green"))
         except Exception as e:
             console.print(Panel(f"Error: {e}", title="[bold red]Error[/bold red]", style="red"))
