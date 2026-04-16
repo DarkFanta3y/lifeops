@@ -25,7 +25,7 @@ def test_defaults():
     config = MCPConfig()
     assert config.enabled is True
     assert config.default_transport == "stdio"
-    assert config.servers_raw == ""
+    assert config.servers == ""
 
 
 def test_env_prefix_enabled():
@@ -40,10 +40,10 @@ def test_env_prefix_default_transport():
     assert config.default_transport == "streamable_http"
 
 
-def test_env_prefix_servers_raw():
-    os.environ["LIFEOPS_MCP_SERVERS_RAW"] = '{"github": {"command": "docker"}}'
+def test_env_prefix_servers():
+    os.environ["LIFEOPS_MCP_SERVERS"] = '{"github": {"command": "docker"}}'
     config = MCPConfig()
-    assert config.servers_raw == '{"github": {"command": "docker"}}'
+    assert config.servers == '{"github": {"command": "docker"}}'
 
 
 def test_env_enabled_true():
@@ -61,29 +61,29 @@ def test_env_enabled_case_insensitive():
 def test_multiple_env_vars():
     os.environ["LIFEOPS_MCP_ENABLED"] = "false"
     os.environ["LIFEOPS_MCP_DEFAULT_TRANSPORT"] = "streamable_http"
-    os.environ["LIFEOPS_MCP_SERVERS_RAW"] = '{"test": {}}'
+    os.environ["LIFEOPS_MCP_SERVERS"] = '{"test": {}}'
     config = MCPConfig()
     assert config.enabled is False
     assert config.default_transport == "streamable_http"
-    assert config.servers_raw == '{"test": {}}'
+    assert config.servers == '{"test": {}}'
 
 
 def test_explicit_init_overrides_env():
     os.environ["LIFEOPS_MCP_ENABLED"] = "false"
     os.environ["LIFEOPS_MCP_DEFAULT_TRANSPORT"] = "streamable_http"
-    config = MCPConfig(enabled=True, default_transport="stdio", servers_raw="")
+    config = MCPConfig(enabled=True, default_transport="stdio", servers="")
     assert config.enabled is True
     assert config.default_transport == "stdio"
-    assert config.servers_raw == ""
+    assert config.servers == ""
 
 
-def test_servers_raw_empty_by_default():
+def test_servers_empty_by_default():
     config = MCPConfig()
-    assert config.servers_raw == ""
+    assert config.servers == ""
 
 
-def test_servers_raw_with_complex_json():
+def test_servers_with_complex_json():
     raw = '{"github": {"transport": "stdio", "command": "docker", "args": ["run"]}}'
-    os.environ["LIFEOPS_MCP_SERVERS_RAW"] = raw
+    os.environ["LIFEOPS_MCP_SERVERS"] = raw
     config = MCPConfig()
-    assert config.servers_raw == raw
+    assert config.servers == raw

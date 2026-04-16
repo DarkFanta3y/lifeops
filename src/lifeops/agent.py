@@ -55,8 +55,8 @@ class Agent:
         self._register_default_tools()
 
         # MCP 静态配置加载
-        if config.mcp.enabled and config.mcp.servers_raw.strip():
-            self.mcp_manager.load_from_config(config.mcp.servers_raw)
+        if config.mcp.enabled and config.mcp.servers.strip():
+            self.mcp_manager.load_from_config(config.mcp.servers)
 
         self.context.add_content(
             "system_prompt",
@@ -67,6 +67,24 @@ class Agent:
 
     def _register_default_tools(self) -> None:
         register_all_builtin_tools(self.tools, self.config)
+
+    async def _connect_mcp_servers(self) -> None:
+        from lifeops.tools.mcp.adapter import MCPRegistryAdapter
+
+        for server_name in self.mcp_manager.list_servers():
+            try:
+                await self.mcp_manager.connect_server(server_name)
+                client = self.mcp_manager.get_client(server_name)
+                if client is None:
+                    continue
+
+                tools = await client.list_tools()
+                if tools:
+                    adapter = MCPRegistryAdapter(self.tools, client)
+                    registered = adapter.register_tools(tools)
+                    logger.info(f"MCP server '{server_name}': 注册了 {len(registered)} 个工具")
+            except Exception:
+                logger.exception(f"MCP server '{server_name}' 连接失败")
 
     def add_tool(self, definition: ToolDefinition, handler: Any) -> None:
         self.tools.register(definition, handler)
@@ -231,7 +249,7 @@ def main() -> None:
                 '[dim]  示例格式：\'{"github": {"transport": "stdio", "command": "docker"}}\'[/dim]'
             )
             return
-        config.mcp.servers_raw = args.mcp_servers
+        config.mcp.servers = args.mcp_servers
 
     setup_logger(level=config.log_level)
 
@@ -247,6 +265,10 @@ def main() -> None:
         return
 
     agent = Agent(config)
+
+    if config.mcp.enabled and config.mcp.servers.strip():
+        asyncio.run(agent.mcp_manager.connect_and_register_all(agent.tools))
+        console.print(f"[dim]MCP: 已连接 {len(agent.mcp_manager.list_servers())} 个服务器[/dim]\n")
 
     console.print(Panel("LifeOps Agent v0.1.0", style="bold green"))
     console.print("[dim]Type 'exit' or 'quit' to end the session.[/dim]")

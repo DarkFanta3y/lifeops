@@ -68,11 +68,11 @@ def _make_tool_info(
     )
 
 
-def _make_app_config(servers_raw: str = "") -> AppConfig:
+def _make_app_config(servers: str = "") -> AppConfig:
     """创建测试用的 AppConfig，禁用真实 LLM 调用。"""
     return AppConfig(
         llm=LLMConfig(api_key="test-key"),
-        mcp=MCPConfig(enabled=True, servers_raw=servers_raw),
+        mcp=MCPConfig(enabled=True, servers=servers),
     )
 
 
@@ -196,7 +196,7 @@ class TestAgentIntegration:
         config = _make_app_config()
         # 避免在 Agent __init__ 时加载真正的 MCP 配置
         config.mcp.enabled = True
-        config.mcp.servers_raw = ""
+        config.mcp.servers = ""
         agent = Agent(config)
 
         mcp_config = MCPServerConfig(
@@ -214,7 +214,7 @@ class TestAgentIntegration:
     def test_agent_remove_mcp_server(self):
         """Agent 可以动态移除 MCP server 配置。"""
         config = _make_app_config()
-        config.mcp.servers_raw = ""
+        config.mcp.servers = ""
         agent = Agent(config)
 
         mcp_config = MCPServerConfig(
@@ -227,9 +227,9 @@ class TestAgentIntegration:
         assert "github" not in agent.mcp_manager.list_servers()
 
     def test_agent_mcp_config_from_app_config(self):
-        """Agent 从 AppConfig 的 servers_raw 自动加载 MCP 配置。"""
+        """Agent 从 AppConfig 的 servers 自动加载 MCP 配置。"""
         raw = json.dumps({"github": _make_config()})
-        config = _make_app_config(servers_raw=raw)
+        config = _make_app_config(servers=raw)
         agent = Agent(config)
 
         assert "github" in agent.mcp_manager.list_servers()
@@ -238,7 +238,7 @@ class TestAgentIntegration:
     def test_agent_add_multiple_servers(self):
         """Agent 可以添加多个 MCP server。"""
         config = _make_app_config()
-        config.mcp.servers_raw = ""
+        config.mcp.servers = ""
         agent = Agent(config)
 
         github_config = MCPServerConfig(
@@ -261,16 +261,16 @@ class TestAgentIntegration:
     def test_agent_mcp_disabled_skips_loading(self):
         """MCP 禁用时不应加载 server 配置。"""
         raw = json.dumps({"github": _make_config()})
-        config = _make_app_config(servers_raw=raw)
-        config.mcp.enabled = True  # enabled but will check servers_raw
+        config = _make_app_config(servers=raw)
+        config.mcp.enabled = True  # enabled but will check servers
 
         agent = Agent(config)
-        # enabled=True + servers_raw 非空 → 会加载
+        # enabled=True + servers 非空 → 会加载
         assert "github" in agent.mcp_manager.list_servers()
 
-    def test_agent_empty_servers_raw_no_loading(self):
-        """servers_raw 为空时不应加载任何 server。"""
-        config = _make_app_config(servers_raw="")
+    def test_agent_empty_servers_no_loading(self):
+        """servers 为空时不应加载任何 server。"""
+        config = _make_app_config(servers="")
         config.mcp.enabled = True
         agent = Agent(config)
 
@@ -583,7 +583,7 @@ class TestNamingConflict:
 
     async def test_conflict_in_agent_context(self):
         """在 Agent 上下文中，MCP 工具与内置工具冲突时跳过注册。"""
-        config = _make_app_config(servers_raw="")
+        config = _make_app_config(servers="")
         agent = Agent(config)
 
         # Agent 初始化后已注册内置工具（如 bash）

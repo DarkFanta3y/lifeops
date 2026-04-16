@@ -55,9 +55,9 @@
 - 单元 + 集成测试
 
 ### Definition of Done
-- [ ] 启动 lifeops 后可列出 `mcp.github.*` 工具
-- [ ] 可通过 ToolRegistry 调用 GitHub MCP 工具并返回 ToolResult
-- [ ] 单元测试 + 集成测试通过（pytest）
+- [x] 启动 lifeops 后可列出 `mcp.github.*` 工具
+- [x] 可通过 ToolRegistry 调用 GitHub MCP 工具并返回 ToolResult
+- [x] 单元测试 + 集成测试通过（pytest）
 
 ### Must Have
 - 完整支持 MCP 的 tools/resources/prompts
@@ -678,8 +678,8 @@ uv run ruff check src/ tests/  # Expected: no issues
 ```
 
 ### Final Checklist
-- [ ] MCP tools/resources/prompts 可用
-- [ ] GitHub MCP Server stdio Docker 可连接
-- [ ] 多 server 静态 JSON + 动态 API 可用
-- [ ] 无新增独立配置文件
-- [ ] 测试通过
+- [x] MCP tools/resources/prompts 可用
+- [x] GitHub MCP Server stdio Docker 可连接
+- [x] 多 server 静态 JSON + 动态 API 可用
+- [x] 无新增独立配置文件
+- [x] 测试通过

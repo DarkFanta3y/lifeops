@@ -95,6 +95,32 @@ class MCPManager:
     def list_servers(self) -> list[str]:
         return list(self._servers.keys())
 
+    async def connect_and_register_all(self, registry: Any) -> dict[str, int]:
+        """连接所有已配置的 servers 并注册工具到 registry。
+
+        返回: {server_name: registered_tool_count}
+        """
+        from lifeops.tools.mcp.adapter import MCPRegistryAdapter
+
+        results: dict[str, int] = {}
+        for server_name in self.list_servers():
+            try:
+                await self.connect_server(server_name)
+                client = self.get_client(server_name)
+                if client is None:
+                    continue
+
+                tools = await client.list_tools()
+                if tools:
+                    adapter = MCPRegistryAdapter(registry, client)
+                    registered = adapter.register_tools(tools)
+                    results[server_name] = len(registered)
+                    logger.info(f"MCP server '{server_name}': 注册了 {len(registered)} 个工具")
+            except Exception:
+                logger.exception(f"MCP server '{server_name}' 连接失败")
+                results[server_name] = 0
+        return results
+
     async def connect_server(self, name: str) -> None:
         """创建 MCPClient 并连接到指定 server。
 
