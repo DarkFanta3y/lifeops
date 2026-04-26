@@ -13,6 +13,7 @@ from lifeops.tools.mcp.manager import MCPManager
 from lifeops.tools.mcp.types import MCPServerConfig
 from lifeops.tools.registry import ToolRegistry
 from lifeops.utils.logging import get_logger
+from lifeops.utils.text import sanitize_unicode_text
 
 logger = get_logger(__name__)
 
@@ -103,6 +104,7 @@ class Agent:
         return result
 
     async def run(self, user_input: str) -> str:
+        user_input = sanitize_unicode_text(user_input)
         self.messages.append(Message(role=MessageRole.USER, content=user_input))
         self.context.add_content(
             f"user_{len(self.messages)}",
@@ -118,14 +120,15 @@ class Agent:
             response = await self.llm.chat(all_messages, tools=tool_defs if tool_defs else None)
 
             if response.content and not response.tool_calls:
-                self.messages.append(Message(role=MessageRole.ASSISTANT, content=response.content))
+                response_content = sanitize_unicode_text(response.content)
+                self.messages.append(Message(role=MessageRole.ASSISTANT, content=response_content))
                 self.context.add_content(
                     f"assistant_{len(self.messages)}",
-                    response.content,
+                    response_content,
                     ContextLayer.L1,
-                    token_count=len(response.content) // 4,
+                    token_count=len(response_content) // 4,
                 )
-                return response.content
+                return response_content
 
             if response.tool_calls:
                 self.messages.append(
@@ -153,7 +156,8 @@ class Agent:
                     except Exception as e:
                         result = ToolResult(success=False, output="", error=str(e))
 
-                    tool_output = result.output if result.success else f"Error: {result.error}"
+                    raw_tool_output = result.output if result.success else f"Error: {result.error}"
+                    tool_output = sanitize_unicode_text(raw_tool_output)
                     self.messages.append(
                         Message(
                             role=MessageRole.TOOL,

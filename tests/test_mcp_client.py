@@ -276,6 +276,28 @@ def test_extract_text_from_empty_list():
     assert _extract_text_from_content([]) == ""
 
 
+def test_extract_text_from_content_preserves_surrogate_pair_as_emoji():
+    import mcp.types as mcp_types
+
+    blocks = [mcp_types.TextContent(type="text", text="repo \ud83d\ude80")]
+
+    result = _extract_text_from_content(blocks)
+
+    assert result == "repo 🚀"
+    assert result.encode("utf-8")
+
+
+def test_extract_text_from_content_replaces_lone_surrogate():
+    import mcp.types as mcp_types
+
+    blocks = [mcp_types.TextContent(type="text", text="broken \ud83d")]
+
+    result = _extract_text_from_content(blocks)
+
+    assert result == "broken �"
+    assert result.encode("utf-8")
+
+
 # --- context manager ---
 
 

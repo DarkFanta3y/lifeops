@@ -26,7 +26,7 @@ LifeOps 是一个 AI 驱动的生活助手智能体，基于 ReAct (Reasoning + 
 | Agent 主循环 (ReAct) | ✅ | 用户输入 → LLM → 工具调用 → 迭代 → 输出 |
 | CLI REPL 入口 | ✅ | Rich 界面, reset/context 命令 |
 
-**测试覆盖**: 48 个测试全部通过, ruff lint 无错误
+**测试覆盖**: 209 个测试全部通过, ruff lint 无错误
 
 ### Phase 2: Skill 系统 (待开发)
 
@@ -47,15 +47,17 @@ LifeOps 是一个 AI 驱动的生活助手智能体，基于 ReAct (Reasoning + 
 - ChromaDB 索引管理
 - 语义检索 + 重排
 
-### Phase 5: MCP 集成 🔧
+### Phase 5: MCP 集成 ✅
 
 | Task | 状态 | 说明 |
 |------|------|------|
-| MCP Client Core | ✅ | stdio 传输 + AsyncExitStack 生命周期管理、list_tools/resources/prompts、call_tool → ToolResult、连接失败→FAILED 状态、async context manager |
-| GitHub MCP Server 接入 | ✅ | Docker stdio 模式，需 GITHUB_PERSONAL_ACCESS_TOKEN |
+| MCP Client Core | ✅ | stdio 传输 + 手动内存流管理、list_tools/resources/prompts、call_tool → ToolResult、连接失败→FAILED 状态、async context manager、断线重连 |
+| GitHub MCP Server 接入 | ✅ | Docker stdio 模式，38 个工具已注册，端到端调用验证通过（2026-04-26） |
+| Registry Adapter | ✅ | MCPRegistryAdapter 将 MCP 工具动态映射为 ToolRegistry 条目，支持注册/注销 |
 | 多 Server 注册机制 | ✅ | 支持 CLI/ENV/JSON 三种配置方式动态注册 MCP Server |
 | 配置方式 | ✅ | CLI 参数（`--mcp-enabled`/`--mcp-disabled`/`--mcp-servers`）、环境变量（`LIFEOPS_MCP_ENABLED`/`LIFEOPS_MCP_SERVERS`）、JSON 配置文件 |
 | 资源与提示暴露 | ✅ | MCP 资源/提示通过 Manager API 暴露，不混入 ToolRegistry |
+| Unicode 文本规范化 | ✅ | 外部工具文本进入消息历史/LLM 请求前规范化 surrogate，保留合法 emoji，替换孤立 surrogate |
 | 健康检查与降级 | 待开发 | Server 连接状态检测、自动降级 |
 
 ## 文件结构
@@ -86,6 +88,7 @@ lifeops/
 │   │   │   └── web_search.py
 │   │   └── mcp/
 │   │       ├── __init__.py
+│   │       ├── adapter.py          # MCP → ToolRegistry 适配器
 │   │       ├── client.py           # MCP 客户端 (stdio 传输 + 会话管理)
 │   │       ├── manager.py          # MCP Server 注册与状态管理
 │   │       ├── types.py            # MCP 类型定义
@@ -94,14 +97,21 @@ lifeops/
 │   │           └── github.py       # GitHub MCP Server 配置
 │   └── utils/
 │       ├── __init__.py
-│       └── logging.py
+│       ├── logging.py
+│       └── text.py                # Unicode surrogate 规范化
 ├── tests/
 │   ├── conftest.py
 │   ├── test_agent.py
 │   ├── test_builtin_tools.py
 │   ├── test_context_manager.py
 │   ├── test_llm_client.py
+│   ├── test_mcp_adapter.py
+│   ├── test_mcp_client.py
+│   ├── test_mcp_config.py
+│   ├── test_mcp_github_server.py
+│   ├── test_mcp_integration.py
 │   ├── test_mcp_manager.py
+│   ├── test_mcp_manager_client.py
 │   ├── test_mcp_types.py
 │   └── test_tool_registry.py
 └── docs/

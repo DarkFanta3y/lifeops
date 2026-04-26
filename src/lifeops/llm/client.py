@@ -6,6 +6,7 @@ from openai import AsyncOpenAI
 from lifeops.llm.types import ChatResponse, Message
 from lifeops.tools.base import ToolDefinition
 from lifeops.utils.logging import get_logger
+from lifeops.utils.text import sanitize_unicode_data
 
 
 logger = get_logger(__name__)
@@ -57,7 +58,7 @@ class LLMClient:
         tools: list[ToolDefinition] | None = None,
         **kwargs: object,
     ) -> ChatResponse:
-        msg_dicts = [m.to_dict() for m in messages]
+        msg_dicts = sanitize_unicode_data([m.to_dict() for m in messages])
         request_kwargs: dict[str, object] = {
             "model": self.model,
             "messages": msg_dicts,

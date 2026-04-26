@@ -22,7 +22,8 @@ def _clean_mcp_env():
 
 
 def test_defaults():
-    config = MCPConfig()
+    # 显式传入 servers="" 避免被 .env 文件中的 LIFEOPS_MCP_SERVERS 覆盖
+    config = MCPConfig(servers="")
     assert config.enabled is True
     assert config.default_transport == "stdio"
     assert config.servers == ""
@@ -78,7 +79,8 @@ def test_explicit_init_overrides_env():
 
 
 def test_servers_empty_by_default():
-    config = MCPConfig()
+    # 显式传入 servers="" 避免被 .env 文件中的 LIFEOPS_MCP_SERVERS 覆盖
+    config = MCPConfig(servers="")
     assert config.servers == ""
 
 

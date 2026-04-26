@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+from lifeops.utils.text import sanitize_unicode_data, sanitize_unicode_text
+
 
 class MessageRole(str, Enum):
     SYSTEM = "system"
@@ -62,11 +64,11 @@ class Message:
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {"role": self.role.value}
         if self.content is not None:
-            d["content"] = self.content
+            d["content"] = sanitize_unicode_text(self.content)
         if self.tool_calls is not None:
-            d["tool_calls"] = self.tool_calls
+            d["tool_calls"] = sanitize_unicode_data(self.tool_calls)
         if self.tool_call_id is not None:
-            d["tool_call_id"] = self.tool_call_id
+            d["tool_call_id"] = sanitize_unicode_text(self.tool_call_id)
         if self.name is not None:
-            d["name"] = self.name
+            d["name"] = sanitize_unicode_text(self.name)
         return d

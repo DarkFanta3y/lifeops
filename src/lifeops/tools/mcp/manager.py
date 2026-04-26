@@ -28,6 +28,7 @@ class MCPManager:
         self._servers: dict[str, MCPServerConfig] = {}
         self._status: dict[str, MCPServerStatus] = {}
         self._clients: dict[str, Any] = {}  # server_name -> MCPClient
+        self._registry: Any = None  # ToolRegistry 引用，用于重连后重新注册工具
 
     def add_server(self, name: str, config: MCPServerConfig) -> None:
         """注册 server 配置，名称已存在时覆盖。"""
@@ -100,6 +101,7 @@ class MCPManager:
 
         返回: {server_name: registered_tool_count}
         """
+        self._registry = registry
         from lifeops.tools.mcp.adapter import MCPRegistryAdapter
 
         results: dict[str, int] = {}
@@ -152,6 +154,30 @@ class MCPManager:
             return
         await client.close()
         logger.info(f"MCP server '{name}' 已断开连接")
+
+    async def re_register_tools(self, server_name: str) -> None:
+        """重连后重新注册工具：先注销旧工具，再重新获取并注册。"""
+        if self._registry is None:
+            logger.warning(f"无法重新注册 '{server_name}' 的工具: registry 未设置")
+            return
+
+        client = self._clients.get(server_name)
+        if client is None:
+            logger.warning(f"无法重新注册 '{server_name}' 的工具: 客户端未连接")
+            return
+
+        from lifeops.tools.mcp.adapter import MCPRegistryAdapter
+
+        adapter = MCPRegistryAdapter(self._registry, client)
+
+        old_tools = client._tools
+        if old_tools:
+            adapter.unregister_tools(old_tools)
+
+        new_tools = await client.list_tools()
+        if new_tools:
+            adapter.register_tools(new_tools)
+            logger.info(f"重连后重新注册了 {len(new_tools)} 个工具 (server={server_name})")
 
     def get_client(self, name: str) -> Any | None:
         """获取指定 server 的 MCPClient 实例，未连接时返回 None。"""

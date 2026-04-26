@@ -22,6 +22,7 @@ from lifeops.tools.mcp.types import (
     MCPToolInfo,
 )
 from lifeops.utils.logging import get_logger
+from lifeops.utils.text import sanitize_unicode_text
 
 logger = get_logger(__name__)
 
@@ -62,13 +63,19 @@ class MCPClient:
 
         try:
             self._setup_memory_streams()
+            logger.debug("内存流创建完成")
             await self._start_process()
+            logger.debug(f"子进程启动: {self._process.pid}")
             self._start_io_tasks()
+            logger.debug("I/O 任务启动")
 
             session = ClientSession(self._read_stream, self._write_stream)  # type: ignore[arg-type]
             self._session = await session.__aenter__()
+            logger.debug("ClientSession 进入")
 
+            logger.debug("开始 initialize...")
             await self._session.initialize()
+            logger.debug("initialize 完成")
 
             self._manager._status[self._server_name] = MCPServerStatus.READY
             logger.info(f"MCP server '{self._server_name}' 已连接并就绪")
@@ -358,12 +365,23 @@ class MCPClient:
         assert self._session is not None
 
         try:
+            logger.info("开始调用工具: %s, 参数: %s", tool_name, arguments)
             result: mcp_types.CallToolResult = await self._session.call_tool(
                 name=tool_name,
                 arguments=arguments,
             )
+        except anyio.ClosedResourceError:
+            logger.warning("MCP session closed, 尝试重连...")
+            await self._cleanup()
+            await self.connect()
+            await self._manager.re_register_tools(self._server_name)
+            logger.info("重连后再次调用工具: %s", tool_name)
+            result = await self._session.call_tool(
+                name=tool_name,
+                arguments=arguments,
+            )
         except Exception as exc:
-            logger.error(f"调用工具 '{tool_name}' 时发生异常: {exc}")
+            logger.exception(f"调用工具 '{tool_name}' 时发生异常")
             return ToolResult(success=False, output="", error=str(exc))
 
         if result.isError:
@@ -375,6 +393,7 @@ class MCPClient:
             )
 
         output = _extract_text_from_content(result.content)
+        logger.info("调用结果: isError=%s", result.isError)
         return ToolResult(success=True, output=output)
 
     def _ensure_connected(self) -> None:
@@ -395,7 +414,7 @@ def _extract_text_from_content(content: list[mcp_types.ContentBlock]) -> str:
         else:
             parts.append(block.model_dump_json(exclude_none=True))
 
-    return "\n".join(parts)
+    return sanitize_unicode_text("\n".join(parts))
 
 
 _DEFAULT_ENV_VARS = ["HOME", "LOGNAME", "PATH", "SHELL", "TERM", "USER"]

@@ -18,6 +18,36 @@ def test_message_to_dict():
     assert d == {"role": "system", "content": "you are a helper"}
 
 
+def test_message_to_dict_replaces_lone_surrogate():
+    msg = Message(role=MessageRole.USER, content="bad\ud83d")
+    content = msg.to_dict()["content"]
+
+    assert content == "bad�"
+    assert content.encode("utf-8")
+
+
+def test_message_to_dict_preserves_surrogate_pair_as_emoji():
+    msg = Message(role=MessageRole.USER, content="ok\ud83d\ude00")
+    content = msg.to_dict()["content"]
+
+    assert content == "ok😀"
+    assert content.encode("utf-8")
+
+
+def test_message_to_dict_sanitizes_tool_call_strings():
+    tc = {
+        "id": "call_1",
+        "type": "function",
+        "function": {"name": "search", "arguments": '{"query":"repo \ud83d\ude80"}'},
+    }
+    msg = Message(role=MessageRole.ASSISTANT, tool_calls=[tc])
+
+    arguments = msg.to_dict()["tool_calls"][0]["function"]["arguments"]
+
+    assert arguments == '{"query":"repo 🚀"}'
+    assert arguments.encode("utf-8")
+
+
 def test_message_with_tool_calls():
     tc = {
         "id": "call_1",

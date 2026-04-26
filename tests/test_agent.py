@@ -119,6 +119,54 @@ async def test_agent_tool_call_loop(mock_config: AppConfig):
 
 
 @pytest.mark.asyncio
+async def test_agent_sends_sanitized_tool_result_to_next_llm_call(mock_config: AppConfig):
+    call_messages = []
+
+    async def mock_chat(messages, tools=None, **kwargs):
+        call_messages.append(messages)
+        if len(call_messages) == 1:
+            return ChatResponse(
+                content=None,
+                tool_calls=[
+                    ToolCallResult(
+                        id="call_1",
+                        name="custom_tool",
+                        arguments='{"input":"openai/codex"}',
+                        type="function",
+                    )
+                ],
+            )
+        return ChatResponse(content="查到了", tool_calls=None)
+
+    async def custom_handler(params: dict) -> ToolResult:
+        return ToolResult(success=True, output="repo \ud83d\ude80")
+
+    class CustomParams(ToolParams):
+        input: str
+
+    agent = Agent(mock_config)
+    agent.add_tool(
+        ToolDefinition(
+            name="custom_tool",
+            description="A custom tool",
+            parameters_model=CustomParams,
+        ),
+        custom_handler,
+    )
+
+    mock_llm = AsyncMock()
+    mock_llm.chat = AsyncMock(side_effect=mock_chat)
+    agent.llm = mock_llm
+
+    result = await agent.run("查仓库")
+
+    tool_message = next(msg for msg in call_messages[1] if msg.role == MessageRole.TOOL)
+    assert result == "查到了"
+    assert tool_message.content == "repo 🚀"
+    assert tool_message.content.encode("utf-8")
+
+
+@pytest.mark.asyncio
 async def test_agent_unknown_tool(mock_config: AppConfig):
     async def mock_chat(messages, tools=None, **kwargs):
         return ChatResponse(
