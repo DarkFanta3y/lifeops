@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import json
 from typing import Any
 
@@ -267,16 +266,28 @@ def main() -> None:
 
     agent = Agent(config)
 
-    if config.mcp.enabled and config.mcp.servers.strip():
-        asyncio.run(agent.mcp_manager.connect_and_register_all(agent.tools))
-        console.print(f"[dim]MCP: 已连接 {len(agent.mcp_manager.list_servers())} 个服务器[/dim]\n")
-
     console.print(Panel("LifeOps Agent v0.1.0", style="bold green"))
     console.print("[dim]Type 'exit' or 'quit' to end the session.[/dim]")
     console.print("[dim]Type 'reset' to clear conversation history.[/dim]")
     console.print("[dim]Type 'context' to view context usage.[/dim]\n")
 
-    asyncio.run(_run_repl(agent))
+    asyncio.run(_start(agent))
+
+
+async def _start(agent: Agent) -> None:
+    """连接 MCP 并启动 REPL（共享同一事件循环）。"""
+    from rich.console import Console
+
+    if agent.config.mcp.enabled and agent.config.mcp.servers.strip():
+        try:
+            await agent.mcp_manager.connect_and_register_all(agent.tools)
+            Console().print(
+                f"[dim]MCP: 已连接 {len(agent.mcp_manager.list_servers())} 个服务器[/dim]\n"
+            )
+        except Exception:
+            logger.exception("MCP 连接失败")
+
+    await _run_repl(agent)
 
 
 async def _run_repl(agent: Agent) -> None:
