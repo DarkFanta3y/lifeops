@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from lifeops.agent import Agent, DEFAULT_SYSTEM_PROMPT
-from lifeops.core.config import AppConfig, LLMConfig
+from lifeops.core.config import AppConfig, LLMConfig, SkillsConfig
 from lifeops.llm.types import ChatResponse, MessageRole, ToolCallResult
 from lifeops.tools.base import ToolDefinition, ToolParams, ToolResult
 
@@ -13,12 +13,53 @@ def mock_config():
     return AppConfig(llm=LLMConfig(api_key="test-key", model="gpt-4o"))
 
 
+def make_config_with_skills(tmp_path):
+    return AppConfig(
+        llm=LLMConfig(api_key="test-key", model="gpt-4o"),
+        skills=SkillsConfig(
+            enabled=True,
+            project_dir=str(tmp_path / "project-skills"),
+            user_dir=str(tmp_path / "user-skills"),
+            implicit_match_enabled=False,
+        ),
+    )
+
+
+def write_skill(root, name, body):
+    skill_dir = root / name
+    skill_dir.mkdir(parents=True)
+    skill_file = skill_dir / "SKILL.md"
+    skill_file.write_text(body, encoding="utf-8")
+    return skill_file
+
+
 def test_agent_initialization(mock_config: AppConfig):
     agent = Agent(mock_config)
     assert agent.config == mock_config
     assert len(agent.tools.list_definitions()) > 0
     assert agent.system_prompt == DEFAULT_SYSTEM_PROMPT
     assert len(agent.messages) == 0
+
+
+def test_agent_initialization_adds_skill_catalog_to_l1(tmp_path):
+    config = make_config_with_skills(tmp_path)
+    write_skill(
+        tmp_path / "project-skills",
+        "weekly-review",
+        """---
+name: weekly-review
+description: 整理本周记录。
+---
+
+# Weekly Review
+""",
+    )
+
+    agent = Agent(config)
+
+    catalog = agent.context.get_content("skills_catalog")
+    assert catalog is not None
+    assert "weekly-review - 整理本周记录。" in catalog
 
 
 def test_agent_custom_system_prompt(mock_config: AppConfig):
@@ -34,6 +75,28 @@ def test_agent_reset(mock_config: AppConfig):
 
     agent.reset()
     assert len(agent.messages) == 0
+
+
+def test_agent_reset_preserves_skill_catalog_and_clears_active_skills(tmp_path):
+    config = make_config_with_skills(tmp_path)
+    write_skill(
+        tmp_path / "project-skills",
+        "weekly-review",
+        """---
+name: weekly-review
+description: 整理本周记录。
+---
+
+# Weekly Review
+""",
+    )
+    agent = Agent(config)
+    agent.skill_manager.activate("weekly-review")
+
+    agent.reset()
+
+    assert agent.context.get_content("skills_catalog") is not None
+    assert agent.context.get_content("skill:weekly-review") is None
 
 
 def test_agent_add_tool(mock_config: AppConfig):
@@ -82,6 +145,70 @@ async def test_agent_simple_response(mock_config: AppConfig):
         assert result == "Hello! How can I help you?"
         assert len(agent.messages) == 2
         assert agent.messages[0].role == MessageRole.USER
+
+
+@pytest.mark.asyncio
+async def test_agent_explicit_skill_trigger_injects_full_skill_into_l2(tmp_path):
+    config = make_config_with_skills(tmp_path)
+    write_skill(
+        tmp_path / "project-skills",
+        "weekly-review",
+        """---
+name: weekly-review
+description: 整理本周记录。
+---
+
+# Weekly Review
+
+1. 读取相关笔记。
+2. 生成下周行动计划。
+""",
+    )
+    call_messages = []
+
+    async def mock_chat(messages, tools=None, **kwargs):
+        call_messages.append(messages)
+        return ChatResponse(content="已完成", tool_calls=None)
+
+    agent = Agent(config)
+    mock_llm = AsyncMock()
+    mock_llm.chat = AsyncMock(side_effect=mock_chat)
+    agent.llm = mock_llm
+    agent.skill_matcher.llm = mock_llm
+
+    result = await agent.run("请用 $weekly-review 做复盘")
+
+    assert result == "已完成"
+    assert "# Weekly Review" in agent.context.get_content("skill:weekly-review")
+    system_message = call_messages[0][0]
+    assert system_message.role == MessageRole.SYSTEM
+    assert "已激活 Skill: weekly-review" in system_message.content
+    assert "生成下周行动计划" in system_message.content
+
+
+@pytest.mark.asyncio
+async def test_agent_does_not_inject_skill_body_without_trigger(tmp_path):
+    config = make_config_with_skills(tmp_path)
+    write_skill(
+        tmp_path / "project-skills",
+        "weekly-review",
+        """---
+name: weekly-review
+description: 整理本周记录。
+---
+
+# Weekly Review
+""",
+    )
+    agent = Agent(config)
+    mock_llm = AsyncMock()
+    mock_llm.chat = AsyncMock(return_value=ChatResponse(content="普通回复", tool_calls=None))
+    agent.llm = mock_llm
+    agent.skill_matcher.llm = mock_llm
+
+    await agent.run("你好")
+
+    assert agent.context.get_content("skill:weekly-review") is None
 
 
 @pytest.mark.asyncio

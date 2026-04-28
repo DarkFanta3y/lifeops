@@ -84,11 +84,27 @@ class MCPConfig(BaseSettings):
     }
 
 
+class SkillsConfig(BaseSettings):
+    enabled: bool = True
+    project_dir: str = ".lifeops/skills"
+    user_dir: str = "~/.lifeops/skills"
+    implicit_match_enabled: bool = True
+    max_active: int = 3
+
+    model_config = {
+        "env_prefix": "LIFEOPS_SKILLS_",
+        "env_file": _ENV_FILE,
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+    }
+
+
 class AppConfig(BaseSettings):
     llm: LLMConfig = Field(default_factory=LLMConfig)
     context: ContextConfig = Field(default_factory=ContextConfig)
     serpapi: SerpApiConfig = Field(default_factory=SerpApiConfig)
     mcp: MCPConfig = Field(default_factory=MCPConfig)
+    skills: SkillsConfig = Field(default_factory=SkillsConfig)
     debug: bool = False
     log_level: str = "INFO"
 

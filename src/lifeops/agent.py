@@ -7,6 +7,8 @@ from lifeops.core.config import AppConfig
 from lifeops.core.context_manager import ContextLayer, ContextManager
 from lifeops.llm.client import LLMClient
 from lifeops.llm.types import Message, MessageRole, ToolCallResult
+from lifeops.skills.manager import SkillManager
+from lifeops.skills.matcher import SkillMatcher
 from lifeops.tools.base import ToolDefinition, ToolResult
 from lifeops.tools.builtin import register_all_builtin_tools
 from lifeops.tools.mcp.manager import MCPManager
@@ -52,6 +54,8 @@ class Agent:
         self.system_prompt = system_prompt or DEFAULT_SYSTEM_PROMPT
         self.messages: list[Message] = []
         self.max_iterations = 10
+        self.skill_manager: SkillManager | None = None
+        self.skill_matcher: SkillMatcher | None = None
 
         self._register_default_tools()
 
@@ -65,6 +69,15 @@ class Agent:
             ContextLayer.L1,
             token_count=len(self.system_prompt) // 4,
         )
+        if config.skills.enabled:
+            self.skill_manager = SkillManager(
+                context=self.context,
+                project_dir=config.skills.project_dir,
+                user_dir=config.skills.user_dir,
+                max_active=config.skills.max_active,
+            )
+            self.skill_matcher = SkillMatcher(self.llm)
+            self.skill_manager.discover()
 
     def _register_default_tools(self) -> None:
         register_all_builtin_tools(self.tools, self.config)
@@ -99,12 +112,31 @@ class Agent:
         self.mcp_manager.remove_server(name)
 
     def _build_messages(self) -> list[Message]:
-        result = [Message(role=MessageRole.SYSTEM, content=self.system_prompt)]
+        result = [Message(role=MessageRole.SYSTEM, content=self._build_system_context())]
         result.extend(self.messages)
         return result
 
+    def _build_system_context(self) -> str:
+        sections: list[str] = []
+        for title, entries in (
+            ("L1 常驻上下文", self.context.get_l1_content()),
+            ("L2 按需上下文", self.context.get_l2_content()),
+            ("L3 工具结果上下文", self.context.get_l3_content()),
+        ):
+            content_entries = [
+                entry
+                for entry in sorted(entries, key=lambda item: item.key)
+                if not entry.key.startswith(("user_", "assistant_", "tool_"))
+            ]
+            if not content_entries:
+                continue
+            section = "\n\n".join(entry.content for entry in content_entries)
+            sections.append(f"## {title}\n{section}")
+        return "\n\n".join(sections) if sections else self.system_prompt
+
     async def run(self, user_input: str) -> str:
         user_input = sanitize_unicode_text(user_input)
+        await self._activate_skills_for_input(user_input)
         self.messages.append(Message(role=MessageRole.USER, content=user_input))
         self.context.add_content(
             f"user_{len(self.messages)}",
@@ -207,6 +239,33 @@ class Agent:
             ContextLayer.L1,
             token_count=len(self.system_prompt) // 4,
         )
+        if self.config.skills.enabled:
+            self.skill_manager = SkillManager(
+                context=self.context,
+                project_dir=self.config.skills.project_dir,
+                user_dir=self.config.skills.user_dir,
+                max_active=self.config.skills.max_active,
+            )
+            self.skill_matcher = SkillMatcher(self.llm)
+            self.skill_manager.discover()
+
+    async def _activate_skills_for_input(self, user_input: str) -> None:
+        if self.skill_manager is None or self.skill_matcher is None:
+            return
+
+        explicit_result = self.skill_matcher.match_explicit(user_input, self.skill_manager.skills)
+        for unknown_name in explicit_result.unknown_names:
+            logger.warning(f"用户显式调用了未知 Skill: {unknown_name}")
+
+        matches = explicit_result.matches
+        if not matches and self.config.skills.implicit_match_enabled:
+            implicit_result = await self.skill_matcher.match_implicit(
+                user_input, self.skill_manager.skills
+            )
+            matches = implicit_result.matches
+
+        for match in matches[: self.config.skills.max_active]:
+            self.skill_manager.activate(match.name)
 
 
 def main() -> None:

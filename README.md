@@ -19,6 +19,7 @@
 
 - **ReAct 模式** — 推理与行动交替迭代，最多 10 轮自动完成复杂任务
 - **三层上下文管理** — L1 常驻 / L2 按需 / L3 溢出压缩，高效利用 200K token 窗口
+- **Skill 系统** — 兼容 `SKILL.md` 标准，启动时只暴露目录摘要，触发后按需加载完整工作流指令
 - **工具系统** — 内置 Bash、文件读写、网络搜索，支持动态注册自定义工具
 - **OpenAI 兼容** — 支持 GPT-4o / Claude / 本地模型，一行配置切换后端
 - **Rich CLI** — 彩色终端界面，内置 `reset` / `context` 命令
@@ -108,6 +109,33 @@ Thinking...
 | `LIFEOPS_CONTEXT_L2_BUDGET_RATIO` | L2 预算占比 | `0.60` |
 | `LIFEOPS_CONTEXT_L3_BUDGET_RATIO` | L3 预算占比 | `0.20` |
 
+### Skill 配置
+
+LifeOps 会扫描项目级 `.lifeops/skills/` 和用户级 `~/.lifeops/skills/`。启动时 L1 只包含 Skill 名称和描述；用户显式输入 `$skill-name`，或隐式匹配命中后，完整 `SKILL.md` 才会进入 L2。项目 Skill 优先于用户 Skill。
+
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `LIFEOPS_SKILLS_ENABLED` | 启用 Skill 系统 | `true` |
+| `LIFEOPS_SKILLS_PROJECT_DIR` | 项目级 Skill 目录 | `.lifeops/skills` |
+| `LIFEOPS_SKILLS_USER_DIR` | 用户级 Skill 目录 | `~/.lifeops/skills` |
+| `LIFEOPS_SKILLS_IMPLICIT_MATCH_ENABLED` | 启用 LLM 隐式匹配 | `true` |
+| `LIFEOPS_SKILLS_MAX_ACTIVE` | 单轮最多激活 Skill 数 | `3` |
+
+最小 Skill 示例：
+
+```markdown
+---
+name: weekly-review
+description: 整理本周记录、总结进展、生成下周行动计划。Use when the user asks for weekly review, planning, or reflection.
+---
+
+# Weekly Review
+
+1. 读取相关笔记或历史记录。
+2. 汇总完成事项、阻塞项和下周重点。
+3. 必要时调用文件读取、搜索或日历工具。
+```
+
 ### MCP 配置
 
 | 变量 | 说明 | 默认值 |
@@ -129,6 +157,11 @@ src/lifeops/
 ├── llm/
 │   ├── client.py           # OpenAI 兼容 LLM 客户端
 │   └── types.py             # Message, ToolCallResult 等类型
+├── skills/
+│   ├── loader.py            # Skill 发现与 frontmatter 解析
+│   ├── manager.py           # Skill 清单与 L2 注入管理
+│   ├── matcher.py           # 显式 / 隐式触发匹配
+│   └── types.py             # Skill 类型定义
 ├── tools/
 │   ├── base.py              # Tool 基类与 ToolDefinition
 │   ├── registry.py          # 工具注册中心
@@ -170,7 +203,7 @@ uv run ruff check src/ tests/
 ## Roadmap
 
 - [x] **Phase 1** — Agent 核心 + Tool 系统
-- [ ] **Phase 2** — Skill 系统（发现、匹配、加载）
+- [x] **Phase 2** — Skill 系统（发现、匹配、加载）
 - [ ] **Phase 3** — Memory 系统（STM / LTM / Working Memory）
 - [ ] **Phase 4** — RAG 系统（文档向量化、语义检索）
 - [ ] **Phase 5** — MCP 集成 🔧（Client Core、GitHub Server、多 Server 注册已完成）
