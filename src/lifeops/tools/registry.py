@@ -19,7 +19,6 @@ class ToolRegistry:
             logger.warning(f"Tool '{name}' already registered, overwriting")
         self._definitions[name] = definition
         self._handlers[name] = handler
-        logger.info(f"Registered tool: {name}")
 
     def get_definition(self, name: str) -> ToolDefinition | None:
         return self._definitions.get(name)

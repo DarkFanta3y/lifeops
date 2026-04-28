@@ -59,26 +59,18 @@ class MCPClient:
     async def connect(self) -> None:
         """连接到 MCP server（stdio 子进程），初始化会话。连接失败时更新状态为 FAILED。"""
         self._manager._status[self._server_name] = MCPServerStatus.CONNECTING
-        logger.info(f"正在连接 MCP server: {self._server_name}")
 
         try:
             self._setup_memory_streams()
-            logger.debug("内存流创建完成")
             await self._start_process()
-            logger.debug(f"子进程启动: {self._process.pid}")
             self._start_io_tasks()
-            logger.debug("I/O 任务启动")
 
             session = ClientSession(self._read_stream, self._write_stream)  # type: ignore[arg-type]
             self._session = await session.__aenter__()
-            logger.debug("ClientSession 进入")
 
-            logger.debug("开始 initialize...")
             await self._session.initialize()
-            logger.debug("initialize 完成")
 
             self._manager._status[self._server_name] = MCPServerStatus.READY
-            logger.info(f"MCP server '{self._server_name}' 已连接并就绪")
 
         except Exception:
             self._manager._status[self._server_name] = MCPServerStatus.FAILED

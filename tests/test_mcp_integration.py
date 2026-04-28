@@ -211,6 +211,30 @@ class TestAgentIntegration:
         assert agent.mcp_manager.get_server("github") is not None
         assert agent.mcp_manager.get_server("github").command == "docker"
 
+    def test_agent_add_google_workspace_mcp_server(self, monkeypatch):
+        """Agent 可以动态添加 Google Workspace MCP server 配置。"""
+        from lifeops.tools.mcp.servers import (
+            create_google_workspace_mcp_config,
+            get_google_workspace_mcp_server_name,
+        )
+
+        monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_ID", "client-id")
+        config = _make_app_config()
+        config.mcp.enabled = True
+        config.mcp.servers = ""
+        agent = Agent(config)
+
+        agent.add_mcp_server(
+            get_google_workspace_mcp_server_name(),
+            create_google_workspace_mcp_config(),
+        )
+
+        assert "google_workspace" in agent.mcp_manager.list_servers()
+        mcp_config = agent.mcp_manager.get_server("google_workspace")
+        assert mcp_config is not None
+        assert mcp_config.command == "uvx"
+        assert mcp_config.args[:3] == ["workspace-mcp", "--single-user", "--permissions"]
+
     def test_agent_remove_mcp_server(self):
         """Agent 可以动态移除 MCP server 配置。"""
         config = _make_app_config()

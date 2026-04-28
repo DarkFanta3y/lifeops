@@ -31,6 +31,7 @@ class SkillManager:
     def discover(self) -> SkillCatalog:
         self.catalog = self.loader.discover()
         self.inject_catalog()
+        logger.info(f"Skills: 已预加载 {len(self.catalog.skills)} 个 Skill")
         return self.catalog
 
     def inject_catalog(self) -> None:

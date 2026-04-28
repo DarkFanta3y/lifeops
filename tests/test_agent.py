@@ -62,6 +62,37 @@ description: 整理本周记录。
     assert "weekly-review - 整理本周记录。" in catalog
 
 
+def test_agent_initialization_logs_preloaded_skill_count(tmp_path, caplog):
+    caplog.set_level("INFO")
+    config = make_config_with_skills(tmp_path)
+    write_skill(
+        tmp_path / "project-skills",
+        "weekly-review",
+        """---
+name: weekly-review
+description: 整理本周记录。
+---
+
+# Weekly Review
+""",
+    )
+    write_skill(
+        tmp_path / "user-skills",
+        "meal-plan",
+        """---
+name: meal-plan
+description: 规划饮食。
+---
+
+# Meal Plan
+""",
+    )
+
+    Agent(config)
+
+    assert "Skills: 已预加载 2 个 Skill" in caplog.text
+
+
 def test_agent_custom_system_prompt(mock_config: AppConfig):
     custom_prompt = "You are a cooking assistant."
     agent = Agent(mock_config, system_prompt=custom_prompt)

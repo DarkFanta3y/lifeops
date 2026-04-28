@@ -95,8 +95,7 @@ class Agent:
                 tools = await client.list_tools()
                 if tools:
                     adapter = MCPRegistryAdapter(self.tools, client)
-                    registered = adapter.register_tools(tools)
-                    logger.info(f"MCP server '{server_name}': 注册了 {len(registered)} 个工具")
+                    adapter.register_tools(tools)
             except Exception:
                 logger.exception(f"MCP server '{server_name}' 连接失败")
 
@@ -339,14 +338,9 @@ def main() -> None:
 
 async def _start(agent: Agent) -> None:
     """连接 MCP 并启动 REPL（共享同一事件循环）。"""
-    from rich.console import Console
-
     if agent.config.mcp.enabled and agent.config.mcp.servers.strip():
         try:
             await agent.mcp_manager.connect_and_register_all(agent.tools)
-            Console().print(
-                f"[dim]MCP: 已连接 {len(agent.mcp_manager.list_servers())} 个服务器[/dim]\n"
-            )
         except Exception:
             logger.exception("MCP 连接失败")
 

@@ -6,7 +6,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://python.org)
 [![uv](https://img.shields.io/badge/uv-package_manager-6E39C6.svg)](https://github.com/astral-sh/uv)
-[![pytest](https://img.shields.io/badge/tests-48%20passed-green.svg)](https://docs.pytest.org)
+[![pytest](https://img.shields.io/badge/tests-220%20passed-green.svg)](https://docs.pytest.org)
 [![Ruff](https://img.shields.io/badge/linter-ruff-FCC624.svg)](https://docs.astral.sh/ruff/)
 
 [快速开始](#快速开始) · [架构](#架构) · [配置](#配置) · [开发](#开发)
@@ -111,7 +111,7 @@ Thinking...
 
 ### Skill 配置
 
-LifeOps 会扫描项目级 `.lifeops/skills/` 和用户级 `~/.lifeops/skills/`。启动时 L1 只包含 Skill 名称和描述；用户显式输入 `$skill-name`，或隐式匹配命中后，完整 `SKILL.md` 才会进入 L2。项目 Skill 优先于用户 Skill。
+LifeOps 会扫描项目级 `.lifeops/skills/` 和用户级 `~/.lifeops/skills/`。启动时日志只显示已预加载的 Skill 数量，L1 只包含 Skill 名称和描述；用户显式输入 `$skill-name`，或隐式匹配命中后，完整 `SKILL.md` 才会进入 L2。项目 Skill 优先于用户 Skill。
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
@@ -136,15 +136,65 @@ description: 整理本周记录、总结进展、生成下周行动计划。Use 
 3. 必要时调用文件读取、搜索或日历工具。
 ```
 
+项目内置 Skill：
+
+- `summarizing-last-week-conversations`：以触发 Skill 的时间戳为结束时间，总结过去 7 天内的对话主题、决策、完成事项、待办、风险与信息缺口。
+
 ### MCP 配置
+
+启动时 MCP 只显示已连接的 MCP 数量；具体 Server 连接过程与 MCP 工具注册明细降为 debug 日志。
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
 | `LIFEOPS_MCP_ENABLED` | 启用 MCP 工具 | `true` |
-| `LIFEOPS_MCP_SERVERS` | MCP Server JSON 配置路径 | — |
+| `LIFEOPS_MCP_SERVERS` | MCP Server JSON 配置 | — |
 | `GITHUB_PERSONAL_ACCESS_TOKEN` | GitHub MCP Server 所需 | — |
+| `GOOGLE_OAUTH_CLIENT_ID` | Google Workspace MCP Server 所需 OAuth Client ID | — |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | Google Workspace MCP Server 可选 OAuth Client Secret | — |
+| `OAUTHLIB_INSECURE_TRANSPORT` | Google Workspace MCP 本地 HTTP OAuth 回调开关 | — |
+| `GOOGLE_MCP_CREDENTIALS_DIR` | Google Workspace MCP OAuth 凭据缓存目录 | — |
+| `LIFEOPS_GOOGLE_WORKSPACE_MCP_PERMISSIONS` | Google Workspace MCP 权限范围，默认只允许 Gmail 草稿 | `gmail:drafts` |
+| `LIFEOPS_GOOGLE_WORKSPACE_MCP_TOOL_TIER` | Google Workspace MCP 工具层级 | `core` |
 
-CLI 参数: `--mcp-enabled` / `--mcp-disabled` / `--mcp-servers <path>`
+CLI 参数: `--mcp-enabled` / `--mcp-disabled` / `--mcp-servers <json>`
+
+#### MCP 凭据获取
+
+GitHub MCP 使用 `GITHUB_PERSONAL_ACCESS_TOKEN`。推荐创建 fine-grained personal access token，并按需要限制仓库和权限范围。申请入口：
+- GitHub token 页面: https://github.com/settings/personal-access-tokens
+- GitHub 官方说明: https://docs.github.com/en/github/authenticating-to-github/keeping-your-account-and-data-secure/creating-a-personal-access-token
+
+Google Workspace MCP 不使用类似 GitHub 的固定 access token。它使用 Google Cloud OAuth 客户端凭据：
+- `GOOGLE_OAUTH_CLIENT_ID`：必填，来自 Google Cloud OAuth Client
+- `GOOGLE_OAUTH_CLIENT_SECRET`：可选，本地 confidential client 可配置；public PKCE client 可不配置
+- 第一次运行时由 MCP 服务触发 Google OAuth 授权，同意后令牌会缓存在 `GOOGLE_MCP_CREDENTIALS_DIR` 指定目录或上游默认目录
+
+Google OAuth 申请入口：
+- Google Cloud Credentials: https://console.cloud.google.com/apis/credentials
+- Google Workspace 凭据官方说明: https://developers.google.com/workspace/guides/create-credentials
+- Google Workspace MCP 上游说明: https://github.com/taylorwilsdon/google_workspace_mcp
+
+配置步骤：
+1. 在 Google Cloud 创建或选择项目。
+2. 在 APIs & Services / Credentials 中创建 OAuth Client ID；本地单用户运行优先选 Desktop Application。
+3. 在 APIs & Services / Library 中启用要使用的 API，例如 Gmail API、Google Calendar API、Google Drive API。
+4. 将 Client ID 写入 `GOOGLE_OAUTH_CLIENT_ID`，如有 Client Secret 则写入 `GOOGLE_OAUTH_CLIENT_SECRET`。
+
+Google Workspace 预设不会自动启用，避免用户未完成 OAuth 授权时启动失败。需要动态注册时可在代码中使用：
+
+```python
+from lifeops.tools.mcp.servers import (
+    create_google_workspace_mcp_config,
+    get_google_workspace_mcp_server_name,
+)
+
+agent.add_mcp_server(
+    get_google_workspace_mcp_server_name(),
+    create_google_workspace_mcp_config(),
+)
+```
+
+Google Workspace MCP 权限通过 `LIFEOPS_GOOGLE_WORKSPACE_MCP_PERMISSIONS` 传给上游 `workspace-mcp --permissions` 参数。默认权限为 `gmail:drafts`，适合 SKILLS 编排先生成 Gmail 草稿；如需真实发送邮件，请显式设置 `LIFEOPS_GOOGLE_WORKSPACE_MCP_PERMISSIONS=gmail:send`。也可以扩展为 `gmail:send calendar:full drive:readonly` 等组合权限。
 
 ## 项目结构
 
@@ -165,11 +215,16 @@ src/lifeops/
 ├── tools/
 │   ├── base.py              # Tool 基类与 ToolDefinition
 │   ├── registry.py          # 工具注册中心
-│   └── builtin/             # 内置工具
-│       ├── bash.py
-│       ├── file_read.py
-│       ├── file_edit.py
-│       └── web_search.py
+│   ├── builtin/             # 内置工具
+│   │   ├── bash.py
+│   │   ├── file_read.py
+│   │   ├── file_edit.py
+│   │   └── web_search.py
+│   └── mcp/
+│       ├── manager.py       # MCP Server 注册与状态管理
+│       └── servers/         # MCP Server 预设
+│           ├── github.py
+│           └── google_workspace.py
 └── utils/
     └── logging.py           # 日志工具
 
@@ -206,7 +261,7 @@ uv run ruff check src/ tests/
 - [x] **Phase 2** — Skill 系统（发现、匹配、加载）
 - [ ] **Phase 3** — Memory 系统（STM / LTM / Working Memory）
 - [ ] **Phase 4** — RAG 系统（文档向量化、语义检索）
-- [ ] **Phase 5** — MCP 集成 🔧（Client Core、GitHub Server、多 Server 注册已完成）
+- [ ] **Phase 5** — MCP 集成 🔧（Client Core、GitHub/Google Workspace Server、多 Server 注册已完成）
 
 ## Star History
 

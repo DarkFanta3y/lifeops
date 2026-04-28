@@ -36,7 +36,6 @@ class MCPManager:
             logger.warning(f"MCP server '{name}' 已存在，覆盖配置")
         self._servers[name] = config
         self._status[name] = MCPServerStatus.DISCONNECTED
-        logger.info(f"已注册 MCP server: {name} (transport={config.transport})")
 
     def remove_server(self, name: str) -> None:
         """移除 server 配置，名称不存在时打印 warning。
@@ -48,7 +47,6 @@ class MCPManager:
             return
         del self._servers[name]
         self._status.pop(name, None)
-        logger.info(f"已移除 MCP server: {name}")
 
     def load_from_config(self, servers_raw: str) -> list[str]:
         """从 JSON 字符串加载 server 配置，返回成功加载的名称列表。
@@ -56,7 +54,6 @@ class MCPManager:
         格式: {"name": {"transport": "stdio", "command": "...", "args": [...], "env": {...}}}
         """
         if not servers_raw.strip():
-            logger.info("servers_raw 为空，跳过加载")
             return []
 
         try:
@@ -79,11 +76,9 @@ class MCPManager:
                 self._servers[name] = config
                 self._status[name] = MCPServerStatus.DISCONNECTED
                 loaded.append(name)
-                logger.info(f"已从配置加载 MCP server: {name} (transport={config.transport})")
             except Exception as e:
                 logger.error(f"加载 MCP server '{name}' 配置失败: {e}")
 
-        logger.info(f"从配置加载了 {len(loaded)}/{len(raw_config)} 个 MCP server")
         return loaded
 
     def get_server(self, name: str) -> MCPServerConfig | None:
@@ -105,6 +100,7 @@ class MCPManager:
         from lifeops.tools.mcp.adapter import MCPRegistryAdapter
 
         results: dict[str, int] = {}
+        connected_count = 0
         for server_name in self.list_servers():
             try:
                 await self.connect_server(server_name)
@@ -112,15 +108,17 @@ class MCPManager:
                 if client is None:
                     continue
 
+                connected_count += 1
+                results[server_name] = 0
                 tools = await client.list_tools()
                 if tools:
                     adapter = MCPRegistryAdapter(registry, client)
                     registered = adapter.register_tools(tools)
                     results[server_name] = len(registered)
-                    logger.info(f"MCP server '{server_name}': 注册了 {len(registered)} 个工具")
             except Exception:
                 logger.exception(f"MCP server '{server_name}' 连接失败")
                 results[server_name] = 0
+        logger.info(f"MCP: 已连接 {connected_count} 个 MCP")
         return results
 
     async def connect_server(self, name: str) -> None:
@@ -141,7 +139,6 @@ class MCPManager:
         try:
             await client.connect()
             self._clients[name] = client
-            logger.info(f"MCP server '{name}' 连接成功")
         except Exception:
             logger.exception(f"MCP server '{name}' 连接失败")
             raise
@@ -153,7 +150,6 @@ class MCPManager:
             logger.warning(f"MCP server '{name}' 未连接，无法断开")
             return
         await client.close()
-        logger.info(f"MCP server '{name}' 已断开连接")
 
     async def re_register_tools(self, server_name: str) -> None:
         """重连后重新注册工具：先注销旧工具，再重新获取并注册。"""
@@ -177,7 +173,6 @@ class MCPManager:
         new_tools = await client.list_tools()
         if new_tools:
             adapter.register_tools(new_tools)
-            logger.info(f"重连后重新注册了 {len(new_tools)} 个工具 (server={server_name})")
 
     def get_client(self, name: str) -> Any | None:
         """获取指定 server 的 MCPClient 实例，未连接时返回 None。"""

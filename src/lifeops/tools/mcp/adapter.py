@@ -47,10 +47,6 @@ class MCPRegistryAdapter:
             self._registry.register(definition, handler)
             registered.append(full_name)
 
-        logger.info(
-            f"注册了 {len(registered)}/{len(tools)} 个 MCP 工具"
-            f"（server={self._client._server_name}）"
-        )
         return registered
 
     def unregister_tools(self, tools: list[MCPToolInfo]) -> None:
@@ -60,7 +56,6 @@ class MCPRegistryAdapter:
             if full_name in self._registry._definitions:
                 del self._registry._definitions[full_name]
                 self._registry._handlers.pop(full_name, None)
-                logger.info(f"已注销 MCP 工具: {full_name}")
             else:
                 logger.warning(f"注销 MCP 工具 '{full_name}' 失败：未在注册中心找到")
 

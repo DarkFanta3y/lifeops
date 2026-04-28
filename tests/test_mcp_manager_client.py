@@ -6,8 +6,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from lifeops.tools.base import ToolResult
 from lifeops.tools.mcp.manager import MCPManager
-from lifeops.tools.mcp.types import MCPPromptInfo, MCPResourceInfo, MCPServerConfig
+from lifeops.tools.mcp.types import MCPPromptInfo, MCPResourceInfo, MCPServerConfig, MCPToolInfo
+from lifeops.tools.registry import ToolRegistry
 
 
 def _make_config() -> MCPServerConfig:
@@ -93,6 +95,42 @@ async def test_connect_server_failure():
             await manager.connect_server("github")
 
     assert manager.get_client("github") is None
+
+
+async def test_connect_and_register_all_logs_only_mcp_connection_count(caplog):
+    caplog.set_level("DEBUG")
+    manager = MCPManager()
+    manager.add_server("github", _make_config())
+    manager.add_server("workspace", _make_config())
+    registry = ToolRegistry()
+
+    clients = []
+    for server_name in ("github", "workspace"):
+        mock_client = AsyncMock()
+        mock_client._server_name = server_name
+        mock_client.connect = AsyncMock()
+        mock_client.list_tools = AsyncMock(
+            return_value=[
+                MCPToolInfo(
+                    server_name=server_name,
+                    original_name="search",
+                    description="搜索",
+                    input_schema={},
+                )
+            ]
+        )
+        mock_client.call_tool = AsyncMock(return_value=ToolResult(success=True, output="ok"))
+        clients.append(mock_client)
+
+    with patch("lifeops.tools.mcp.client.MCPClient", side_effect=clients):
+        results = await manager.connect_and_register_all(registry)
+
+    assert results == {"github": 1, "workspace": 1}
+    assert "MCP: 已连接 2 个 MCP" in caplog.text
+    assert "注册了" not in caplog.text
+    assert "mcp.github.search" not in caplog.text
+    assert "已注册 MCP server" not in caplog.text
+    assert "MCP server 'github' 连接成功" not in caplog.text
 
 
 async def test_disconnect_server():
