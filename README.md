@@ -1,6 +1,6 @@
 <div align="center">
 
-# LifeOps
+![logo](lifeops_logo.svg)
 
 **AI 驱动的生活助手智能体**
 
@@ -21,6 +21,8 @@
 - **三层上下文管理** — L1 常驻 / L2 按需 / L3 溢出压缩，高效利用 200K token 窗口
 - **Skill 系统** — 兼容 `SKILL.md` 标准，启动时只暴露目录摘要，触发后按需加载完整工作流指令
 - **工具系统** — 内置 Bash、文件读写、网络搜索，支持动态注册自定义工具
+- **Web 控制台** — React + Ant Design 本地工作台，查看对话历史、Skills 和 Tools，并直接发起对话
+- **本地历史缓存** — CLI 与 Web 共用 JSONL 对话记录，默认写入 `.lifeops/conversations.jsonl`
 - **OpenAI 兼容** — 支持 GPT-4o / Claude / 本地模型，一行配置切换后端
 - **Rich CLI** — 彩色终端界面，内置 `reset` / `context` 命令
 
@@ -55,6 +57,25 @@ Thinking...
 - `reset` — 清除对话历史
 - `context` — 查看上下文 token 用量
 - `exit` / `quit` — 退出
+
+### Web 控制台
+
+```bash
+# 终端 1：启动本地 API
+uv run lifeops-web
+
+# 终端 2：启动前端开发服务器
+cd web
+npm install
+npm run dev
+```
+
+默认 API 地址为 `http://127.0.0.1:8081`，前端地址为 `http://127.0.0.1:5173`。如需修改前端调用的 API 地址，可设置 `VITE_API_URL`。
+
+Web 控制台包含三个视图：
+- `对话` — 查看本地历史、继续 Web 对话、发送新消息
+- `SKILLS` — 查看当前发现的 Skill 元数据
+- `TOOLS` — 查看当前内置工具名称、描述和参数 schema
 
 ## 架构
 
@@ -97,6 +118,7 @@ Thinking...
 | `LLM_API_KEY` | LLM API 密钥（**必填**） | — |
 | `LLM_MODEL` | 模型名称 | `glm-4-flash` |
 | `LLM_API_BASE` | API 地址 | `https://open.bigmodel.cn/api/paas/v4` |
+| `LIFEOPS_HISTORY_PATH` | CLI 与 Web 共用 JSONL 历史缓存路径 | `.lifeops/conversations.jsonl` |
 | `LIFEOPS_DEBUG` | 调试模式 | `false` |
 | `LIFEOPS_LOG_LEVEL` | 日志级别 | `INFO` |
 
@@ -201,6 +223,7 @@ Google Workspace MCP 权限通过 `LIFEOPS_GOOGLE_WORKSPACE_MCP_PERMISSIONS` 传
 ```
 src/lifeops/
 ├── agent.py                # 主类 + CLI 入口
+├── history.py              # JSONL 对话历史缓存
 ├── core/
 │   ├── config.py           # 配置管理 (pydantic-settings)
 │   └── context_manager.py  # 三层上下文管理器
@@ -225,12 +248,16 @@ src/lifeops/
 │       └── servers/         # MCP Server 预设
 │           ├── github.py
 │           └── google_workspace.py
+├── web/
+│   └── api.py              # FastAPI 本地 Web API
 └── utils/
     └── logging.py           # 日志工具
 
 tests/
 ├── conftest.py              # 公共 fixture
 ├── test_agent.py
+├── test_history.py
+├── test_web_api.py
 ├── test_builtin_tools.py
 ├── test_context_manager.py
 ├── test_llm_client.py
@@ -251,6 +278,10 @@ uv run pytest tests/test_agent.py::test_agent_initialization -v
 
 # 代码检查
 uv run ruff check src/ tests/
+
+# 前端构建
+cd web
+npm run build
 ```
 
 测试使用 `pytest-asyncio`，`asyncio_mode = "auto"`，直接写 `async def test_...` 即可。

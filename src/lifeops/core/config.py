@@ -105,6 +105,7 @@ class AppConfig(BaseSettings):
     serpapi: SerpApiConfig = Field(default_factory=SerpApiConfig)
     mcp: MCPConfig = Field(default_factory=MCPConfig)
     skills: SkillsConfig = Field(default_factory=SkillsConfig)
+    history_path: str = ".lifeops/conversations.jsonl"
     debug: bool = False
     log_level: str = "INFO"
 

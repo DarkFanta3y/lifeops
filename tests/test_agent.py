@@ -4,13 +4,17 @@ import pytest
 
 from lifeops.agent import Agent, DEFAULT_SYSTEM_PROMPT
 from lifeops.core.config import AppConfig, LLMConfig, SkillsConfig
+from lifeops.history import ConversationHistoryStore
 from lifeops.llm.types import ChatResponse, MessageRole, ToolCallResult
 from lifeops.tools.base import ToolDefinition, ToolParams, ToolResult
 
 
 @pytest.fixture
 def mock_config():
-    return AppConfig(llm=LLMConfig(api_key="test-key", model="gpt-4o"))
+    return AppConfig(
+        llm=LLMConfig(api_key="test-key", model="gpt-4o"),
+        skills=SkillsConfig(enabled=False),
+    )
 
 
 def make_config_with_skills(tmp_path):
@@ -176,6 +180,44 @@ async def test_agent_simple_response(mock_config: AppConfig):
         assert result == "Hello! How can I help you?"
         assert len(agent.messages) == 2
         assert agent.messages[0].role == MessageRole.USER
+
+
+@pytest.mark.asyncio
+async def test_agent_run_persists_successful_cli_conversation(tmp_path, mock_config: AppConfig):
+    history_store = ConversationHistoryStore(tmp_path / "history.jsonl")
+
+    with patch("lifeops.agent.LLMClient") as MockLLM:
+        mock_llm_instance = AsyncMock()
+        mock_llm_instance.chat = AsyncMock(
+            return_value=ChatResponse(content="已记录", tool_calls=None)
+        )
+        MockLLM.return_value = mock_llm_instance
+
+        agent = Agent(mock_config, history_store=history_store, source="cli")
+        agent.llm = mock_llm_instance
+
+        result = await agent.run("记录一下")
+
+    assert result == "已记录"
+    records = history_store.list_records()
+    assert [record["role"] for record in records] == ["user", "assistant"]
+    assert [record["content"] for record in records] == ["记录一下", "已记录"]
+    assert {record["source"] for record in records} == {"cli"}
+    assert records[0]["conversation_id"] == agent.conversation_id
+    assert records[1]["conversation_id"] == agent.conversation_id
+
+
+def test_agent_reset_starts_new_conversation_without_deleting_history(tmp_path, mock_config: AppConfig):
+    history_store = ConversationHistoryStore(tmp_path / "history.jsonl")
+    history_store.append_message("existing", "cli", "user", "旧消息")
+
+    agent = Agent(mock_config, history_store=history_store, source="cli")
+    old_conversation_id = agent.conversation_id
+
+    agent.reset()
+
+    assert agent.conversation_id != old_conversation_id
+    assert history_store.list_records()[0]["content"] == "旧消息"
 
 
 @pytest.mark.asyncio

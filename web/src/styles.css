@@ -1,0 +1,288 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f6f7f9;
+  color: #111827;
+}
+
+button,
+input,
+textarea {
+  letter-spacing: 0;
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.sidebar {
+  min-height: 100vh;
+  position: sticky;
+  top: 0;
+  background: #f3f4f6;
+  border-right: 1px solid #d1d5db;
+}
+
+.brand {
+  height: 72px;
+  display: flex;
+  align-items: center;
+  padding: 0 18px;
+  background: #f3f4f6;
+  border-bottom: 1px solid #d1d5db;
+}
+
+.brand img {
+  width: 100%;
+  max-width: 148px;
+  height: 42px;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+
+.main-layout {
+  min-width: 0;
+}
+
+.topbar {
+  height: auto;
+  min-height: 86px;
+  padding: 18px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+  line-height: 1.4;
+}
+
+.topbar h3,
+.topbar h4,
+.toolbar h4,
+.chat-head h4 {
+  margin: 0;
+}
+
+.eyebrow {
+  display: block;
+  margin-bottom: 4px;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.content {
+  padding: 24px;
+}
+
+.workspace {
+  min-height: calc(100vh - 134px);
+}
+
+.chat-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  gap: 18px;
+}
+
+.history-pane,
+.chat-pane,
+.table-workspace {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+
+.history-pane {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pane-head,
+.toolbar,
+.chat-head {
+  min-height: 58px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.conversation-list {
+  max-height: calc(100vh - 210px);
+  overflow: auto;
+}
+
+.conversation-item {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid #f3f4f6;
+  background: #ffffff;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 14px 16px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  text-align: left;
+  gap: 12px;
+}
+
+.conversation-item:hover {
+  background: #f9fafb;
+}
+
+.conversation-item.active {
+  background: #eff6ff;
+}
+
+.empty-wrap {
+  padding: 28px 12px;
+}
+
+.conversation-item > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.conversation-item .ant-typography {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-pane {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: auto minmax(320px, 1fr) auto;
+  overflow: hidden;
+}
+
+.message-stream {
+  padding: 18px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.message-row {
+  display: flex;
+}
+
+.message-row.user {
+  justify-content: flex-end;
+}
+
+.message-row.assistant,
+.message-row.tool {
+  justify-content: flex-start;
+}
+
+.message-bubble {
+  max-width: min(720px, 82%);
+  padding: 12px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #f9fafb;
+}
+
+.message-row.user .message-bubble {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.message-row.tool .message-bubble {
+  background: #f3f4f6;
+}
+
+.role-label {
+  display: block;
+  margin-bottom: 6px;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.message-bubble p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+}
+
+.composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 16px;
+  border-top: 1px solid #e5e7eb;
+  background: #ffffff;
+}
+
+.table-workspace {
+  padding: 0 0 16px;
+}
+
+.table-workspace .ant-table-wrapper {
+  padding: 16px;
+}
+
+@media (max-width: 900px) {
+  .topbar {
+    padding: 14px 18px;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .content {
+    padding: 16px;
+  }
+
+  .chat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .conversation-list {
+    max-height: 240px;
+  }
+
+  .workspace {
+    min-height: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .brand {
+    padding: 0 12px;
+    justify-content: center;
+  }
+
+  .brand img {
+    max-width: 44px;
+  }
+
+  .composer {
+    grid-template-columns: 1fr;
+  }
+
+  .message-bubble {
+    max-width: 94%;
+  }
+
+  .toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

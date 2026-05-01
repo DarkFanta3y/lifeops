@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 from typing import Any
+from uuid import uuid4
 
 from lifeops.core.config import AppConfig
 from lifeops.core.context_manager import ContextLayer, ContextManager
+from lifeops.history import ConversationHistoryStore, HistorySource
 from lifeops.llm.client import LLMClient
 from lifeops.llm.types import Message, MessageRole, ToolCallResult
 from lifeops.skills.manager import SkillManager
@@ -32,7 +34,14 @@ Key behaviors:
 
 
 class Agent:
-    def __init__(self, config: AppConfig, system_prompt: str | None = None):
+    def __init__(
+        self,
+        config: AppConfig,
+        system_prompt: str | None = None,
+        history_store: ConversationHistoryStore | None = None,
+        source: HistorySource = "cli",
+        conversation_id: str | None = None,
+    ):
         self.config = config
         self.llm = LLMClient(
             api_key=config.llm.api_key,
@@ -56,6 +65,9 @@ class Agent:
         self.max_iterations = 10
         self.skill_manager: SkillManager | None = None
         self.skill_matcher: SkillMatcher | None = None
+        self.history_store = history_store or ConversationHistoryStore(config.history_path)
+        self.source = source
+        self.conversation_id = conversation_id or self._new_conversation_id()
 
         self._register_default_tools()
 
@@ -135,8 +147,11 @@ class Agent:
 
     async def run(self, user_input: str) -> str:
         user_input = sanitize_unicode_text(user_input)
+        if self.skill_matcher is not None:
+            self.skill_matcher.llm = self.llm
         await self._activate_skills_for_input(user_input)
         self.messages.append(Message(role=MessageRole.USER, content=user_input))
+        self._persist_message(MessageRole.USER, user_input)
         self.context.add_content(
             f"user_{len(self.messages)}",
             user_input,
@@ -159,6 +174,7 @@ class Agent:
                     ContextLayer.L1,
                     token_count=len(response_content) // 4,
                 )
+                self._persist_message(MessageRole.ASSISTANT, response_content)
                 return response_content
 
             if response.tool_calls:
@@ -197,6 +213,12 @@ class Agent:
                             name=tc.name,
                         )
                     )
+                    self._persist_message(
+                        MessageRole.TOOL,
+                        tool_output,
+                        tool_name=tc.name,
+                        tool_call_id=tc.id,
+                    )
                     self.context.add_content(
                         f"tool_{tc.id}",
                         tool_output,
@@ -220,11 +242,34 @@ class Agent:
             },
         }
 
+    def _persist_message(
+        self,
+        role: MessageRole,
+        content: str,
+        tool_name: str | None = None,
+        tool_call_id: str | None = None,
+    ) -> None:
+        try:
+            self.history_store.append_message(
+                conversation_id=self.conversation_id,
+                source=self.source,
+                role=role.value,
+                content=content,
+                tool_name=tool_name,
+                tool_call_id=tool_call_id,
+            )
+        except Exception:
+            logger.exception("写入对话历史失败")
+
+    def _new_conversation_id(self) -> str:
+        return uuid4().hex
+
     async def chat(self, user_input: str) -> str:
         return await self.run(user_input)
 
     def reset(self) -> None:
         self.messages.clear()
+        self.conversation_id = self._new_conversation_id()
         self.context = ContextManager(
             max_tokens=self.config.context.max_context_tokens,
             l1_budget_ratio=self.config.context.l1_budget_ratio,

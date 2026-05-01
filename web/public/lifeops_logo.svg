@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 360" role="img" aria-label="LifeOps logo">
+  <defs>
+    <linearGradient id="opsGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0B67F6"/>
+      <stop offset="55%" stop-color="#1089E8"/>
+      <stop offset="100%" stop-color="#09B8B8"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="360" fill="none"/>
+  <text x="60" y="250"
+        font-family="Inter, Avenir Next, Helvetica Neue, Arial, sans-serif"
+        font-size="230"
+        font-weight="800"
+        letter-spacing="-14"
+        fill="#001A78">Life</text>
+  <text x="560" y="250"
+        font-family="Inter, Avenir Next, Helvetica Neue, Arial, sans-serif"
+        font-size="230"
+        font-weight="800"
+        letter-spacing="-14"
+        fill="url(#opsGradient)">Ops</text>
+</svg>

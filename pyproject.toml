@@ -11,6 +11,8 @@ dependencies = [
     "rich>=13.7.0",
     "serpapi>=1.0.0",
     "mcp[cli]>=1.27.0",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
 ]
 
 [project.optional-dependencies]
@@ -23,6 +25,7 @@ dev = [
 
 [project.scripts]
 lifeops = "lifeops.agent:main"
+lifeops-web = "lifeops.web.api:main"
 
 [build-system]
 requires = ["hatchling"]
