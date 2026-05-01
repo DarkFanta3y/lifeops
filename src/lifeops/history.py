@@ -19,7 +19,7 @@ REQUIRED_RECORD_KEYS = {"conversation_id", "source", "role", "content", "created
 
 
 class ConversationHistoryStore:
-    """JSONL-backed conversation history shared by CLI and Web API."""
+    """JSONL-backed conversation history for the local Web API."""
 
     def __init__(self, path: str | Path):
         self.path = self._resolve_path(path)

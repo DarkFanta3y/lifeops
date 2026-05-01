@@ -1,3 +1,6 @@
+import importlib
+import tomllib
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -43,6 +46,21 @@ def test_agent_initialization(mock_config: AppConfig):
     assert len(agent.tools.list_definitions()) > 0
     assert agent.system_prompt == DEFAULT_SYSTEM_PROMPT
     assert len(agent.messages) == 0
+    assert agent.source == "web"
+
+
+def test_console_script_and_agent_cli_entrypoints_are_removed():
+    pyproject_path = Path(__file__).parents[1] / "pyproject.toml"
+    pyproject = tomllib.loads(pyproject_path.read_text(encoding="utf-8"))
+
+    scripts = pyproject["project"]["scripts"]
+    assert "lifeops" not in scripts
+    assert scripts["lifeops-web"] == "lifeops.web.api:main"
+
+    agent_module = importlib.import_module("lifeops.agent")
+    assert not hasattr(agent_module, "main")
+    assert not hasattr(agent_module, "_start")
+    assert not hasattr(agent_module, "_run_repl")
 
 
 def test_agent_initialization_adds_skill_catalog_to_l1(tmp_path):
@@ -183,7 +201,9 @@ async def test_agent_simple_response(mock_config: AppConfig):
 
 
 @pytest.mark.asyncio
-async def test_agent_run_persists_successful_cli_conversation(tmp_path, mock_config: AppConfig):
+async def test_agent_run_persists_successful_default_web_conversation(
+    tmp_path, mock_config: AppConfig
+):
     history_store = ConversationHistoryStore(tmp_path / "history.jsonl")
 
     with patch("lifeops.agent.LLMClient") as MockLLM:
@@ -193,7 +213,7 @@ async def test_agent_run_persists_successful_cli_conversation(tmp_path, mock_con
         )
         MockLLM.return_value = mock_llm_instance
 
-        agent = Agent(mock_config, history_store=history_store, source="cli")
+        agent = Agent(mock_config, history_store=history_store)
         agent.llm = mock_llm_instance
 
         result = await agent.run("记录一下")
@@ -202,7 +222,7 @@ async def test_agent_run_persists_successful_cli_conversation(tmp_path, mock_con
     records = history_store.list_records()
     assert [record["role"] for record in records] == ["user", "assistant"]
     assert [record["content"] for record in records] == ["记录一下", "已记录"]
-    assert {record["source"] for record in records} == {"cli"}
+    assert {record["source"] for record in records} == {"web"}
     assert records[0]["conversation_id"] == agent.conversation_id
     assert records[1]["conversation_id"] == agent.conversation_id
 
@@ -211,7 +231,7 @@ def test_agent_reset_starts_new_conversation_without_deleting_history(tmp_path, 
     history_store = ConversationHistoryStore(tmp_path / "history.jsonl")
     history_store.append_message("existing", "cli", "user", "旧消息")
 
-    agent = Agent(mock_config, history_store=history_store, source="cli")
+    agent = Agent(mock_config, history_store=history_store)
     old_conversation_id = agent.conversation_id
 
     agent.reset()

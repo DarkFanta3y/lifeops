@@ -1,4 +1,4 @@
-"""Tests for MCPConfig environment variable reading and CLI parameter override."""
+"""Tests for MCPConfig environment variable reading and explicit init overrides."""
 
 from __future__ import annotations
 

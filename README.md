@@ -22,9 +22,8 @@
 - **Skill 系统** — 兼容 `SKILL.md` 标准，启动时只暴露目录摘要，触发后按需加载完整工作流指令
 - **工具系统** — 内置 Bash、文件读写、网络搜索，支持动态注册自定义工具
 - **Web 控制台** — React + Ant Design 本地工作台，查看对话历史、Skills 和 Tools，并直接发起对话
-- **本地历史缓存** — CLI 与 Web 共用 JSONL 对话记录，默认写入 `.lifeops/conversations.jsonl`
+- **本地历史缓存** — Web / 本地 API 使用 JSONL 对话记录，默认写入 `.lifeops/conversations.jsonl`
 - **OpenAI 兼容** — 支持 GPT-4o / Claude / 本地模型，一行配置切换后端
-- **Rich CLI** — 彩色终端界面，内置 `reset` / `context` 命令
 
 ## 快速开始
 
@@ -34,43 +33,25 @@ uv sync
 
 # 设置 API Key
 export LLM_API_KEY=your-key-here
-
-# 启动
-uv run lifeops
 ```
 
-启动后进入交互式 REPL：
-
-```
-╭─────────────────────────────╮
-│  LifeOps Agent v0.1.0       │
-╰─────────────────────────────╯
-You: 今天天气怎么样？
-Thinking...
-╭─────────────────────────────╮
-│  Agent                       │
-│  今天上海天气...              │
-╰─────────────────────────────╯
-```
-
-内置命令：
-- `reset` — 清除对话历史
-- `context` — 查看上下文 token 用量
-- `exit` / `quit` — 退出
-
-### Web 控制台
+终端 1：启动本地 API
 
 ```bash
-# 终端 1：启动本地 API
 uv run lifeops-web
+```
 
-# 终端 2：启动前端开发服务器
+终端 2：启动前端开发服务器
+
+```bash
 cd web
 npm install
 npm run dev
 ```
 
 默认 API 地址为 `http://127.0.0.1:8081`，前端地址为 `http://127.0.0.1:5173`。如需修改前端调用的 API 地址，可设置 `VITE_API_URL`。
+
+### Web 控制台
 
 Web 控制台包含三个视图：
 - `对话` — 查看本地历史、继续 Web 对话、发送新消息
@@ -118,7 +99,7 @@ Web 控制台包含三个视图：
 | `LLM_API_KEY` | LLM API 密钥（**必填**） | — |
 | `LLM_MODEL` | 模型名称 | `glm-4-flash` |
 | `LLM_API_BASE` | API 地址 | `https://open.bigmodel.cn/api/paas/v4` |
-| `LIFEOPS_HISTORY_PATH` | CLI 与 Web 共用 JSONL 历史缓存路径 | `.lifeops/conversations.jsonl` |
+| `LIFEOPS_HISTORY_PATH` | Web / 本地 API JSONL 历史缓存路径 | `.lifeops/conversations.jsonl` |
 | `LIFEOPS_DEBUG` | 调试模式 | `false` |
 | `LIFEOPS_LOG_LEVEL` | 日志级别 | `INFO` |
 
@@ -164,7 +145,7 @@ description: 整理本周记录、总结进展、生成下周行动计划。Use 
 
 ### MCP 配置
 
-启动时 MCP 只显示已连接的 MCP 数量；具体 Server 连接过程与 MCP 工具注册明细降为 debug 日志。
+启动时日志只显示已连接的 MCP 数量；具体 Server 连接过程与 MCP 工具注册明细降为 debug 日志。
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
@@ -177,8 +158,6 @@ description: 整理本周记录、总结进展、生成下周行动计划。Use 
 | `GOOGLE_MCP_CREDENTIALS_DIR` | Google Workspace MCP OAuth 凭据缓存目录 | — |
 | `LIFEOPS_GOOGLE_WORKSPACE_MCP_PERMISSIONS` | Google Workspace MCP 权限范围，默认只允许 Gmail 草稿 | `gmail:drafts` |
 | `LIFEOPS_GOOGLE_WORKSPACE_MCP_TOOL_TIER` | Google Workspace MCP 工具层级 | `core` |
-
-CLI 参数: `--mcp-enabled` / `--mcp-disabled` / `--mcp-servers <json>`
 
 #### MCP 凭据获取
 
@@ -222,7 +201,7 @@ Google Workspace MCP 权限通过 `LIFEOPS_GOOGLE_WORKSPACE_MCP_PERMISSIONS` 传
 
 ```
 src/lifeops/
-├── agent.py                # 主类 + CLI 入口
+├── agent.py                # Agent 核心类
 ├── history.py              # JSONL 对话历史缓存
 ├── core/
 │   ├── config.py           # 配置管理 (pydantic-settings)
