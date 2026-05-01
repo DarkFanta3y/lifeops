@@ -72,10 +72,13 @@ class ConversationHistoryStore:
                 records.append(record)
         return records
 
-    def list_conversations(self) -> list[dict[str, Any]]:
+    def list_conversations(self, query: str | None = None) -> list[dict[str, Any]]:
         grouped: OrderedDict[str, dict[str, Any]] = OrderedDict()
-        for record in self.list_records():
+        grouped_records: OrderedDict[str, list[dict[str, Any]]] = OrderedDict()
+        records = self.list_records()
+        for record in records:
             conversation_id = record["conversation_id"]
+            grouped_records.setdefault(conversation_id, []).append(record)
             summary = grouped.setdefault(
                 conversation_id,
                 {
@@ -94,7 +97,15 @@ class ConversationHistoryStore:
             if record["role"] == "user" and not summary["title"]:
                 summary["title"] = self._title_from_record(record)
 
-        return sorted(grouped.values(), key=lambda item: item["updated_at"], reverse=True)
+        summaries = list(grouped.values())
+        if query and query.strip():
+            summaries = [
+                summary
+                for summary in summaries
+                if self._matches_query(summary, grouped_records[summary["conversation_id"]], query)
+            ]
+
+        return sorted(summaries, key=lambda item: item["updated_at"], reverse=True)
 
     def get_messages(self, conversation_id: str) -> list[dict[str, Any]]:
         return [
@@ -102,6 +113,21 @@ class ConversationHistoryStore:
             for record in self.list_records()
             if record["conversation_id"] == conversation_id
         ]
+
+    def delete_conversation(self, conversation_id: str) -> int:
+        records = self.list_records()
+        remaining_records = [
+            record for record in records if record["conversation_id"] != conversation_id
+        ]
+        deleted_count = len(records) - len(remaining_records)
+        if deleted_count == 0:
+            return 0
+
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self.path.open("w", encoding="utf-8") as file:
+            for record in remaining_records:
+                file.write(json.dumps(record, ensure_ascii=False) + "\n")
+        return deleted_count
 
     def _resolve_path(self, path: str | Path) -> Path:
         resolved = Path(path).expanduser()
@@ -121,6 +147,20 @@ class ConversationHistoryStore:
         if not content:
             return "未命名对话"
         return content[:80]
+
+    def _matches_query(
+        self,
+        summary: dict[str, Any],
+        records: list[dict[str, Any]],
+        query: str,
+    ) -> bool:
+        normalized_query = query.strip().casefold()
+        searchable_values = [
+            str(summary.get("title", "")),
+            str(summary.get("last_message", "")),
+            *(record["content"] for record in records),
+        ]
+        return any(normalized_query in value.casefold() for value in searchable_values)
 
     def _now(self) -> str:
         return datetime.now().astimezone().isoformat(timespec="seconds")

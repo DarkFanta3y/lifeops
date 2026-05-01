@@ -32,7 +32,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
     app = FastAPI(title="LifeOps Web API", version="0.1.0")
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+        allow_origin_regex=r"^http://(localhost|127\.0\.0\.1):\d+$",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -43,8 +43,8 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
     app.state.web_agents = {}
 
     @app.get("/api/conversations")
-    async def list_conversations() -> dict[str, Any]:
-        return {"conversations": app.state.history_store.list_conversations()}
+    async def list_conversations(query: str | None = None) -> dict[str, Any]:
+        return {"conversations": app.state.history_store.list_conversations(query)}
 
     @app.get("/api/conversations/{conversation_id}")
     async def get_conversation(conversation_id: str) -> dict[str, Any]:
@@ -52,6 +52,12 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
             "conversation_id": conversation_id,
             "messages": app.state.history_store.get_messages(conversation_id),
         }
+
+    @app.delete("/api/conversations/{conversation_id}")
+    async def delete_conversation(conversation_id: str) -> dict[str, Any]:
+        deleted_count = app.state.history_store.delete_conversation(conversation_id)
+        app.state.web_agents.pop(conversation_id, None)
+        return {"conversation_id": conversation_id, "deleted_count": deleted_count}
 
     @app.post("/api/chat", response_model=ChatResponse)
     async def chat(request: ChatRequest) -> ChatResponse:

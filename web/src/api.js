@@ -16,8 +16,13 @@ async function request(path, options = {}) {
   return payload;
 }
 
-export function fetchConversations() {
-  return request("/api/conversations");
+export function fetchConversations(query) {
+  const params = new URLSearchParams();
+  if (query) {
+    params.set("query", query);
+  }
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  return request(`/api/conversations${suffix}`);
 }
 
 export function fetchConversation(conversationId) {
@@ -31,6 +36,12 @@ export function sendChatMessage({ message, conversationId }) {
       message,
       conversation_id: conversationId || undefined,
     }),
+  });
+}
+
+export function deleteConversation(conversationId) {
+  return request(`/api/conversations/${conversationId}`, {
+    method: "DELETE",
   });
 }
 

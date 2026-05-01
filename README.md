@@ -6,7 +6,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://python.org)
 [![uv](https://img.shields.io/badge/uv-package_manager-6E39C6.svg)](https://github.com/astral-sh/uv)
-[![pytest](https://img.shields.io/badge/tests-220%20passed-green.svg)](https://docs.pytest.org)
+[![pytest](https://img.shields.io/badge/local_tests-253%20passed-green.svg)](https://docs.pytest.org)
 [![Ruff](https://img.shields.io/badge/linter-ruff-FCC624.svg)](https://docs.astral.sh/ruff/)
 
 [快速开始](#快速开始) · [架构](#架构) · [配置](#配置) · [开发](#开发)
@@ -21,8 +21,8 @@
 - **三层上下文管理** — L1 常驻 / L2 按需 / L3 溢出压缩，高效利用 200K token 窗口
 - **Skill 系统** — 兼容 `SKILL.md` 标准，启动时只暴露目录摘要，触发后按需加载完整工作流指令
 - **工具系统** — 内置 Bash、文件读写、网络搜索，支持动态注册自定义工具
-- **Web 控制台** — React + Ant Design 本地工作台，查看对话历史、Skills 和 Tools，并直接发起对话
-- **本地历史缓存** — Web / 本地 API 使用 JSONL 对话记录，默认写入 `.lifeops/conversations.jsonl`
+- **Web 控制台** — React + Ant Design 本地工作台，在全局侧边栏管理聊天、Skills 和 Tools，并直接发起对话
+- **本地历史缓存** — Web / 本地 API 使用 JSONL 对话记录，支持搜索与删除，默认写入 `.lifeops/conversations.jsonl`
 - **OpenAI 兼容** — 支持 GPT-4o / Claude / 本地模型，一行配置切换后端
 
 ## 快速开始
@@ -53,10 +53,18 @@ npm run dev
 
 ### Web 控制台
 
-Web 控制台包含三个视图：
-- `对话` — 查看本地历史、继续 Web 对话、发送新消息
+Web 控制台包含三个主要区域：
+- 左侧侧边栏 — 顶部提供 `新聊天` 与 `搜索聊天`；`新聊天` 只清空当前输入与消息流，第一条消息发送后才创建历史记录；`搜索聊天` 通过弹窗检索本地历史
 - `SKILLS` — 查看当前发现的 Skill 元数据
 - `TOOLS` — 查看当前内置工具名称、描述和参数 schema
+
+聊天历史位于侧边栏 `对话` 分组中，可折叠。悬浮单条历史会显示删除按钮，确认后会从本地 JSONL 历史中移除该会话。
+
+本地 Web API 的会话端点：
+- `GET /api/conversations` — 获取会话列表
+- `GET /api/conversations?query=关键词` — 按标题、最后消息和会话内消息内容搜索
+- `GET /api/conversations/{conversation_id}` — 获取会话消息
+- `DELETE /api/conversations/{conversation_id}` — 删除会话历史并清理 Web agent 缓存
 
 ## 架构
 
@@ -233,17 +241,12 @@ src/lifeops/
     └── logging.py           # 日志工具
 
 tests/
-├── conftest.py              # 公共 fixture
-├── test_agent.py
-├── test_history.py
-├── test_web_api.py
-├── test_builtin_tools.py
-├── test_context_manager.py
-├── test_llm_client.py
-└── test_tool_registry.py
+└── ...                      # 本地测试目录，已加入 .gitignore，不随仓库同步
 ```
 
 ## 开发
+
+`tests/` 作为本地测试目录维护，不再随 Git 同步提交；如需运行测试，请确保本地已保留或自行准备对应测试文件。
 
 ```bash
 # 安装开发依赖

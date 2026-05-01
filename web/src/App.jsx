@@ -6,21 +6,29 @@ import {
   Empty,
   Input,
   Layout,
-  Menu,
+  Modal,
+  Popconfirm,
   Space,
   Spin,
   Table,
   Tag,
+  Tooltip,
   Typography,
 } from "antd";
 import {
   AppstoreOutlined,
+  DeleteOutlined,
+  DownOutlined,
   MessageOutlined,
+  PlusOutlined,
   ReloadOutlined,
+  RightOutlined,
+  SearchOutlined,
   SendOutlined,
   ToolOutlined,
 } from "@ant-design/icons";
 import {
+  deleteConversation,
   fetchConversation,
   fetchConversations,
   fetchSkills,
@@ -28,14 +36,8 @@ import {
   sendChatMessage,
 } from "./api.js";
 
-const { Header, Sider, Content } = Layout;
+const { Sider, Content } = Layout;
 const { Text, Title } = Typography;
-
-const NAV_ITEMS = [
-  { key: "chat", icon: <MessageOutlined />, label: "对话" },
-  { key: "skills", icon: <AppstoreOutlined />, label: "SKILLS" },
-  { key: "tools", icon: <ToolOutlined />, label: "TOOLS" },
-];
 
 function App() {
   const { message } = AntApp.useApp();
@@ -49,6 +51,11 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const [conversationsOpen, setConversationsOpen] = useState(true);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   const selectedConversation = useMemo(
     () =>
@@ -71,17 +78,29 @@ function App() {
     }
   }, [activeView, skills.length, tools.length]);
 
-  async function loadConversations(nextSelectedId) {
+  async function loadConversations(options = {}) {
+    const hasNextSelectedId = Object.prototype.hasOwnProperty.call(options, "nextSelectedId");
+    const requestedSelectedId = hasNextSelectedId
+      ? options.nextSelectedId
+      : selectedConversationId;
+    const autoSelect = options.autoSelect ?? true;
+
     setLoading(true);
     setError("");
     try {
       const payload = await fetchConversations();
       const nextConversations = payload.conversations || [];
-      const nextId =
-        nextSelectedId ||
-        selectedConversationId ||
-        nextConversations[0]?.conversation_id ||
-        null;
+      const requestedExists =
+        requestedSelectedId &&
+        nextConversations.some(
+          (conversation) => conversation.conversation_id === requestedSelectedId,
+        );
+      const nextId = requestedExists
+        ? requestedSelectedId
+        : autoSelect
+          ? nextConversations[0]?.conversation_id || null
+          : null;
+
       setConversations(nextConversations);
       setSelectedConversationId(nextId);
       if (nextId) {
@@ -97,6 +116,7 @@ function App() {
   }
 
   async function loadConversation(conversationId) {
+    setActiveView("chat");
     setError("");
     try {
       const payload = await fetchConversation(conversationId);
@@ -133,12 +153,63 @@ function App() {
     }
   }
 
+  function handleNewChat() {
+    setActiveView("chat");
+    setSelectedConversationId(null);
+    setConversationMessages([]);
+    setChatInput("");
+    setError("");
+  }
+
+  async function handleSearch(rawQuery = searchQuery) {
+    const query = rawQuery.trim();
+    setSearchQuery(rawQuery);
+    if (!query) {
+      setSearchResults([]);
+      return;
+    }
+
+    setSearchLoading(true);
+    try {
+      const payload = await fetchConversations(query);
+      setSearchResults(payload.conversations || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSearchLoading(false);
+    }
+  }
+
+  async function handleSelectSearchResult(conversationId) {
+    setSearchOpen(false);
+    await loadConversation(conversationId);
+  }
+
+  async function handleDeleteConversation(conversationId) {
+    setError("");
+    try {
+      await deleteConversation(conversationId);
+      message.success("对话已删除");
+      await loadConversations({
+        nextSelectedId:
+          conversationId === selectedConversationId ? null : selectedConversationId,
+        autoSelect: conversationId !== selectedConversationId,
+      });
+      setSearchResults((current) =>
+        current.filter((item) => item.conversation_id !== conversationId),
+      );
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   async function handleSend() {
     const content = chatInput.trim();
     if (!content || sending) {
       return;
     }
 
+    setActiveView("chat");
     setSending(true);
     setError("");
     const optimisticUserMessage = {
@@ -155,10 +226,15 @@ function App() {
         conversationId: selectedConversationId,
       });
       message.success("已发送");
-      await loadConversations(payload.conversation_id);
+      await loadConversations({
+        nextSelectedId: payload.conversation_id,
+        autoSelect: false,
+      });
     } catch (err) {
       setError(err.message);
-      setConversationMessages((current) => current.filter((item) => item !== optimisticUserMessage));
+      setConversationMessages((current) =>
+        current.filter((item) => item !== optimisticUserMessage),
+      );
     } finally {
       setSending(false);
     }
@@ -168,16 +244,11 @@ function App() {
     if (activeView === "chat") {
       return (
         <ChatWorkspace
-          conversations={conversations}
           selectedConversation={selectedConversation}
-          selectedConversationId={selectedConversationId}
           messages={conversationMessages}
           chatInput={chatInput}
-          loading={loading}
           sending={sending}
           onInputChange={setChatInput}
-          onRefresh={() => loadConversations()}
-          onSelectConversation={loadConversation}
           onSend={handleSend}
         />
       );
@@ -192,81 +263,193 @@ function App() {
 
   return (
     <Layout className="app-shell">
-      <Sider className="sidebar" width={220} breakpoint="md" collapsedWidth={72}>
+      <Sider className="sidebar" width={264} breakpoint="md" collapsedWidth={72}>
         <div className="brand">
           <img src="/lifeops_logo.svg" alt="LifeOps" />
         </div>
-        <Menu
-          theme="light"
-          mode="inline"
-          selectedKeys={[activeView]}
-          items={NAV_ITEMS}
-          onClick={({ key }) => setActiveView(key)}
-        />
+        <div className="sidebar-actions">
+          <Button type="primary" icon={<PlusOutlined />} block onClick={handleNewChat}>
+            新聊天
+          </Button>
+          <Button
+            icon={<SearchOutlined />}
+            block
+            onClick={() => {
+              setSearchOpen(true);
+              setSearchQuery("");
+              setSearchResults([]);
+            }}
+          >
+            搜索聊天
+          </Button>
+        </div>
+        <nav className="sidebar-nav" aria-label="主导航">
+          <button
+            type="button"
+            className={activeView === "skills" ? "sidebar-nav-item active" : "sidebar-nav-item"}
+            onClick={() => setActiveView("skills")}
+          >
+            <AppstoreOutlined />
+            <span>SKILLS</span>
+          </button>
+          <button
+            type="button"
+            className={activeView === "tools" ? "sidebar-nav-item active" : "sidebar-nav-item"}
+            onClick={() => setActiveView("tools")}
+          >
+            <ToolOutlined />
+            <span>TOOLS</span>
+          </button>
+        </nav>
+        <section className="sidebar-conversations">
+          <button
+            type="button"
+            className="conversation-group-toggle"
+            onClick={() => setConversationsOpen((current) => !current)}
+          >
+            {conversationsOpen ? <DownOutlined /> : <RightOutlined />}
+            <span>对话</span>
+            <Tag>{conversations.length}</Tag>
+          </button>
+          {conversationsOpen ? (
+            <Spin spinning={loading}>
+              <ConversationList
+                conversations={conversations}
+                selectedConversationId={selectedConversationId}
+                onSelect={loadConversation}
+                onDelete={handleDeleteConversation}
+              />
+            </Spin>
+          ) : null}
+        </section>
       </Sider>
       <Layout className="main-layout">
-        <Header className="topbar">
-          <div>
-            <Text className="eyebrow">本地控制台</Text>
-            <Title level={3}>{titleForView(activeView)}</Title>
-          </div>
-          {error ? <Alert type="error" message={error} showIcon /> : null}
-        </Header>
-        <Content className="content">{renderContent()}</Content>
+        <Content className="content">
+          {error ? <Alert className="content-alert" type="error" message={error} showIcon /> : null}
+          {renderContent()}
+        </Content>
       </Layout>
+      <SearchModal
+        open={searchOpen}
+        query={searchQuery}
+        results={searchResults}
+        loading={searchLoading}
+        onQueryChange={setSearchQuery}
+        onSearch={handleSearch}
+        onSelect={handleSelectSearchResult}
+        onClose={() => setSearchOpen(false)}
+      />
     </Layout>
   );
 }
 
+function ConversationList({ conversations, selectedConversationId, onSelect, onDelete }) {
+  if (conversations.length === 0) {
+    return (
+      <div className="sidebar-empty">
+        <Empty description="暂无对话" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="conversation-list">
+      {conversations.map((item) => (
+        <div
+          key={item.conversation_id}
+          className={
+            item.conversation_id === selectedConversationId
+              ? "conversation-item active"
+              : "conversation-item"
+          }
+        >
+          <button
+            type="button"
+            className="conversation-select"
+            onClick={() => onSelect(item.conversation_id)}
+          >
+            <Text strong>{item.title || "未命名对话"}</Text>
+            <Text type="secondary">{item.last_message}</Text>
+          </button>
+          <Popconfirm
+            title="删除对话？"
+            description="该对话的历史消息会从本地记录中移除。"
+            okText="删除"
+            cancelText="取消"
+            okButtonProps={{ danger: true }}
+            onConfirm={() => onDelete(item.conversation_id)}
+          >
+            <Tooltip title="删除">
+              <Button
+                danger
+                type="text"
+                size="small"
+                icon={<DeleteOutlined />}
+                className="conversation-delete"
+                aria-label="删除对话"
+              />
+            </Tooltip>
+          </Popconfirm>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SearchModal({
+  open,
+  query,
+  results,
+  loading,
+  onQueryChange,
+  onSearch,
+  onSelect,
+  onClose,
+}) {
+  return (
+    <Modal title="搜索聊天" open={open} onCancel={onClose} footer={null} destroyOnHidden>
+      <Input.Search
+        value={query}
+        onChange={(event) => onQueryChange(event.target.value)}
+        onSearch={onSearch}
+        enterButton="搜索"
+        loading={loading}
+        allowClear
+        autoFocus
+      />
+      <div className="search-results">
+        <Spin spinning={loading}>
+          {results.length === 0 ? (
+            <Empty description={query.trim() ? "无匹配对话" : "输入关键词后搜索"} />
+          ) : (
+            results.map((item) => (
+              <button
+                type="button"
+                key={item.conversation_id}
+                className="search-result-item"
+                onClick={() => onSelect(item.conversation_id)}
+              >
+                <Text strong>{item.title || "未命名对话"}</Text>
+                <Text type="secondary">{item.last_message}</Text>
+              </button>
+            ))
+          )}
+        </Spin>
+      </div>
+    </Modal>
+  );
+}
+
 function ChatWorkspace({
-  conversations,
   selectedConversation,
-  selectedConversationId,
   messages,
   chatInput,
-  loading,
   sending,
   onInputChange,
-  onRefresh,
-  onSelectConversation,
   onSend,
 }) {
   return (
-    <section className="workspace chat-grid">
-      <aside className="history-pane">
-        <div className="pane-head">
-          <Text strong>对话历史</Text>
-          <Button icon={<ReloadOutlined />} onClick={onRefresh} aria-label="刷新对话历史" />
-        </div>
-        <Spin spinning={loading}>
-          <div className="conversation-list">
-            {conversations.length === 0 ? (
-              <div className="empty-wrap">
-                <Empty description="暂无对话" />
-              </div>
-            ) : (
-              conversations.map((item) => (
-                <button
-                  type="button"
-                  key={item.conversation_id}
-                  className={
-                    item.conversation_id === selectedConversationId
-                      ? "conversation-item active"
-                      : "conversation-item"
-                  }
-                  onClick={() => onSelectConversation(item.conversation_id)}
-                >
-                  <div>
-                    <Text strong>{item.title || "未命名对话"}</Text>
-                    <Text type="secondary">{item.last_message}</Text>
-                  </div>
-                  <Tag>{item.source}</Tag>
-                </button>
-              ))
-            )}
-          </div>
-        </Spin>
-      </aside>
+    <section className="workspace chat-workspace">
       <main className="chat-pane">
         <div className="chat-head">
           <div>
@@ -376,16 +559,6 @@ function Toolbar({ title, count, onRefresh }) {
       </Button>
     </div>
   );
-}
-
-function titleForView(view) {
-  if (view === "skills") {
-    return "Skills";
-  }
-  if (view === "tools") {
-    return "Tools";
-  }
-  return "对话";
 }
 
 function roleLabel(role) {
