@@ -2,10 +2,21 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  height: 100vh;
+  overflow: hidden;
+}
+
 body {
   margin: 0;
   background: #f5f6f8;
   color: #111827;
+}
+
+#root {
+  height: 100vh;
+  overflow: hidden;
 }
 
 button,
@@ -15,19 +26,30 @@ textarea {
 }
 
 .app-shell {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .sidebar {
-  min-height: 100vh;
-  position: sticky;
-  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: #f3f4f6;
   border-right: 1px solid #d1d5db;
 }
 
+.sidebar .ant-layout-sider-children {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .brand {
   height: 72px;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   padding: 0 18px;
@@ -44,12 +66,14 @@ textarea {
 }
 
 .sidebar-actions {
+  flex: 0 0 auto;
   display: grid;
   gap: 10px;
   padding: 16px 14px 28px;
 }
 
 .sidebar-nav {
+  flex: 0 0 auto;
   display: grid;
   gap: 4px;
   padding: 0 10px 16px;
@@ -89,6 +113,11 @@ textarea {
 }
 
 .sidebar-conversations {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: 14px 10px 0;
 }
 
@@ -107,31 +136,40 @@ textarea {
 }
 
 .main-layout {
+  height: 100vh;
+  min-height: 0;
   min-width: 0;
+  overflow: hidden;
 }
 
 .content {
-  min-height: 100vh;
-  padding: 24px;
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
 }
 
 .content-alert {
-  margin-bottom: 16px;
+  flex: 0 0 auto;
+  margin: 16px 24px 0;
 }
 
 .workspace {
-  min-height: calc(100vh - 48px);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .chat-workspace {
   display: grid;
+  grid-template-rows: minmax(0, 1fr);
 }
 
-.chat-pane,
-.table-workspace {
+.chat-pane {
   background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
 }
 
 .toolbar,
@@ -151,9 +189,20 @@ textarea {
 }
 
 .conversation-list {
-  max-height: calc(100vh - 252px);
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
   padding: 8px 0 12px;
+}
+
+.sidebar-conversations > .ant-spin,
+.sidebar-conversations .ant-spin-nested-loading,
+.sidebar-conversations .ant-spin-container {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .conversation-item {
@@ -210,13 +259,16 @@ textarea {
 }
 
 .chat-pane {
+  height: 100%;
+  min-height: 0;
   min-width: 0;
   display: grid;
-  grid-template-rows: auto minmax(320px, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;
 }
 
 .message-stream {
+  min-height: 0;
   padding: 18px;
   overflow: auto;
   display: flex;
@@ -279,11 +331,84 @@ textarea {
 }
 
 .table-workspace {
-  padding: 0 0 16px;
+  position: relative;
+  background: transparent;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
 }
 
 .table-workspace .ant-table-wrapper {
-  padding: 16px;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 16px 24px 72px;
+  padding-bottom: 72px;
+}
+
+.table-workspace .ant-spin-nested-loading,
+.table-workspace .ant-spin-container {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.table-workspace .ant-table {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: transparent;
+}
+
+.table-workspace .ant-table-container {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.table-workspace .ant-pagination {
+  position: absolute;
+  right: 24px;
+  bottom: 18px;
+}
+
+.mcp-tool-list {
+  display: grid;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.mcp-tool-item {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border-left: 3px solid #d1d5db;
+  background: #f9fafb;
+}
+
+.skill-form {
+  display: grid;
+  gap: 16px;
+}
+
+.skill-form label {
+  display: grid;
+  gap: 8px;
+}
+
+.markdown-preview {
+  min-height: 72px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  color: #374151;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .search-results {
@@ -318,15 +443,11 @@ textarea {
 
 @media (max-width: 900px) {
   .content {
-    padding: 16px;
+    padding: 0;
   }
 
   .workspace {
-    min-height: auto;
-  }
-
-  .conversation-list {
-    max-height: calc(100vh - 252px);
+    min-height: 0;
   }
 }
 
@@ -344,7 +465,7 @@ textarea {
     padding: 12px 8px 20px;
   }
 
-  .sidebar-actions .ant-btn > span:not(.anticon),
+  .sidebar-actions .ant-btn > span:not(.ant-btn-icon),
   .sidebar-nav-item span:not(.anticon),
   .conversation-group-toggle span:not(.anticon),
   .conversation-group-toggle .ant-tag,
