@@ -1,6 +1,6 @@
 <div align="center">
 
-![logo](lifeops_logo.svg)
+<img src="lifeops_logo.svg" alt="logo" width="40%">
 
 **AI 驱动的生活助手智能体**
 
