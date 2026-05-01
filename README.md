@@ -15,15 +15,6 @@
 
 ---
 
-## Features
-
-- **ReAct 模式** — 推理与行动交替迭代，最多 10 轮自动完成复杂任务
-- **三层上下文管理** — L1 常驻 / L2 按需 / L3 溢出压缩，高效利用 200K token 窗口
-- **Skill 系统** — 兼容 `SKILL.md` 标准，启动时只暴露目录摘要，触发后按需加载完整工作流指令
-- **工具系统** — 内置 Bash、文件读写、网络搜索，支持动态注册自定义工具
-- **Web 控制台** — React + Ant Design 本地工作台，在全局侧边栏管理聊天、Skills 和 Tools，并直接发起对话
-- **本地历史缓存** — Web / 本地 API 使用 JSONL 对话记录，支持搜索与删除，默认写入 `.lifeops/conversations.jsonl`
-- **OpenAI 兼容** — 支持 GPT-4o / Claude / 本地模型，一行配置切换后端
 
 ## 快速开始
 
@@ -239,44 +230,8 @@ src/lifeops/
 │   └── api.py              # FastAPI 本地 Web API
 └── utils/
     └── logging.py           # 日志工具
-
-tests/
-└── ...                      # 本地测试目录，已加入 .gitignore，不随仓库同步
 ```
 
-## 开发
-
-`tests/` 作为本地测试目录维护，不再随 Git 同步提交；如需运行测试，请确保本地已保留或自行准备对应测试文件。
-
-```bash
-# 安装开发依赖
-uv sync
-
-# 运行测试
-uv run pytest tests/ -v
-
-# 运行单个测试
-uv run pytest tests/test_agent.py::test_agent_initialization -v
-
-# 代码检查
-uv run ruff check src/ tests/
-
-# 前端构建
-cd web
-npm run build
-```
-
-测试使用 `pytest-asyncio`，`asyncio_mode = "auto"`，直接写 `async def test_...` 即可。
-
-## Roadmap
-
-- [x] **Phase 1** — Agent 核心 + Tool 系统
-- [x] **Phase 2** — Skill 系统（发现、匹配、加载）
-- [ ] **Phase 3** — Memory 系统（STM / LTM / Working Memory）
-- [ ] **Phase 4** — RAG 系统（文档向量化、语义检索）
-- [ ] **Phase 5** — MCP 集成 🔧（Client Core、GitHub/Google Workspace Server、多 Server 注册已完成）
-
-## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=DarkFanta3y/lifeops&type=Date)](https://star-history.com/#DarkFanta3y/lifeops&Date)
 
