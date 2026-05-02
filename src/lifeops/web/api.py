@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,7 @@ from lifeops.tools.mcp.manager import MCPManager
 from lifeops.tools.mcp.types import MCPToolInfo
 from lifeops.tools.registry import ToolRegistry
 from lifeops.utils.logging import setup_logger
+from lifeops.web.title_summary import fallback_conversation_title, summarize_conversation_title
 
 
 class ChatRequest(BaseModel):
@@ -29,6 +31,7 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     conversation_id: str
     reply: str
+    title: str | None = None
 
 
 class CreateSkillRequest(BaseModel):
@@ -83,10 +86,30 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
                 detail="LLM_API_KEY 未设置。请在 .env 或环境变量中配置后再启动 Web API。",
             )
 
+        is_new_conversation = request.conversation_id is None
         conversation_id = request.conversation_id or _new_web_conversation_id()
         agent = _get_or_create_web_agent(app, conversation_id)
-        reply = await agent.run(request.message)
-        return ChatResponse(conversation_id=conversation_id, reply=reply)
+        if not is_new_conversation:
+            reply = await agent.run(request.message)
+            return ChatResponse(conversation_id=conversation_id, reply=reply)
+
+        reply_task = asyncio.create_task(agent.run(request.message))
+        title_task = asyncio.create_task(summarize_conversation_title(agent.llm, request.message))
+        reply_result, title_result = await asyncio.gather(
+            reply_task,
+            title_task,
+            return_exceptions=True,
+        )
+        if isinstance(reply_result, Exception):
+            raise reply_result
+
+        title = (
+            fallback_conversation_title(request.message)
+            if isinstance(title_result, Exception)
+            else title_result
+        )
+        app.state.history_store.append_conversation_title(conversation_id, "web", title)
+        return ChatResponse(conversation_id=conversation_id, reply=reply_result, title=title)
 
     @app.get("/api/skills")
     async def list_skills() -> dict[str, Any]:

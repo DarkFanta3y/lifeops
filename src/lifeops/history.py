@@ -13,7 +13,8 @@ from lifeops.utils.text import sanitize_unicode_text
 logger = get_logger(__name__)
 
 HistorySource = Literal["cli", "web"]
-HistoryRole = Literal["user", "assistant", "tool"]
+HistoryRole = Literal["user", "assistant", "tool", "system"]
+TITLE_RECORD_TYPE = "conversation_title"
 
 REQUIRED_RECORD_KEYS = {"conversation_id", "source", "role", "content", "created_at"}
 
@@ -51,6 +52,27 @@ class ConversationHistoryStore:
             file.write(json.dumps(record, ensure_ascii=False) + "\n")
         return record
 
+    def append_conversation_title(
+        self,
+        conversation_id: str,
+        source: HistorySource,
+        title: str,
+        created_at: str | None = None,
+    ) -> dict[str, Any]:
+        record: dict[str, Any] = {
+            "conversation_id": conversation_id,
+            "source": source,
+            "role": "system",
+            "content": sanitize_unicode_text(title),
+            "created_at": created_at or self._now(),
+            "record_type": TITLE_RECORD_TYPE,
+        }
+
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self.path.open("a", encoding="utf-8") as file:
+            file.write(json.dumps(record, ensure_ascii=False) + "\n")
+        return record
+
     def list_records(self) -> list[dict[str, Any]]:
         if not self.path.exists():
             return []
@@ -79,6 +101,7 @@ class ConversationHistoryStore:
         for record in records:
             conversation_id = record["conversation_id"]
             grouped_records.setdefault(conversation_id, []).append(record)
+            is_title_record = self._is_title_record(record)
             summary = grouped.setdefault(
                 conversation_id,
                 {
@@ -91,6 +114,10 @@ class ConversationHistoryStore:
                     "updated_at": record["created_at"],
                 },
             )
+            if is_title_record:
+                summary["title"] = self._title_from_record(record)
+                continue
+
             summary["message_count"] += 1
             summary["last_message"] = record["content"]
             summary["updated_at"] = record["created_at"]
@@ -112,6 +139,7 @@ class ConversationHistoryStore:
             record
             for record in self.list_records()
             if record["conversation_id"] == conversation_id
+            and not self._is_title_record(record)
         ]
 
     def delete_conversation(self, conversation_id: str) -> int:
@@ -155,12 +183,10 @@ class ConversationHistoryStore:
         query: str,
     ) -> bool:
         normalized_query = query.strip().casefold()
-        searchable_values = [
-            str(summary.get("title", "")),
-            str(summary.get("last_message", "")),
-            *(record["content"] for record in records),
-        ]
-        return any(normalized_query in value.casefold() for value in searchable_values)
+        return normalized_query in str(summary.get("title", "")).casefold()
+
+    def _is_title_record(self, record: dict[str, Any]) -> bool:
+        return record.get("record_type") == TITLE_RECORD_TYPE
 
     def _now(self) -> str:
         return datetime.now().astimezone().isoformat(timespec="seconds")
