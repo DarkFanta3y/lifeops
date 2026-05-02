@@ -137,8 +137,12 @@ def _parse_yaml_subset(lines: list[str]) -> dict[str, Any]:
     root: dict[str, Any] = {}
     stack: list[tuple[int, Any]] = [(-1, root)]
 
-    for line_number, raw_line in enumerate(lines, start=2):
+    index = 0
+    while index < len(lines):
+        raw_line = lines[index]
+        line_number = index + 2
         if not raw_line.strip() or raw_line.lstrip().startswith("#"):
+            index += 1
             continue
 
         indent = len(raw_line) - len(raw_line.lstrip(" "))
@@ -154,6 +158,7 @@ def _parse_yaml_subset(lines: list[str]) -> dict[str, Any]:
             parent.append(item)
             if isinstance(item, dict):
                 stack.append((indent, item))
+            index += 1
             continue
 
         if ":" not in line:
@@ -166,14 +171,18 @@ def _parse_yaml_subset(lines: list[str]) -> dict[str, Any]:
         if not isinstance(parent, dict):
             raise ValueError(f"第 {line_number} 行映射缩进无效")
 
+        if raw_value in {"|", "|-", "|+"}:
+            parent[key], index = _parse_block_scalar(lines, index, indent, raw_value)
+            continue
         if raw_value == "":
             container: dict[str, Any] | list[Any]
-            next_line = _next_content_line(lines, line_number - 1)
+            next_line = _next_content_line(lines, index + 1)
             container = [] if next_line and next_line.strip().startswith("- ") else {}
             parent[key] = container
             stack.append((indent, container))
         else:
             parent[key] = _parse_scalar(raw_value, line_number)
+        index += 1
 
     return root
 
@@ -183,6 +192,34 @@ def _next_content_line(lines: list[str], current_index: int) -> str | None:
         if next_line.strip() and not next_line.lstrip().startswith("#"):
             return next_line
     return None
+
+
+def _parse_block_scalar(
+    lines: list[str], current_index: int, parent_indent: int, marker: str
+) -> tuple[str, int]:
+    block_lines: list[str] = []
+    next_index = current_index + 1
+    block_indent: int | None = None
+
+    while next_index < len(lines):
+        raw_line = lines[next_index]
+        if raw_line.strip():
+            indent = len(raw_line) - len(raw_line.lstrip(" "))
+            if indent <= parent_indent:
+                break
+            if block_indent is None:
+                block_indent = indent
+            block_lines.append(raw_line[min(block_indent, len(raw_line)) :])
+        else:
+            block_lines.append("")
+        next_index += 1
+
+    value = "\n".join(block_lines)
+    if marker == "|":
+        value = f"{value}\n"
+    elif marker == "|+":
+        value = f"{value}\n"
+    return value, next_index
 
 
 def _parse_list_item(raw_value: str, line_number: int) -> Any:

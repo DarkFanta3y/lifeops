@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -11,8 +12,11 @@ from lifeops.core.config import AppConfig, clear_proxy_env
 from lifeops.core.context_manager import ContextManager
 from lifeops.history import ConversationHistoryStore
 from lifeops.llm.types import Message, MessageRole
+from lifeops.skills.loader import _parse_yaml_subset
 from lifeops.skills.manager import SkillManager
 from lifeops.tools.builtin import register_all_builtin_tools
+from lifeops.tools.mcp.manager import MCPManager
+from lifeops.tools.mcp.types import MCPToolInfo
 from lifeops.tools.registry import ToolRegistry
 from lifeops.utils.logging import setup_logger
 
@@ -25,6 +29,13 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     conversation_id: str
     reply: str
+
+
+class CreateSkillRequest(BaseModel):
+    name: str = Field(pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+    description: str = Field(min_length=1)
+    metadata: str = ""
+    content: str = Field(min_length=1)
 
 
 def create_app(config: AppConfig | None = None) -> FastAPI:
@@ -41,6 +52,11 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
     app.state.config = app_config
     app.state.history_store = ConversationHistoryStore(app_config.history_path)
     app.state.web_agents = {}
+    app.state.tool_registry = ToolRegistry()
+    register_all_builtin_tools(app.state.tool_registry, app_config)
+    app.state.mcp_manager = MCPManager()
+    if app_config.mcp.enabled and app_config.mcp.servers.strip():
+        app.state.mcp_manager.load_from_config(app_config.mcp.servers)
 
     @app.get("/api/conversations")
     async def list_conversations(query: str | None = None) -> dict[str, Any]:
@@ -89,10 +105,20 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
         ]
         return {"skills": skills}
 
+    @app.post("/api/skills", status_code=status.HTTP_201_CREATED)
+    async def create_skill(request: CreateSkillRequest) -> dict[str, Any]:
+        existing_manager = _discover_skill_manager(app.state.config)
+        if request.name in existing_manager.skills:
+            raise HTTPException(status_code=409, detail=f"Skill '{request.name}' 已存在。")
+
+        metadata = _parse_metadata_fragment(request.metadata)
+        skill_file = _write_project_skill(app.state.config, request, metadata)
+        return {"name": request.name, "path": str(skill_file)}
+
     @app.get("/api/tools")
     async def list_tools() -> dict[str, Any]:
-        registry = ToolRegistry()
-        register_all_builtin_tools(registry, app.state.config)
+        registry: ToolRegistry = app.state.tool_registry
+        mcp_servers = await _connect_and_describe_mcp_servers(app.state.mcp_manager, registry)
         tools = [
             {
                 "name": tool.name,
@@ -102,7 +128,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
             }
             for tool in registry.list_definitions()
         ]
-        return {"tools": tools}
+        return {"tools": tools, "mcp_servers": mcp_servers}
 
     return app
 
@@ -161,6 +187,145 @@ def _discover_skill_manager(config: AppConfig) -> SkillManager:
     )
     manager.discover()
     return manager
+
+
+def _parse_metadata_fragment(raw_metadata: str) -> dict[str, Any]:
+    if not raw_metadata.strip():
+        return {}
+    try:
+        metadata = _parse_yaml_subset(raw_metadata.splitlines())
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"metadata YAML 无效: {exc}") from exc
+    if not isinstance(metadata, dict):
+        raise HTTPException(status_code=422, detail="metadata 必须是 YAML mapping。")
+    return metadata
+
+
+def _write_project_skill(
+    config: AppConfig, request: CreateSkillRequest, metadata: dict[str, Any]
+) -> Path:
+    project_root = Path(config.skills.project_dir).expanduser()
+    project_root.mkdir(parents=True, exist_ok=True)
+    root = project_root.resolve()
+    skill_dir = (root / request.name).resolve()
+    if not skill_dir.is_relative_to(root):
+        raise HTTPException(status_code=422, detail="Skill 名称不能包含路径。")
+    if skill_dir.exists():
+        raise HTTPException(status_code=409, detail=f"Skill '{request.name}' 已存在。")
+
+    skill_dir.mkdir()
+    skill_file = skill_dir / "SKILL.md"
+    skill_file.write_text(_format_skill_file(request, metadata), encoding="utf-8")
+    return skill_file
+
+
+def _format_skill_file(request: CreateSkillRequest, metadata: dict[str, Any]) -> str:
+    frontmatter = [
+        "---",
+        f"name: {request.name}",
+        "description: |-",
+        *_indent_block(request.description),
+    ]
+    if metadata:
+        frontmatter.append("metadata:")
+        frontmatter.extend(_dump_yaml_mapping(metadata, indent=2))
+    frontmatter.append("---")
+    content = request.content.rstrip()
+    return "\n".join(frontmatter) + "\n\n" + content + "\n"
+
+
+def _indent_block(value: str, spaces: int = 2) -> list[str]:
+    prefix = " " * spaces
+    return [f"{prefix}{line}" if line else prefix for line in value.strip().splitlines()]
+
+
+def _dump_yaml_mapping(mapping: dict[str, Any], indent: int = 0) -> list[str]:
+    lines: list[str] = []
+    prefix = " " * indent
+    for key, value in mapping.items():
+        if isinstance(value, dict):
+            lines.append(f"{prefix}{key}:")
+            lines.extend(_dump_yaml_mapping(value, indent + 2))
+        elif isinstance(value, list):
+            lines.append(f"{prefix}{key}:")
+            lines.extend(_dump_yaml_list(value, indent + 2))
+        elif isinstance(value, str) and "\n" in value:
+            lines.append(f"{prefix}{key}: |-")
+            lines.extend(_indent_block(value, indent + 2))
+        else:
+            lines.append(f"{prefix}{key}: {_dump_yaml_scalar(value)}")
+    return lines
+
+
+def _dump_yaml_list(values: list[Any], indent: int) -> list[str]:
+    lines: list[str] = []
+    prefix = " " * indent
+    for value in values:
+        if isinstance(value, dict):
+            items = list(value.items())
+            if not items:
+                lines.append(f"{prefix}- null")
+                continue
+            first_key, first_value = items[0]
+            if isinstance(first_value, dict | list):
+                lines.append(f"{prefix}- {first_key}:")
+                nested_lines = (
+                    _dump_yaml_mapping(first_value, indent + 4)
+                    if isinstance(first_value, dict)
+                    else _dump_yaml_list(first_value, indent + 4)
+                )
+                lines.extend(nested_lines)
+            else:
+                lines.append(f"{prefix}- {first_key}: {_dump_yaml_scalar(first_value)}")
+            lines.extend(_dump_yaml_mapping(dict(items[1:]), indent + 2))
+        else:
+            lines.append(f"{prefix}- {_dump_yaml_scalar(value)}")
+    return lines
+
+
+def _dump_yaml_scalar(value: Any) -> str:
+    if value is True:
+        return "true"
+    if value is False:
+        return "false"
+    if value is None:
+        return "null"
+    if isinstance(value, str) and (
+        value == ""
+        or value in {"true", "True", "false", "False", "null", "Null", "~"}
+        or value.startswith(("[", "{"))
+    ):
+        return f"'{value}'" if value else '""'
+    return str(value)
+
+
+async def _connect_and_describe_mcp_servers(
+    manager: MCPManager, registry: ToolRegistry
+) -> list[dict[str, Any]]:
+    await manager.connect_and_register_all(registry)
+    server_groups: list[dict[str, Any]] = []
+    for server_name in manager.list_servers():
+        client = manager.get_client(server_name)
+        if client is None:
+            continue
+        tools = await client.list_tools()
+        if not tools:
+            continue
+        server_groups.append(
+            {
+                "name": server_name,
+                "tools": [_mcp_tool_payload(tool) for tool in tools],
+            }
+        )
+    return server_groups
+
+
+def _mcp_tool_payload(tool: MCPToolInfo) -> dict[str, Any]:
+    return {
+        "name": tool.original_name,
+        "description": tool.description,
+        "parameters": _parameters_schema(tool.input_schema),
+    }
 
 
 def _parameters_schema(json_schema: dict[str, Any]) -> dict[str, Any]:

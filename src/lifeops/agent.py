@@ -65,6 +65,7 @@ class Agent:
         self.max_iterations = 10
         self.skill_manager: SkillManager | None = None
         self.skill_matcher: SkillMatcher | None = None
+        self._mcp_tools_registered = False
         self.history_store = history_store or ConversationHistoryStore(config.history_path)
         self.source = source
         self.conversation_id = conversation_id or self._new_conversation_id()
@@ -111,16 +112,29 @@ class Agent:
             except Exception:
                 logger.exception(f"MCP server '{server_name}' 连接失败")
 
+    async def _ensure_mcp_tools_registered(self) -> None:
+        """在首次 LLM 调用前把已配置的 MCP 工具注册到工具表。"""
+        if self._mcp_tools_registered:
+            return
+        if not self.mcp_manager.list_servers():
+            self._mcp_tools_registered = True
+            return
+
+        await self.mcp_manager.connect_and_register_all(self.tools)
+        self._mcp_tools_registered = True
+
     def add_tool(self, definition: ToolDefinition, handler: Any) -> None:
         self.tools.register(definition, handler)
 
     def add_mcp_server(self, name: str, config: MCPServerConfig) -> None:
         """动态注册 MCP server 配置。连接和工具注册在 Wave 2 Adapter 中完成。"""
         self.mcp_manager.add_server(name, config)
+        self._mcp_tools_registered = False
 
     def remove_mcp_server(self, name: str) -> None:
         """动态移除 MCP server 配置。工具解绑在 Wave 2 Adapter 中完成。"""
         self.mcp_manager.remove_server(name)
+        self._mcp_tools_registered = False
 
     def _build_messages(self) -> list[Message]:
         result = [Message(role=MessageRole.SYSTEM, content=self._build_system_context())]
@@ -150,6 +164,7 @@ class Agent:
         if self.skill_matcher is not None:
             self.skill_matcher.llm = self.llm
         await self._activate_skills_for_input(user_input)
+        await self._ensure_mcp_tools_registered()
         self.messages.append(Message(role=MessageRole.USER, content=user_input))
         self._persist_message(MessageRole.USER, user_input)
         self.context.add_content(

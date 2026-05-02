@@ -52,6 +52,8 @@ def create_github_mcp_config() -> MCPServerConfig:
             "run",
             "-i",
             "--rm",
+            "-e",
+            "GITHUB_PERSONAL_ACCESS_TOKEN",
             GITHUB_MCP_SERVER_IMAGE,
         ],
         env=env,

@@ -7,7 +7,9 @@ import {
   Input,
   Layout,
   Modal,
+  Pagination,
   Popconfirm,
+  Segmented,
   Space,
   Spin,
   Table,
@@ -28,6 +30,7 @@ import {
   ToolOutlined,
 } from "@ant-design/icons";
 import {
+  createSkill,
   deleteConversation,
   fetchConversation,
   fetchConversations,
@@ -38,6 +41,7 @@ import {
 
 const { Sider, Content } = Layout;
 const { Text, Title } = Typography;
+const TABLE_PAGE_SIZE = 8;
 
 function App() {
   const { message } = AntApp.useApp();
@@ -47,6 +51,7 @@ function App() {
   const [conversationMessages, setConversationMessages] = useState([]);
   const [skills, setSkills] = useState([]);
   const [tools, setTools] = useState([]);
+  const [mcpServers, setMcpServers] = useState([]);
   const [chatInput, setChatInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
@@ -56,6 +61,14 @@ function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [skillModalOpen, setSkillModalOpen] = useState(false);
+  const [savingSkill, setSavingSkill] = useState(false);
+  const [skillForm, setSkillForm] = useState({
+    name: "",
+    description: "",
+    metadata: "",
+    content: "",
+  });
 
   const selectedConversation = useMemo(
     () =>
@@ -146,10 +159,27 @@ function App() {
     try {
       const payload = await fetchTools();
       setTools(payload.tools || []);
+      setMcpServers(payload.mcp_servers || []);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleCreateSkill() {
+    setSavingSkill(true);
+    setError("");
+    try {
+      await createSkill(skillForm);
+      message.success("Skill 已创建");
+      setSkillModalOpen(false);
+      setSkillForm({ name: "", description: "", metadata: "", content: "" });
+      await loadSkills();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingSkill(false);
     }
   }
 
@@ -255,10 +285,24 @@ function App() {
     }
 
     if (activeView === "skills") {
-      return <SkillsWorkspace skills={skills} loading={loading} onRefresh={loadSkills} />;
+      return (
+        <SkillsWorkspace
+          skills={skills}
+          loading={loading}
+          onRefresh={loadSkills}
+          onAdd={() => setSkillModalOpen(true)}
+        />
+      );
     }
 
-    return <ToolsWorkspace tools={tools} loading={loading} onRefresh={loadTools} />;
+    return (
+      <ToolsWorkspace
+        tools={tools}
+        mcpServers={mcpServers}
+        loading={loading}
+        onRefresh={loadTools}
+      />
+    );
   }
 
   return (
@@ -338,6 +382,14 @@ function App() {
         onSearch={handleSearch}
         onSelect={handleSelectSearchResult}
         onClose={() => setSearchOpen(false)}
+      />
+      <SkillModal
+        open={skillModalOpen}
+        value={skillForm}
+        saving={savingSkill}
+        onChange={setSkillForm}
+        onSave={handleCreateSkill}
+        onClose={() => setSkillModalOpen(false)}
       />
     </Layout>
   );
@@ -494,7 +546,11 @@ function ChatWorkspace({
   );
 }
 
-function SkillsWorkspace({ skills, loading, onRefresh }) {
+function SkillsWorkspace({ skills, loading, onRefresh, onAdd }) {
+  const [page, setPage] = useState(1);
+  const pageCount = Math.max(1, Math.ceil(skills.length / TABLE_PAGE_SIZE));
+  const hasPagination = skills.length > TABLE_PAGE_SIZE;
+  const pagedSkills = skills.slice((page - 1) * TABLE_PAGE_SIZE, page * TABLE_PAGE_SIZE);
   const columns = [
     { title: "名称", dataIndex: "name", key: "name", width: 220 },
     { title: "描述", dataIndex: "description", key: "description" },
@@ -507,25 +563,89 @@ function SkillsWorkspace({ skills, loading, onRefresh }) {
     },
   ];
 
+  useEffect(() => {
+    setPage((current) => Math.min(current, pageCount));
+  }, [pageCount]);
+
   return (
     <section className="workspace table-workspace">
-      <Toolbar title="Skill 列表" count={skills.length} onRefresh={onRefresh} />
-      <Table
-        rowKey="name"
-        columns={columns}
-        dataSource={skills}
-        loading={loading}
-        pagination={{ pageSize: 8 }}
+      <Toolbar
+        title="Skill 列表"
+        count={skills.length}
+        onRefresh={onRefresh}
+        extraActions={
+          <Tooltip title="新增 Skill">
+            <Button icon={<PlusOutlined />} onClick={onAdd} aria-label="新增 Skill" />
+          </Tooltip>
+        }
       />
+      <div className={`table-body${hasPagination ? " with-pagination" : ""}`}>
+        <Table
+          rowKey="name"
+          columns={columns}
+          dataSource={pagedSkills}
+          loading={loading}
+          pagination={false}
+        />
+      </div>
+      {hasPagination ? (
+        <>
+          <div className="workspace-pagination-overlay" aria-hidden="true" />
+          <Pagination
+            className="workspace-pagination"
+            current={page}
+            pageSize={TABLE_PAGE_SIZE}
+            total={skills.length}
+            showSizeChanger={false}
+            onChange={setPage}
+          />
+        </>
+      ) : null}
     </section>
   );
 }
 
-function ToolsWorkspace({ tools, loading, onRefresh }) {
+function ToolsWorkspace({ tools, mcpServers, loading, onRefresh }) {
+  const [activeToolsTab, setActiveToolsTab] = useState("tool");
+  const [page, setPage] = useState(1);
+  const toolRows = useMemo(
+    () =>
+      tools
+        .filter((tool) => tool.category !== "mcp")
+        .map((tool) => ({
+          ...tool,
+          rowType: "tool",
+          rowKey: `tool:${tool.name}`,
+        })),
+    [tools],
+  );
+  const mcpRows = useMemo(
+    () =>
+      mcpServers.map((server) => ({
+        rowType: "mcp-server",
+        rowKey: `mcp:${server.name}`,
+        name: server.name,
+        description: `${server.tools.length} 个 MCP 工具`,
+        category: "mcp-server",
+        parameters: { properties: {} },
+        tools: server.tools,
+      })),
+    [mcpServers],
+  );
+  const rows = activeToolsTab === "tool" ? toolRows : mcpRows;
+  const pageCount = Math.max(1, Math.ceil(rows.length / TABLE_PAGE_SIZE));
+  const hasPagination = rows.length > TABLE_PAGE_SIZE;
+  const pagedRows = rows.slice((page - 1) * TABLE_PAGE_SIZE, page * TABLE_PAGE_SIZE);
   const columns = [
     { title: "名称", dataIndex: "name", key: "name", width: 220 },
     { title: "描述", dataIndex: "description", key: "description" },
-    { title: "分类", dataIndex: "category", key: "category", width: 140 },
+    {
+      title: "分类",
+      dataIndex: "category",
+      key: "category",
+      width: 140,
+      render: (category) => (category === "mcp-server" ? "MCP Server" : category),
+    },
     {
       title: "参数",
       key: "parameters",
@@ -533,31 +653,159 @@ function ToolsWorkspace({ tools, loading, onRefresh }) {
     },
   ];
 
+  useEffect(() => {
+    setPage(1);
+  }, [activeToolsTab]);
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, pageCount));
+  }, [pageCount]);
+
   return (
     <section className="workspace table-workspace">
-      <Toolbar title="Tool 列表" count={tools.length} onRefresh={onRefresh} />
-      <Table
-        rowKey="name"
-        columns={columns}
-        dataSource={tools}
-        loading={loading}
-        pagination={{ pageSize: 8 }}
+      <Toolbar
+        title="Tool 列表"
+        count={rows.length}
+        onRefresh={onRefresh}
+        extraActions={
+          <Segmented
+            value={activeToolsTab}
+            onChange={setActiveToolsTab}
+            options={[
+              { label: "TOOL", value: "tool" },
+              { label: "MCP", value: "mcp" },
+            ]}
+          />
+        }
       />
+      <div className={`table-body${hasPagination ? " with-pagination" : ""}`}>
+        <Table
+          rowKey="rowKey"
+          columns={columns}
+          dataSource={pagedRows}
+          loading={loading}
+          pagination={false}
+          expandable={{
+            rowExpandable: (record) => activeToolsTab === "mcp" && record.rowType === "mcp-server",
+            expandedRowRender: (record) => <McpToolList tools={record.tools || []} />,
+          }}
+        />
+      </div>
+      {hasPagination ? (
+        <>
+          <div className="workspace-pagination-overlay" aria-hidden="true" />
+          <Pagination
+            className="workspace-pagination"
+            current={page}
+            pageSize={TABLE_PAGE_SIZE}
+            total={rows.length}
+            showSizeChanger={false}
+            onChange={setPage}
+          />
+        </>
+      ) : null}
     </section>
   );
 }
 
-function Toolbar({ title, count, onRefresh }) {
+function Toolbar({ title, count, onRefresh, extraActions }) {
   return (
     <div className="toolbar">
       <Space>
         <Title level={4}>{title}</Title>
         <Tag>{count}</Tag>
       </Space>
-      <Button icon={<ReloadOutlined />} onClick={onRefresh}>
-        刷新
-      </Button>
+      <Space>
+        <Button icon={<ReloadOutlined />} onClick={onRefresh}>
+          刷新
+        </Button>
+        {extraActions}
+      </Space>
     </div>
+  );
+}
+
+function McpToolList({ tools }) {
+  return (
+    <div className="mcp-tool-list">
+      {tools.map((tool) => (
+        <div className="mcp-tool-item" key={tool.name}>
+          <Text strong>{tool.name}</Text>
+          <Text type="secondary">{tool.description || "无描述"}</Text>
+          <Text type="secondary">
+            参数：{Object.keys(tool.parameters?.properties || {}).join(", ") || "无"}
+          </Text>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SkillModal({ open, value, saving, onChange, onSave, onClose }) {
+  const updateField = (field, nextValue) => {
+    onChange({ ...value, [field]: nextValue });
+  };
+  const canSave =
+    /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value.name) &&
+    value.description.trim() &&
+    value.content.trim();
+
+  return (
+    <Modal
+      title="新增 Skill"
+      open={open}
+      onCancel={onClose}
+      onOk={onSave}
+      okText="保存"
+      cancelText="取消"
+      confirmLoading={saving}
+      okButtonProps={{ disabled: !canSave }}
+      width={780}
+      destroyOnHidden
+    >
+      <div className="skill-form">
+        <label>
+          <Text strong>名称</Text>
+          <Input
+            value={value.name}
+            onChange={(event) => updateField("name", event.target.value)}
+            placeholder="weekly-review"
+            autoFocus
+          />
+          <Text type="secondary">仅支持小写字母、数字和短横线。</Text>
+        </label>
+        <label>
+          <Text strong>描述</Text>
+          <Input.TextArea
+            value={value.description}
+            onChange={(event) => updateField("description", event.target.value)}
+            rows={5}
+            placeholder="写入 Markdown 描述，保存为 YAML block scalar。"
+          />
+          <div className="markdown-preview" aria-label="描述预览">
+            {value.description || "描述预览"}
+          </div>
+        </label>
+        <label>
+          <Text strong>metadata</Text>
+          <Input.TextArea
+            value={value.metadata}
+            onChange={(event) => updateField("metadata", event.target.value)}
+            rows={4}
+            placeholder={"short-description: 周复盘\nowner: lifeops"}
+          />
+        </label>
+        <label>
+          <Text strong>SKILL 内容</Text>
+          <Input.TextArea
+            value={value.content}
+            onChange={(event) => updateField("content", event.target.value)}
+            rows={8}
+            placeholder="# Skill\n\n写入执行步骤。"
+          />
+        </label>
+      </div>
+    </Modal>
   );
 }
 

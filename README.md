@@ -6,7 +6,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://python.org)
 [![uv](https://img.shields.io/badge/uv-package_manager-6E39C6.svg)](https://github.com/astral-sh/uv)
-[![pytest](https://img.shields.io/badge/local_tests-253%20passed-green.svg)](https://docs.pytest.org)
+[![pytest](https://img.shields.io/badge/local_tests-271%20passed-green.svg)](https://docs.pytest.org)
 [![Ruff](https://img.shields.io/badge/linter-ruff-FCC624.svg)](https://docs.astral.sh/ruff/)
 
 [快速开始](#快速开始) · [架构](#架构) · [配置](#配置) · [开发](#开发)
@@ -46,16 +46,20 @@ npm run dev
 
 Web 控制台包含三个主要区域：
 - 左侧侧边栏 — 顶部提供 `新聊天` 与 `搜索聊天`；`新聊天` 只清空当前输入与消息流，第一条消息发送后才创建历史记录；`搜索聊天` 通过弹窗检索本地历史
-- `SKILLS` — 查看当前发现的 Skill 元数据
-- `TOOLS` — 查看当前内置工具名称、描述和参数 schema
+- `SKILLS` — 查看当前发现的 Skill 元数据，并可通过刷新旁的加号手动新增项目级 Skill，保存到 `.lifeops/skills/<name>/SKILL.md`
+- `TOOLS` — 顶栏提供 `TOOL` / `MCP` 分段切换，默认显示内置工具；切到 `MCP` 后以可展开行展示已连接 MCP Server，展开后显示该 Server 提供的工具和参数
 
-聊天历史位于侧边栏 `对话` 分组中，可折叠。悬浮单条历史会显示删除按钮，确认后会从本地 JSONL 历史中移除该会话。
+聊天历史位于侧边栏 `对话` 分组中，可折叠。悬浮单条历史会显示删除按钮，确认后会从本地 JSONL 历史中移除该会话，并刷新侧边栏与搜索结果。
+
+Web 控制台固定在浏览器视口内：历史对话很多时只滚动侧边栏对话列表，聊天消息很多时只滚动主消息流，输入框保持在底部可见。`SKILLS` / `TOOLS` 主工作区与侧边栏贴合，数据较少时不额外保留底部空白；数据超过分页阈值或 MCP 展开内容变高时由表格内容区滚动，外置分页固定在主区域右下角，底部半透明模糊层仅在分页出现时做视觉过渡、不拦截点击。
 
 本地 Web API 的会话端点：
 - `GET /api/conversations` — 获取会话列表
 - `GET /api/conversations?query=关键词` — 按标题、最后消息和会话内消息内容搜索
 - `GET /api/conversations/{conversation_id}` — 获取会话消息
 - `DELETE /api/conversations/{conversation_id}` — 删除会话历史并清理 Web agent 缓存
+- `POST /api/skills` — 创建项目级 Skill，名称仅支持小写字母、数字和短横线，metadata 使用 YAML mapping 片段
+- `GET /api/tools` — 返回内置工具列表，并在 `mcp_servers` 中返回已连接 MCP Server 的工具分组
 
 ## 架构
 
@@ -146,6 +150,8 @@ description: 整理本周记录、总结进展、生成下周行动计划。Use 
 
 启动时日志只显示已连接的 MCP 数量；具体 Server 连接过程与 MCP 工具注册明细降为 debug 日志。
 
+Agent 会在首次调用 LLM 前连接已配置的 MCP Server 并注册工具，因此用户可以直接提出“我的 github profile 信息是什么”这类请求，LLM 可选择 `mcp.github.get_me` 获取当前 token 对应的 GitHub profile。
+
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
 | `LIFEOPS_MCP_ENABLED` | 启用 MCP 工具 | `true` |
@@ -163,6 +169,8 @@ description: 整理本周记录、总结进展、生成下周行动计划。Use 
 GitHub MCP 使用 `GITHUB_PERSONAL_ACCESS_TOKEN`。推荐创建 fine-grained personal access token，并按需要限制仓库和权限范围。申请入口：
 - GitHub token 页面: https://github.com/settings/personal-access-tokens
 - GitHub 官方说明: https://docs.github.com/en/github/authenticating-to-github/keeping-your-account-and-data-secure/creating-a-personal-access-token
+
+Docker stdio 配置中只应使用 `-e GITHUB_PERSONAL_ACCESS_TOKEN` 传递环境变量名，token 值放在 MCP server 的 `env` 配置或进程环境中，不要写入 Docker args。
 
 Google Workspace MCP 不使用类似 GitHub 的固定 access token。它使用 Google Cloud OAuth 客户端凭据：
 - `GOOGLE_OAUTH_CLIENT_ID`：必填，来自 Google Cloud OAuth Client
@@ -231,7 +239,7 @@ src/lifeops/
 └── utils/
     └── logging.py           # 日志工具
 ```
-
+## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=DarkFanta3y/lifeops&type=Date)](https://star-history.com/#DarkFanta3y/lifeops&Date)
 

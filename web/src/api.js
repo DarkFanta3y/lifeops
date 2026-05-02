@@ -49,6 +49,13 @@ export function fetchSkills() {
   return request("/api/skills");
 }
 
+export function createSkill(skill) {
+  return request("/api/skills", {
+    method: "POST",
+    body: JSON.stringify(skill),
+  });
+}
+
 export function fetchTools() {
   return request("/api/tools");
 }
