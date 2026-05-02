@@ -52,6 +52,7 @@ textarea {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
+  justify-content: center;
   padding: 0 18px;
   background: #f3f4f6;
   border-bottom: 1px solid #d1d5db;
@@ -314,20 +315,50 @@ textarea {
   font-weight: 700;
 }
 
-.message-bubble p {
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  line-height: 1.7;
-}
-
 .composer {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
   padding: 16px;
   border-top: 1px solid #e5e7eb;
   background: #ffffff;
+}
+
+.composer-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.composer-preview-toggle.ant-btn {
+  color: #4b5563;
+  font-size: 12px;
+}
+
+.composer-preview {
+  max-height: 180px;
+  overflow: auto;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #f9fafb;
+}
+
+.composer-input {
+  position: relative;
+}
+
+.composer-input .ant-input {
+  padding-right: 58px;
+}
+
+.composer-send.ant-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  z-index: 1;
 }
 
 .table-workspace {
@@ -438,7 +469,89 @@ textarea {
   border: 1px solid #e5e7eb;
   background: #f9fafb;
   color: #374151;
-  white-space: pre-wrap;
+  border-radius: 6px;
+}
+
+.markdown-body {
+  color: inherit;
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+}
+
+.markdown-body > :first-child {
+  margin-top: 0;
+}
+
+.markdown-body > :last-child {
+  margin-bottom: 0;
+}
+
+.markdown-body p,
+.markdown-body ul,
+.markdown-body ol,
+.markdown-body blockquote,
+.markdown-body pre,
+.markdown-body table,
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4 {
+  margin: 0 0 10px;
+}
+
+.markdown-body ul,
+.markdown-body ol {
+  padding-left: 22px;
+}
+
+.markdown-body li + li {
+  margin-top: 4px;
+}
+
+.markdown-body blockquote {
+  padding-left: 10px;
+  border-left: 3px solid #d1d5db;
+  color: #4b5563;
+}
+
+.markdown-body code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: #e5e7eb;
+  font-size: 0.92em;
+}
+
+.markdown-body pre {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: #111827;
+  color: #f9fafb;
+}
+
+.markdown-body pre code {
+  padding: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.markdown-body table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.markdown-body th,
+.markdown-body td {
+  padding: 6px 8px;
+  border: 1px solid #d1d5db;
+  text-align: left;
+}
+
+.markdown-body a {
+  color: #2563eb;
   overflow-wrap: anywhere;
 }
 
@@ -517,7 +630,18 @@ textarea {
   }
 
   .composer {
-    grid-template-columns: 1fr;
+    padding: 12px;
+  }
+
+  .composer-input .ant-input {
+    padding-right: 54px;
+  }
+
+  .composer-send.ant-btn {
+    right: 10px;
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
   }
 
   .message-bubble {

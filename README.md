@@ -45,19 +45,20 @@ npm run dev
 ### Web 控制台
 
 Web 控制台包含三个主要区域：
-- 左侧侧边栏 — 顶部提供 `新聊天` 与 `搜索聊天`；`新聊天` 只清空当前输入与消息流，第一条消息发送后才创建历史记录；`搜索聊天` 通过弹窗检索本地历史
+- 左侧侧边栏 — 顶部提供 `新聊天` 与 `搜索标题`；`新聊天` 只清空当前输入与消息流，第一条消息发送后才创建历史记录，并在首条消息发送时自动生成中文短标题；`搜索标题` 通过弹窗按会话标题检索本地历史
 - `SKILLS` — 查看当前发现的 Skill 元数据，并可通过刷新旁的加号手动新增项目级 Skill，保存到 `.lifeops/skills/<name>/SKILL.md`
 - `TOOLS` — 顶栏提供 `TOOL` / `MCP` 分段切换，默认显示内置工具；切到 `MCP` 后以可展开行展示已连接 MCP Server，展开后显示该 Server 提供的工具和参数
 
 聊天历史位于侧边栏 `对话` 分组中，可折叠。悬浮单条历史会显示删除按钮，确认后会从本地 JSONL 历史中移除该会话，并刷新侧边栏与搜索结果。
 
-Web 控制台固定在浏览器视口内：历史对话很多时只滚动侧边栏对话列表，聊天消息很多时只滚动主消息流，输入框保持在底部可见。`SKILLS` / `TOOLS` 主工作区与侧边栏贴合，数据较少时不额外保留底部空白；数据超过分页阈值或 MCP 展开内容变高时由表格内容区滚动，外置分页固定在主区域右下角，底部半透明模糊层仅在分页出现时做视觉过渡、不拦截点击。
+Web 控制台固定在浏览器视口内：历史对话很多时只滚动侧边栏对话列表，聊天消息很多时只滚动主消息流，输入框保持在底部可见，发送按钮内嵌在输入框末尾。聊天消息支持 Markdown/GFM 实时渲染，聊天输入区可展开 Markdown 预览，Skill 描述预览也会随输入实时渲染；侧边栏摘要与表格单元格保持纯文本以维持紧凑布局。`SKILLS` / `TOOLS` 主工作区与侧边栏贴合，数据较少时不额外保留底部空白；数据超过分页阈值或 MCP 展开内容变高时由表格内容区滚动，外置分页固定在主区域右下角，底部半透明模糊层仅在分页出现时做视觉过渡、不拦截点击。
 
 本地 Web API 的会话端点：
 - `GET /api/conversations` — 获取会话列表
-- `GET /api/conversations?query=关键词` — 按标题、最后消息和会话内消息内容搜索
+- `GET /api/conversations?query=关键词` — 只按会话标题搜索
 - `GET /api/conversations/{conversation_id}` — 获取会话消息
 - `DELETE /api/conversations/{conversation_id}` — 删除会话历史并清理 Web agent 缓存
+- `POST /api/chat` — 发送聊天消息，返回 `conversation_id`、`reply`，新 Web 会话额外返回 `title`
 - `POST /api/skills` — 创建项目级 Skill，名称仅支持小写字母、数字和短横线，metadata 使用 YAML mapping 片段
 - `GET /api/tools` — 返回内置工具列表，并在 `mcp_servers` 中返回已连接 MCP Server 的工具分组
 
@@ -235,13 +236,20 @@ src/lifeops/
 │           ├── github.py
 │           └── google_workspace.py
 ├── web/
-│   └── api.py              # FastAPI 本地 Web API
+│   ├── api.py              # FastAPI 本地 Web API
+│   └── title_summary.py    # Web 新会话中文短标题生成
 └── utils/
     └── logging.py           # 日志工具
 ```
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=DarkFanta3y/lifeops&type=Date)](https://star-history.com/#DarkFanta3y/lifeops&Date)
+<a href="https://www.star-history.com/?type=date&repos=DarkFanta3y%2Flifeops">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=DarkFanta3y/lifeops&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=DarkFanta3y/lifeops&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=DarkFanta3y/lifeops&type=date&legend=top-left" />
+ </picture>
+</a>
 
 ## License
 

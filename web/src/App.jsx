@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   Alert,
   App as AntApp,
@@ -324,7 +326,7 @@ function App() {
               setSearchResults([]);
             }}
           >
-            搜索聊天
+            搜索标题
           </Button>
         </div>
         <nav className="sidebar-nav" aria-label="主导航">
@@ -459,7 +461,7 @@ function SearchModal({
   onClose,
 }) {
   return (
-    <Modal title="搜索聊天" open={open} onCancel={onClose} footer={null} destroyOnHidden>
+    <Modal title="搜索对话标题" open={open} onCancel={onClose} footer={null} destroyOnHidden>
       <Input.Search
         value={query}
         onChange={(event) => onQueryChange(event.target.value)}
@@ -472,7 +474,7 @@ function SearchModal({
       <div className="search-results">
         <Spin spinning={loading}>
           {results.length === 0 ? (
-            <Empty description={query.trim() ? "无匹配对话" : "输入关键词后搜索"} />
+            <Empty description={query.trim() ? "无匹配标题" : "输入标题关键词后搜索"} />
           ) : (
             results.map((item) => (
               <button
@@ -500,6 +502,8 @@ function ChatWorkspace({
   onInputChange,
   onSend,
 }) {
+  const [previewOpen, setPreviewOpen] = useState(false);
+
   return (
     <section className="workspace chat-workspace">
       <main className="chat-pane">
@@ -518,28 +522,56 @@ function ChatWorkspace({
               <div className={`message-row ${item.role}`} key={`${item.created_at}-${index}`}>
                 <div className="message-bubble">
                   <Text className="role-label">{roleLabel(item.role)}</Text>
-                  <p>{item.content}</p>
+                  <MarkdownRenderer content={item.content} emptyText="" />
                 </div>
               </div>
             ))
           )}
         </div>
         <div className="composer">
-          <Input.TextArea
-            value={chatInput}
-            onChange={(event) => onInputChange(event.target.value)}
-            onPressEnter={(event) => {
-              if (!event.shiftKey) {
-                event.preventDefault();
-                onSend();
-              }
-            }}
-            placeholder="输入消息，Enter 发送，Shift+Enter 换行"
-            autoSize={{ minRows: 2, maxRows: 6 }}
-          />
-          <Button type="primary" icon={<SendOutlined />} loading={sending} onClick={onSend}>
-            发送
-          </Button>
+          <div className="composer-actions">
+            <Button
+              type="text"
+              size="small"
+              icon={<MessageOutlined />}
+              className="composer-preview-toggle"
+              aria-expanded={previewOpen}
+              onClick={() => setPreviewOpen((current) => !current)}
+            >
+              {previewOpen ? "隐藏预览" : "预览"}
+            </Button>
+          </div>
+          {previewOpen ? (
+            <div className="composer-preview" aria-label="Markdown 预览">
+              <MarkdownRenderer content={chatInput} emptyText="暂无预览内容" />
+            </div>
+          ) : null}
+          <div className="composer-input">
+            <Input.TextArea
+              value={chatInput}
+              onChange={(event) => onInputChange(event.target.value)}
+              onPressEnter={(event) => {
+                if (!event.shiftKey) {
+                  event.preventDefault();
+                  onSend();
+                }
+              }}
+              placeholder="输入消息，Enter 发送，Shift+Enter 换行"
+              autoSize={{ minRows: 2, maxRows: 6 }}
+            />
+            <Tooltip title="发送">
+              <Button
+                className="composer-send"
+                type="primary"
+                shape="circle"
+                icon={<SendOutlined />}
+                aria-label="发送消息"
+                loading={sending}
+                disabled={!chatInput.trim() || sending}
+                onClick={onSend}
+              />
+            </Tooltip>
+          </div>
         </div>
       </main>
     </section>
@@ -783,7 +815,7 @@ function SkillModal({ open, value, saving, onChange, onSave, onClose }) {
             placeholder="写入 Markdown 描述，保存为 YAML block scalar。"
           />
           <div className="markdown-preview" aria-label="描述预览">
-            {value.description || "描述预览"}
+            <MarkdownRenderer content={value.description} emptyText="描述预览" />
           </div>
         </label>
         <label>
@@ -806,6 +838,18 @@ function SkillModal({ open, value, saving, onChange, onSave, onClose }) {
         </label>
       </div>
     </Modal>
+  );
+}
+
+function MarkdownRenderer({ content, emptyText = "" }) {
+  const markdown = content?.trim() ? content : emptyText;
+
+  return (
+    <div className="markdown-body">
+      <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
+        {markdown}
+      </ReactMarkdown>
+    </div>
   );
 }
 
