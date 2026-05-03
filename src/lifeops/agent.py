@@ -193,16 +193,18 @@ class Agent:
                 return response_content
 
             if response.tool_calls:
+                tool_calls = [self._tool_call_to_dict(tc) for tc in response.tool_calls]
                 self.messages.append(
                     Message(
                         role=MessageRole.ASSISTANT,
                         content=response.content,
-                        tool_calls=[self._tool_call_to_dict(tc) for tc in response.tool_calls],
+                        tool_calls=tool_calls,
                     )
                 )
                 self._persist_message(
                     MessageRole.ASSISTANT,
                     response.content or "",
+                    tool_calls=tool_calls,
                     intermediate=True,
                 )
 
@@ -238,6 +240,7 @@ class Agent:
                         tool_output,
                         tool_name=tc.name,
                         tool_call_id=tc.id,
+                        intermediate=True,
                     )
                     self.context.add_content(
                         f"tool_{tc.id}",
@@ -268,6 +271,7 @@ class Agent:
         content: str,
         tool_name: str | None = None,
         tool_call_id: str | None = None,
+        tool_calls: list[dict[str, Any]] | None = None,
         intermediate: bool = False,
     ) -> None:
         try:
@@ -278,6 +282,7 @@ class Agent:
                 content=content,
                 tool_name=tool_name,
                 tool_call_id=tool_call_id,
+                tool_calls=tool_calls,
                 intermediate=intermediate,
             )
         except Exception:

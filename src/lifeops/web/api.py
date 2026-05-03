@@ -71,8 +71,8 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
     @app.get("/api/conversations/{conversation_id}")
     async def get_conversation(conversation_id: str) -> dict[str, Any]:
         all_messages = app.state.history_store.get_messages(conversation_id)
-        messages = [m for m in all_messages if not m.get("intermediate")]
-        intermediate_messages = [m for m in all_messages if m.get("intermediate")]
+        messages = [m for m in all_messages if not _is_intermediate_message(m)]
+        intermediate_messages = [m for m in all_messages if _is_intermediate_message(m)]
         return {
             "conversation_id": conversation_id,
             "messages": messages,
@@ -190,9 +190,7 @@ def _hydrate_messages(records: list[dict[str, Any]]) -> list[Message]:
             continue
         if role == MessageRole.SYSTEM:
             continue
-        if role == MessageRole.TOOL:
-            continue
-        if record.get("intermediate"):
+        if _is_intermediate_message(record):
             continue
         messages.append(
             Message(
@@ -203,6 +201,21 @@ def _hydrate_messages(records: list[dict[str, Any]]) -> list[Message]:
             )
         )
     return messages
+
+
+def _is_intermediate_message(record: dict[str, Any]) -> bool:
+    role = record.get("role")
+    if record.get("intermediate") is True:
+        return True
+    if role == MessageRole.TOOL.value:
+        return True
+    if role == MessageRole.ASSISTANT.value and record.get("tool_calls") is not None:
+        return True
+    if role == MessageRole.ASSISTANT.value and (
+        record.get("tool_name") or record.get("tool_call_id")
+    ):
+        return True
+    return False
 
 
 async def _backfill_conversation_title_if_missing(

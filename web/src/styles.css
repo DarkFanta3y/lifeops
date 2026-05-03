@@ -628,6 +628,32 @@ textarea {
   margin-bottom: 6px;
 }
 
+.tool-call-list {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.tool-call-item {
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #f9fafb;
+}
+
+.tool-call-item pre {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #111827;
+  color: #f9fafb;
+  white-space: pre-wrap;
+}
+
 @media (max-width: 900px) {
   .content {
     padding: 0;

@@ -6,7 +6,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://python.org)
 [![uv](https://img.shields.io/badge/uv-package_manager-6E39C6.svg)](https://github.com/astral-sh/uv)
-[![pytest](https://img.shields.io/badge/local_tests-271%20passed-green.svg)](https://docs.pytest.org)
+[![pytest](https://img.shields.io/badge/local_tests-295%20passed-green.svg)](https://docs.pytest.org)
 [![Ruff](https://img.shields.io/badge/linter-ruff-FCC624.svg)](https://docs.astral.sh/ruff/)
 
 [快速开始](#快速开始) · [架构](#架构) · [配置](#配置) · [开发](#开发)
@@ -53,10 +53,12 @@ Web 控制台包含三个主要区域：
 
 Web 控制台固定在浏览器视口内：历史对话很多时只滚动侧边栏对话列表，聊天消息很多时只滚动主消息流，输入框保持在底部可见，发送按钮内嵌在输入框末尾。聊天消息支持 Markdown/GFM 实时渲染，聊天输入区可展开 Markdown 预览，Skill 描述预览也会随输入实时渲染；侧边栏摘要与表格单元格保持纯文本以维持紧凑布局。`SKILLS` / `TOOLS` 主工作区与侧边栏贴合，数据较少时不额外保留底部空白；数据超过分页阈值或 MCP 展开内容变高时由表格内容区滚动，外置分页固定在主区域右下角，底部半透明模糊层仅在分页出现时做视觉过渡、不拦截点击。
 
+对话中的工具调用和工具执行结果统一归入 Logging 弹窗，不混入主消息流。新产生的 assistant 工具调用中间记录会写入 `intermediate: true` 与结构化 `tool_calls`，新产生的 `tool` 结果记录会写入 `intermediate: true`、`tool_name`、`tool_call_id`；旧历史中缺少该字段的 `role=tool` 记录，以及已带 `tool_calls` 的旧 assistant 中间记录，也会由 API 自动归入 `intermediate_messages`，无需迁移本地 `.lifeops/conversations.jsonl`。Logging 弹窗会按“工具调用”“工具结果”“中间信息”区分展示，并显示工具名、参数和调用 ID。
+
 本地 Web API 的会话端点：
 - `GET /api/conversations` — 获取会话列表
 - `GET /api/conversations?query=关键词` — 只按已持久化的会话短标题记录搜索，不匹配正文、最后一条消息或旧会话 fallback 展示标题
-- `GET /api/conversations/{conversation_id}` — 获取会话消息
+- `GET /api/conversations/{conversation_id}` — 获取会话消息，返回主消息 `messages` 与 Logging 使用的 `intermediate_messages`
 - `DELETE /api/conversations/{conversation_id}` — 删除会话历史并清理 Web agent 缓存
 - `POST /api/chat` — 发送聊天消息，返回 `conversation_id`、`reply`；新 Web 会话或缺少标题记录的已有 Web 会话会额外返回并持久化 `title`
 - `POST /api/skills` — 创建项目级 Skill，名称仅支持小写字母、数字和短横线，metadata 使用 YAML mapping 片段

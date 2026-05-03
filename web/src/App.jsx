@@ -915,19 +915,22 @@ function LoggingModal({ open, intermediateMessages, onClose }) {
     key: `${msg.created_at}-${index}`,
     label: (
       <span>
-        <Text className="role-label">{roleLabel(msg.role)}</Text>
+        <Text className="role-label">{loggingEntryType(msg)}</Text>
         <Text type="secondary">
-          {msg.content ? msg.content.slice(0, 60) + (msg.content.length > 60 ? "..." : "") : "(无内容)"}
+          {loggingEntrySummary(msg)}
         </Text>
       </span>
     ),
     children: (
-      <div>
-        {msg.tool_name ? (
+      <div className="logging-entry">
+        {msg.role === "tool" ? (
           <div className="logging-meta">
             <Text type="secondary">工具: {msg.tool_name}</Text>
             {msg.tool_call_id ? <Text type="secondary"> | 调用ID: {msg.tool_call_id}</Text> : null}
           </div>
+        ) : null}
+        {msg.role === "assistant" && msg.tool_calls ? (
+          <ToolCallDetails toolCalls={msg.tool_calls || []} />
         ) : null}
         <MarkdownRenderer content={msg.content || ""} emptyText="(无内容)" />
       </div>
@@ -950,6 +953,44 @@ function LoggingModal({ open, intermediateMessages, onClose }) {
       )}
     </Modal>
   );
+}
+
+function ToolCallDetails({ toolCalls }) {
+  if (toolCalls.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="tool-call-list">
+      {toolCalls.map((toolCall, index) => (
+        <div className="tool-call-item" key={toolCall.id || index}>
+          <Text strong>{toolCall.function?.name || "未知工具"}</Text>
+          {toolCall.id ? <Text type="secondary">调用ID: {toolCall.id}</Text> : null}
+          <pre>{toolCall.function?.arguments || "{}"}</pre>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function loggingEntryType(msg) {
+  if (msg.role === "assistant" && msg.tool_calls) {
+    return "工具调用";
+  }
+  if (msg.role === "tool") {
+    return "工具结果";
+  }
+  return "中间信息";
+}
+
+function loggingEntrySummary(msg) {
+  if (msg.role === "assistant" && msg.tool_calls?.length) {
+    return msg.tool_calls
+      .map((toolCall) => toolCall.function?.name || "未知工具")
+      .join(", ");
+  }
+  const content = msg.content || "(无内容)";
+  return content.slice(0, 60) + (content.length > 60 ? "..." : "");
 }
 
 function MarkdownRenderer({ content, emptyText = "" }) {

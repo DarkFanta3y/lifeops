@@ -8,7 +8,7 @@ from typing import Any, Literal
 
 from lifeops.core.config import PROJECT_ROOT
 from lifeops.utils.logging import get_logger
-from lifeops.utils.text import sanitize_unicode_text
+from lifeops.utils.text import sanitize_unicode_data, sanitize_unicode_text
 
 logger = get_logger(__name__)
 
@@ -34,6 +34,7 @@ class ConversationHistoryStore:
         created_at: str | None = None,
         tool_name: str | None = None,
         tool_call_id: str | None = None,
+        tool_calls: list[dict[str, Any]] | None = None,
         intermediate: bool = False,
     ) -> dict[str, Any]:
         record: dict[str, Any] = {
@@ -47,6 +48,8 @@ class ConversationHistoryStore:
             record["tool_name"] = sanitize_unicode_text(tool_name)
         if tool_call_id:
             record["tool_call_id"] = sanitize_unicode_text(tool_call_id)
+        if tool_calls is not None:
+            record["tool_calls"] = sanitize_unicode_data(tool_calls)
         if intermediate:
             record["intermediate"] = True
 
