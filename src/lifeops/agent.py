@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from hashlib import sha1
 from typing import Any
 from uuid import uuid4
 
@@ -11,7 +12,7 @@ from lifeops.llm.client import LLMClient
 from lifeops.llm.types import Message, MessageRole, ToolCallResult
 from lifeops.skills.manager import SkillManager
 from lifeops.skills.matcher import SkillMatcher
-from lifeops.tools.base import ToolDefinition, ToolResult
+from lifeops.tools.base import ToolDefinition, ToolParams, ToolResult
 from lifeops.tools.builtin import register_all_builtin_tools
 from lifeops.tools.mcp.manager import MCPManager
 from lifeops.tools.mcp.types import MCPServerConfig
@@ -41,6 +42,7 @@ DEFAULT_SYSTEM_PROMPT = """# 身份与目标
 # 工具使用策略
 
 - 需要读取或编辑本地文件、执行命令、搜索互联网、调用 MCP 或其他外部服务时，使用可用工具完成。
+- 当用户询问食谱、已有 Markdown 文档、做法、食材、替代方案或个人知识库内容时，优先调用 `retrieve_knowledge` 检索本地知识库，再基于结果回答。
 - 调用工具前明确目标；工具结果返回后综合判断，不机械复述原始输出。
 - 工具调用失败、信息缺失或权限受限时，说明限制、已尝试内容和下一步选择。
 - 不为可直接回答的常识性或低风险问题过度调用工具。
@@ -96,12 +98,19 @@ class Agent:
         self.max_iterations = 10
         self.skill_manager: SkillManager | None = None
         self.skill_matcher: SkillMatcher | None = None
+        self.rag_retriever: Any | None = None
         self._mcp_tools_registered = False
         self.history_store = history_store or ConversationHistoryStore(config.history_path)
         self.source = source
         self.conversation_id = conversation_id or self._new_conversation_id()
 
+        if config.rag.enabled:
+            from lifeops.rag.retriever import RAGRetriever
+
+            self.rag_retriever = RAGRetriever(config.rag)
+
         self._register_default_tools()
+        self._register_rag_tool()
 
         # MCP 静态配置加载
         if config.mcp.enabled and config.mcp.servers.strip():
@@ -125,6 +134,58 @@ class Agent:
 
     def _register_default_tools(self) -> None:
         register_all_builtin_tools(self.tools, self.config)
+
+    def _register_rag_tool(self) -> None:
+        if not self.config.rag.enabled:
+            return
+
+        from pydantic import Field
+
+        class RetrieveKnowledgeParams(ToolParams):
+            query: str
+            domain: str | None = None
+            category: str | None = None
+            top_files: int = Field(default=3, ge=1)
+
+        async def handler(params: dict[str, Any]) -> ToolResult:
+            validated = RetrieveKnowledgeParams.model_validate(params)
+            if self.rag_retriever is None:
+                return ToolResult(success=False, output="", error="RAG 检索器未初始化")
+
+            top_files = min(validated.top_files, 3)
+            results = self.rag_retriever.retrieve(
+                validated.query,
+                domain=validated.domain,
+                category=validated.category,
+                top_files=top_files,
+            )
+            formatted = self.rag_retriever.format_results(results)
+            domain_key = validated.domain or "all"
+            query_hash = sha1(validated.query.encode("utf-8")).hexdigest()[:12]
+            self.context.add_content(
+                f"rag:{domain_key}:{query_hash}",
+                formatted,
+                ContextLayer.L2,
+                token_count=len(formatted) // 4,
+            )
+            return ToolResult(
+                success=True,
+                output=formatted,
+                metadata={"result_count": len(results), "top_files": top_files},
+            )
+
+        self.tools.register(
+            ToolDefinition(
+                name="retrieve_knowledge",
+                description=(
+                    "从本地 Markdown 知识库检索相关文件。适合查询食谱、做法、食材、替代方案、"
+                    "已有笔记或个人知识库内容；最多返回 3 个文件级结果。"
+                ),
+                parameters_model=RetrieveKnowledgeParams,
+                category="builtin",
+            ),
+            handler,
+        )
 
     async def _connect_mcp_servers(self) -> None:
         from lifeops.tools.mcp.adapter import MCPRegistryAdapter

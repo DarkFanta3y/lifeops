@@ -99,12 +99,38 @@ class SkillsConfig(BaseSettings):
     }
 
 
+class RAGConfig(BaseSettings):
+    enabled: bool = True
+    data_dirs: str = ".lifeops/knowledge"
+    chroma_path: str = ".lifeops/chroma"
+    collection: str = "lifeops_knowledge"
+    embedding_model: str = "BAAI/bge-small-zh-v1.5"
+    vector_top_k: int = 10
+    bm25_top_k: int = 10
+    rrf_top_k: int = 10
+    reranker_model: str = "BAAI/bge-reranker-base"
+    final_top_files: int = 3
+    rrf_k: int = 60
+
+    model_config = {
+        "env_prefix": "LIFEOPS_RAG_",
+        "env_file": _ENV_FILE,
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+    }
+
+    @property
+    def data_dirs_list(self) -> list[str]:
+        return [item.strip() for item in self.data_dirs.split(",") if item.strip()]
+
+
 class AppConfig(BaseSettings):
     llm: LLMConfig = Field(default_factory=LLMConfig)
     context: ContextConfig = Field(default_factory=ContextConfig)
     serpapi: SerpApiConfig = Field(default_factory=SerpApiConfig)
     mcp: MCPConfig = Field(default_factory=MCPConfig)
     skills: SkillsConfig = Field(default_factory=SkillsConfig)
+    rag: RAGConfig = Field(default_factory=RAGConfig)
     history_path: str = ".lifeops/conversations.jsonl"
     debug: bool = False
     log_level: str = "INFO"
