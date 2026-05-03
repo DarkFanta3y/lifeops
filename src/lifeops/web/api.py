@@ -70,9 +70,13 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
 
     @app.get("/api/conversations/{conversation_id}")
     async def get_conversation(conversation_id: str) -> dict[str, Any]:
+        all_messages = app.state.history_store.get_messages(conversation_id)
+        messages = [m for m in all_messages if not m.get("intermediate")]
+        intermediate_messages = [m for m in all_messages if m.get("intermediate")]
         return {
             "conversation_id": conversation_id,
-            "messages": app.state.history_store.get_messages(conversation_id),
+            "messages": messages,
+            "intermediate_messages": intermediate_messages,
         }
 
     @app.delete("/api/conversations/{conversation_id}")
@@ -187,6 +191,8 @@ def _hydrate_messages(records: list[dict[str, Any]]) -> list[Message]:
         if role == MessageRole.SYSTEM:
             continue
         if role == MessageRole.TOOL:
+            continue
+        if record.get("intermediate"):
             continue
         messages.append(
             Message(

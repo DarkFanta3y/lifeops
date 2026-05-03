@@ -200,6 +200,11 @@ class Agent:
                         tool_calls=[self._tool_call_to_dict(tc) for tc in response.tool_calls],
                     )
                 )
+                self._persist_message(
+                    MessageRole.ASSISTANT,
+                    response.content or "",
+                    intermediate=True,
+                )
 
                 for tc in response.tool_calls:
                     try:
@@ -263,6 +268,7 @@ class Agent:
         content: str,
         tool_name: str | None = None,
         tool_call_id: str | None = None,
+        intermediate: bool = False,
     ) -> None:
         try:
             self.history_store.append_message(
@@ -272,6 +278,7 @@ class Agent:
                 content=content,
                 tool_name=tool_name,
                 tool_call_id=tool_call_id,
+                intermediate=intermediate,
             )
         except Exception:
             logger.exception("写入对话历史失败")
