@@ -19,8 +19,11 @@ from lifeops.tools.builtin import register_all_builtin_tools
 from lifeops.tools.mcp.manager import MCPManager
 from lifeops.tools.mcp.types import MCPToolInfo
 from lifeops.tools.registry import ToolRegistry
+from lifeops.utils.logging import get_logger
 from lifeops.utils.logging import setup_logger
 from lifeops.web.title_summary import fallback_conversation_title, summarize_conversation_title
+
+logger = get_logger(__name__)
 
 
 class ChatRequest(BaseModel):
@@ -91,8 +94,14 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
         agent = _get_or_create_web_agent(app, conversation_id)
         if not is_new_conversation:
             reply = await agent.run(request.message)
-            return ChatResponse(conversation_id=conversation_id, reply=reply)
+            title = await _backfill_conversation_title_if_missing(
+                app.state.history_store,
+                conversation_id,
+                agent.llm,
+            )
+            return ChatResponse(conversation_id=conversation_id, reply=reply, title=title)
 
+        logger.info(f"Web 新会话进入标题生成: conversation_id={conversation_id}")
         reply_task = asyncio.create_task(agent.run(request.message))
         title_task = asyncio.create_task(summarize_conversation_title(agent.llm, request.message))
         reply_result, title_result = await asyncio.gather(
@@ -103,11 +112,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
         if isinstance(reply_result, Exception):
             raise reply_result
 
-        title = (
-            fallback_conversation_title(request.message)
-            if isinstance(title_result, Exception)
-            else title_result
-        )
+        title = _resolve_title_result(request.message, title_result, conversation_id)
         app.state.history_store.append_conversation_title(conversation_id, "web", title)
         return ChatResponse(conversation_id=conversation_id, reply=reply_result, title=title)
 
@@ -192,6 +197,46 @@ def _hydrate_messages(records: list[dict[str, Any]]) -> list[Message]:
             )
         )
     return messages
+
+
+async def _backfill_conversation_title_if_missing(
+    history_store: ConversationHistoryStore,
+    conversation_id: str,
+    llm: Any,
+) -> str | None:
+    if history_store.has_conversation_title(conversation_id):
+        return None
+
+    first_user_message = history_store.get_first_user_message(conversation_id)
+    if first_user_message is None:
+        return None
+
+    logger.info(f"Web 已有会话缺少标题，触发补生成: conversation_id={conversation_id}")
+    try:
+        title = await summarize_conversation_title(llm, first_user_message)
+    except Exception:
+        title = fallback_conversation_title(first_user_message)
+        logger.warning(
+            f"Web 会话标题补生成失败，使用 fallback: conversation_id={conversation_id}",
+            exc_info=True,
+        )
+    history_store.append_conversation_title(conversation_id, "web", title)
+    return title
+
+
+def _resolve_title_result(
+    first_user_message: str,
+    title_result: str | BaseException,
+    conversation_id: str,
+) -> str:
+    if not isinstance(title_result, BaseException):
+        return title_result
+
+    logger.warning(
+        f"Web 新会话标题生成失败，使用 fallback: conversation_id={conversation_id}",
+        exc_info=(type(title_result), title_result, title_result.__traceback__),
+    )
+    return fallback_conversation_title(first_user_message)
 
 
 def _discover_skill_manager(config: AppConfig) -> SkillManager:

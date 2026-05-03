@@ -562,6 +562,10 @@ textarea {
   margin-top: 16px;
 }
 
+.search-alert {
+  margin-top: 12px;
+}
+
 .search-result-item {
   width: 100%;
   border: 1px solid #e5e7eb;

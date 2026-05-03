@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -44,6 +44,7 @@ import {
 const { Sider, Content } = Layout;
 const { Text, Title } = Typography;
 const TABLE_PAGE_SIZE = 8;
+const SEARCH_DEBOUNCE_MS = 250;
 
 function App() {
   const { message } = AntApp.useApp();
@@ -63,8 +64,10 @@ function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState("");
   const [skillModalOpen, setSkillModalOpen] = useState(false);
   const [savingSkill, setSavingSkill] = useState(false);
+  const requestIdRef = useRef(0);
   const [skillForm, setSkillForm] = useState({
     name: "",
     description: "",
@@ -92,6 +95,28 @@ function App() {
       loadTools();
     }
   }, [activeView, skills.length, tools.length]);
+
+  useEffect(() => {
+    if (!searchOpen) {
+      return undefined;
+    }
+
+    if (!searchQuery.trim()) {
+      requestIdRef.current += 1;
+      setSearchResults([]);
+      setSearchError("");
+      setSearchLoading(false);
+      return undefined;
+    }
+
+    const timer = setTimeout(() => {
+      handleSearch(searchQuery);
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [searchOpen, searchQuery]);
 
   async function loadConversations(options = {}) {
     const hasNextSelectedId = Object.prototype.hasOwnProperty.call(options, "nextSelectedId");
@@ -196,19 +221,32 @@ function App() {
   async function handleSearch(rawQuery = searchQuery) {
     const query = rawQuery.trim();
     setSearchQuery(rawQuery);
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
     if (!query) {
       setSearchResults([]);
+      setSearchError("");
+      setSearchLoading(false);
       return;
     }
 
     setSearchLoading(true);
+    setSearchError("");
     try {
       const payload = await fetchConversations(query);
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
       setSearchResults(payload.conversations || []);
     } catch (err) {
-      setError(err.message);
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
+      setSearchError(err.message);
     } finally {
-      setSearchLoading(false);
+      if (requestId === requestIdRef.current) {
+        setSearchLoading(false);
+      }
     }
   }
 
@@ -324,6 +362,7 @@ function App() {
               setSearchOpen(true);
               setSearchQuery("");
               setSearchResults([]);
+              setSearchError("");
             }}
           >
             搜索标题
@@ -380,6 +419,7 @@ function App() {
         query={searchQuery}
         results={searchResults}
         loading={searchLoading}
+        error={searchError}
         onQueryChange={setSearchQuery}
         onSearch={handleSearch}
         onSelect={handleSelectSearchResult}
@@ -455,6 +495,7 @@ function SearchModal({
   query,
   results,
   loading,
+  error,
   onQueryChange,
   onSearch,
   onSelect,
@@ -471,6 +512,7 @@ function SearchModal({
         allowClear
         autoFocus
       />
+      {error ? <Alert className="search-alert" type="error" message={error} showIcon /> : null}
       <div className="search-results">
         <Spin spinning={loading}>
           {results.length === 0 ? (

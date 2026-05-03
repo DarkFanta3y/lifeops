@@ -142,6 +142,22 @@ class ConversationHistoryStore:
             and not self._is_title_record(record)
         ]
 
+    def has_conversation_title(self, conversation_id: str) -> bool:
+        return any(
+            record["conversation_id"] == conversation_id and self._is_title_record(record)
+            for record in self.list_records()
+        )
+
+    def get_first_user_message(self, conversation_id: str) -> str | None:
+        for record in self.list_records():
+            if (
+                record["conversation_id"] == conversation_id
+                and record["role"] == "user"
+                and not self._is_title_record(record)
+            ):
+                return record["content"]
+        return None
+
     def delete_conversation(self, conversation_id: str) -> int:
         records = self.list_records()
         remaining_records = [
@@ -183,7 +199,11 @@ class ConversationHistoryStore:
         query: str,
     ) -> bool:
         normalized_query = query.strip().casefold()
-        return normalized_query in str(summary.get("title", "")).casefold()
+        return any(
+            normalized_query in record["content"].casefold()
+            for record in records
+            if self._is_title_record(record)
+        )
 
     def _is_title_record(self, record: dict[str, Any]) -> bool:
         return record.get("record_type") == TITLE_RECORD_TYPE
