@@ -52,6 +52,7 @@ function App() {
   const [conversations, setConversations] = useState([]);
   const [selectedConversationId, setSelectedConversationId] = useState(null);
   const [conversationMessages, setConversationMessages] = useState([]);
+  const [intermediateMessages, setIntermediateMessages] = useState([]);
   const [skills, setSkills] = useState([]);
   const [tools, setTools] = useState([]);
   const [mcpServers, setMcpServers] = useState([]);
@@ -147,6 +148,7 @@ function App() {
         await loadConversation(nextId);
       } else {
         setConversationMessages([]);
+        setIntermediateMessages([]);
       }
     } catch (err) {
       setError(err.message);
@@ -162,6 +164,7 @@ function App() {
       const payload = await fetchConversation(conversationId);
       setSelectedConversationId(conversationId);
       setConversationMessages(payload.messages || []);
+      setIntermediateMessages(payload.intermediate_messages || []);
     } catch (err) {
       setError(err.message);
     }
@@ -214,6 +217,7 @@ function App() {
     setActiveView("chat");
     setSelectedConversationId(null);
     setConversationMessages([]);
+    setIntermediateMessages([]);
     setChatInput("");
     setError("");
   }
@@ -316,6 +320,8 @@ function App() {
         <ChatWorkspace
           selectedConversation={selectedConversation}
           messages={conversationMessages}
+          intermediateMessages={intermediateMessages}
+          selectedConversationId={selectedConversationId}
           chatInput={chatInput}
           sending={sending}
           onInputChange={setChatInput}
@@ -539,6 +545,8 @@ function SearchModal({
 function ChatWorkspace({
   selectedConversation,
   messages,
+  intermediateMessages,
+  selectedConversationId,
   chatInput,
   sending,
   onInputChange,
