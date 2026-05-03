@@ -5,6 +5,7 @@ import {
   Alert,
   App as AntApp,
   Button,
+  Collapse,
   Empty,
   Input,
   Layout,
@@ -23,6 +24,7 @@ import {
   AppstoreOutlined,
   DeleteOutlined,
   DownOutlined,
+  FileTextOutlined,
   MessageOutlined,
   PlusOutlined,
   ReloadOutlined,
@@ -553,6 +555,7 @@ function ChatWorkspace({
   onSend,
 }) {
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [loggingOpen, setLoggingOpen] = useState(false);
 
   return (
     <section className="workspace chat-workspace">
@@ -562,7 +565,18 @@ function ChatWorkspace({
             <Text type="secondary">当前对话</Text>
             <Title level={4}>{selectedConversation?.title || "新对话"}</Title>
           </div>
-          <Tag color="blue">{messages.length} 条消息</Tag>
+          <div>
+            <Tag color="blue">{messages.length} 条消息</Tag>
+            <Button
+              type="text"
+              size="small"
+              icon={<FileTextOutlined />}
+              className="logging-btn"
+              onClick={() => setLoggingOpen(true)}
+            >
+              Logging
+            </Button>
+          </div>
         </div>
         <div className="message-stream">
           {messages.length === 0 ? (
@@ -624,6 +638,11 @@ function ChatWorkspace({
           </div>
         </div>
       </main>
+      <LoggingModal
+        open={loggingOpen}
+        intermediateMessages={intermediateMessages}
+        onClose={() => setLoggingOpen(false)}
+      />
     </section>
   );
 }
@@ -887,6 +906,48 @@ function SkillModal({ open, value, saving, onChange, onSave, onClose }) {
           />
         </label>
       </div>
+    </Modal>
+  );
+}
+
+function LoggingModal({ open, intermediateMessages, onClose }) {
+  const items = intermediateMessages.map((msg, index) => ({
+    key: `${msg.created_at}-${index}`,
+    label: (
+      <span>
+        <Text className="role-label">{roleLabel(msg.role)}</Text>
+        <Text type="secondary">
+          {msg.content ? msg.content.slice(0, 60) + (msg.content.length > 60 ? "..." : "") : "(无内容)"}
+        </Text>
+      </span>
+    ),
+    children: (
+      <div>
+        {msg.tool_name ? (
+          <div className="logging-meta">
+            <Text type="secondary">工具: {msg.tool_name}</Text>
+            {msg.tool_call_id ? <Text type="secondary"> | 调用ID: {msg.tool_call_id}</Text> : null}
+          </div>
+        ) : null}
+        <MarkdownRenderer content={msg.content || ""} emptyText="(无内容)" />
+      </div>
+    ),
+  }));
+
+  return (
+    <Modal
+      title="回答中间信息"
+      open={open}
+      onCancel={onClose}
+      footer={null}
+      width={780}
+      destroyOnHidden
+    >
+      {intermediateMessages.length === 0 ? (
+        <Empty description="暂无中间信息" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+      ) : (
+        <Collapse className="logging-collapse" items={items} />
+      )}
     </Modal>
   );
 }
