@@ -34,6 +34,7 @@ class ConversationHistoryStore:
         created_at: str | None = None,
         tool_name: str | None = None,
         tool_call_id: str | None = None,
+        intermediate: bool = False,
     ) -> dict[str, Any]:
         record: dict[str, Any] = {
             "conversation_id": conversation_id,
@@ -46,6 +47,8 @@ class ConversationHistoryStore:
             record["tool_name"] = sanitize_unicode_text(tool_name)
         if tool_call_id:
             record["tool_call_id"] = sanitize_unicode_text(tool_call_id)
+        if intermediate:
+            record["intermediate"] = True
 
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.path.open("a", encoding="utf-8") as file:
