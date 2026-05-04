@@ -277,6 +277,11 @@ textarea {
   gap: 14px;
 }
 
+.message-stream-empty {
+  align-items: center;
+  justify-content: center;
+}
+
 .message-row {
   display: flex;
 }

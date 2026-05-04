@@ -579,7 +579,7 @@ function ChatWorkspace({
             </Button>
           </div>
         </div>
-        <div className="message-stream">
+        <div className={`message-stream${messages.length === 0 ? ' message-stream-empty' : ''}`}>
           {messages.length === 0 ? (
             <Empty description="从下方输入开始一次新对话" />
           ) : (
@@ -965,6 +965,7 @@ function LoggingModal({ open, intermediateMessages, onClose }) {
         width="90vw"
         style={{ top: "5vh" }}
         destroyOnHidden
+        styles={{ body: { padding: "16px 24px", height: "80vh", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" } }}
       >
         <Empty description="暂无中间信息" image={Empty.PRESENTED_IMAGE_SIMPLE} />
       </Modal>

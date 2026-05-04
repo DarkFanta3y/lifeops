@@ -41,6 +41,20 @@ npm run dev
 
 默认 API 地址为 `http://127.0.0.1:8081`，前端地址为 `http://127.0.0.1:5173`。如需修改前端调用的 API 地址，可设置 `VITE_API_URL`。
 
+## 架构
+
+![alt text](assets/agent.png)
+
+LifeOps 的主入口是本地 Web 控制台。前端调用 FastAPI，后端按会话复用 `Agent` 实例，并把用户消息、最终回复、工具调用中间记录写入本地 JSONL 历史。
+
+`Agent` 是核心调度器。每轮输入先激活相关 Skill、确保 MCP 工具已注册，再按“检索预编排 → LLM 推理 → 工具调用 → 继续推理 → 最终回答”的 ReAct 流程运行，最多迭代 10 轮。
+
+上下文由 `ContextManager` 分三层管理：L1 放系统提示、Skill 目录和近期对话；L2 放已激活 Skill 正文和 RAG 结果；L3 放工具执行结果，并在容量不足时压缩。
+
+工具统一进入 `ToolRegistry`。内置工具包括命令执行、文件读写、网页搜索和本地知识库检索；MCP Server 通过适配器映射成同一套工具定义，因此 Agent 不需要区分工具来源。
+
+RAG 系统负责把本地 Markdown 索引到 ChromaDB 与 BM25，并在回答前由 Agent 判断是否需要调用 `retrieve_knowledge`。如果本地结果不足，Agent 可继续补充 `web_search`。
+
 ### Web 控制台
 
 
@@ -54,32 +68,7 @@ npm run dev
 
 对话中的工具调用和工具执行结果统一归入 Logging 弹窗，不混入主消息流。Logging 弹窗会按“工具调用”“工具结果”“中间信息”区分展示，并显示工具名、参数和调用 ID。
 
-## 架构
 
-```
-Web 控制台 / API
-       │
-       ▼
-FastAPI 会话层 ── JSONL 历史
-       │
-       ▼
-Agent ReAct 循环
-       ├── LLM Client：OpenAI 兼容模型调用与 tool calling
-       ├── Context Manager：L1 常驻 / L2 按需 / L3 工具结果
-       ├── Skill Manager：发现、匹配并注入 SKILL.md
-       ├── Tool Registry：内置工具与 MCP 工具统一注册
-       └── RAG Retriever：本地 Markdown 混合检索
-```
-
-LifeOps 的主入口是本地 Web 控制台。前端调用 FastAPI，后端按会话复用 `Agent` 实例，并把用户消息、最终回复、工具调用中间记录写入本地 JSONL 历史。
-
-`Agent` 是核心调度器。每轮输入先激活相关 Skill、确保 MCP 工具已注册，再按“检索预编排 → LLM 推理 → 工具调用 → 继续推理 → 最终回答”的 ReAct 流程运行，最多迭代 10 轮。
-
-上下文由 `ContextManager` 分三层管理：L1 放系统提示、Skill 目录和近期对话；L2 放已激活 Skill 正文和 RAG 结果；L3 放工具执行结果，并在容量不足时压缩。
-
-工具统一进入 `ToolRegistry`。内置工具包括命令执行、文件读写、网页搜索和本地知识库检索；MCP Server 通过适配器映射成同一套工具定义，因此 Agent 不需要区分工具来源。
-
-RAG 系统负责把本地 Markdown 索引到 ChromaDB 与 BM25，并在回答前由 Agent 判断是否需要调用 `retrieve_knowledge`。如果本地结果不足，Agent 可继续补充 `web_search`。
 
 ## 配置
 
