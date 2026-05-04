@@ -2,15 +2,16 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from lifeops.agent import Agent
-from lifeops.core.config import AppConfig, clear_proxy_env
+from lifeops.core.config import PROJECT_ROOT, AppConfig, clear_proxy_env
 from lifeops.core.context_manager import ContextManager
 from lifeops.history import ConversationHistoryStore
 from lifeops.llm.types import Message, MessageRole
@@ -26,6 +27,8 @@ from lifeops.utils.logging import setup_logger
 from lifeops.web.title_summary import fallback_conversation_title, summarize_conversation_title
 
 logger = get_logger(__name__)
+
+_RAG_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg"}
 
 
 class ChatRequest(BaseModel):
@@ -148,6 +151,11 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
         metadata = _parse_metadata_fragment(request.metadata)
         skill_file = _write_project_skill(app.state.config, request, metadata)
         return {"name": request.name, "path": str(skill_file)}
+
+    @app.get("/api/rag/assets/{asset_path:path}")
+    async def get_rag_asset(asset_path: str) -> FileResponse:
+        asset_file = _resolve_rag_asset(app.state.config, asset_path)
+        return FileResponse(asset_file)
 
     @app.get("/api/tools")
     async def list_tools() -> dict[str, Any]:
@@ -290,6 +298,41 @@ def _discover_skill_manager(config: AppConfig) -> SkillManager:
     )
     manager.discover()
     return manager
+
+
+def _resolve_rag_asset(config: AppConfig, asset_path: str) -> Path:
+    if _is_unsafe_rag_asset_path(asset_path):
+        raise HTTPException(status_code=403, detail="RAG 资源路径无效。")
+
+    relative_path = PurePosixPath(asset_path)
+    if relative_path.suffix.lower() not in _RAG_IMAGE_EXTENSIONS:
+        raise HTTPException(status_code=415, detail="仅支持读取知识库图片资源。")
+
+    for root in _rag_data_roots(config):
+        candidate = (root / Path(*relative_path.parts)).resolve()
+        if not candidate.is_relative_to(root):
+            continue
+        if candidate.is_file():
+            return candidate
+
+    raise HTTPException(status_code=404, detail="RAG 图片资源不存在。")
+
+
+def _is_unsafe_rag_asset_path(asset_path: str) -> bool:
+    if not asset_path or "\x00" in asset_path or "\\" in asset_path or asset_path.startswith("/"):
+        return True
+    parts = PurePosixPath(asset_path).parts
+    return any(part in {"", ".", ".."} for part in parts)
+
+
+def _rag_data_roots(config: AppConfig) -> list[Path]:
+    roots: list[Path] = []
+    for raw_root in config.rag.data_dirs_list:
+        root = Path(raw_root).expanduser()
+        if not root.is_absolute():
+            root = PROJECT_ROOT / root
+        roots.append(root.resolve())
+    return roots
 
 
 def _parse_metadata_fragment(raw_metadata: str) -> dict[str, Any]:

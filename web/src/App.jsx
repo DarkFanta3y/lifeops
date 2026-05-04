@@ -34,6 +34,7 @@ import {
   ToolOutlined,
 } from "@ant-design/icons";
 import {
+  API_BASE,
   createSkill,
   deleteConversation,
   fetchConversation,
@@ -911,31 +912,64 @@ function SkillModal({ open, value, saving, onChange, onSave, onClose }) {
 }
 
 function LoggingModal({ open, intermediateMessages, onClose }) {
-  const items = intermediateMessages.map((msg, index) => ({
-    key: `${msg.created_at}-${index}`,
-    label: (
-      <span>
-        <Text className="role-label">{loggingEntryType(msg)}</Text>
-        <Text type="secondary">
-          {loggingEntrySummary(msg)}
-        </Text>
-      </span>
-    ),
-    children: (
-      <div className="logging-entry">
-        {msg.role === "tool" ? (
-          <div className="logging-meta">
-            <Text type="secondary">工具: {msg.tool_name}</Text>
-            {msg.tool_call_id ? <Text type="secondary"> | 调用ID: {msg.tool_call_id}</Text> : null}
-          </div>
-        ) : null}
-        {msg.role === "assistant" && msg.tool_calls ? (
-          <ToolCallDetails toolCalls={msg.tool_calls || []} />
-        ) : null}
-        <MarkdownRenderer content={msg.content || ""} emptyText="(无内容)" />
-      </div>
-    ),
-  }));
+  const [selectedKey, setSelectedKey] = useState(null);
+
+  const items = useMemo(() => {
+    const items = [];
+    const processedToolCallIds = new Set();
+
+    intermediateMessages.forEach((msg, index) => {
+      if (msg.role === "assistant" && msg.tool_calls?.length > 0) {
+        msg.tool_calls.forEach((toolCall) => {
+          if (toolCall.id && !processedToolCallIds.has(toolCall.id)) {
+            processedToolCallIds.add(toolCall.id);
+
+            const toolResults = intermediateMessages.filter(
+              (m) => m.role === "tool" && m.tool_call_id === toolCall.id
+            );
+
+            items.push({
+              key: toolCall.id,
+              type: "tool-call",
+              toolName: toolCall.function?.name || "未知工具",
+              toolCall,
+              toolResults,
+            });
+          }
+        });
+      } else if (!(msg.role === "tool" && msg.tool_call_id)) {
+        items.push({
+          key: `${msg.created_at}-${index}`,
+          type: "message",
+          entryType: loggingEntryType(msg),
+          entrySummary: loggingEntrySummary(msg),
+          content: msg.content || "",
+        });
+      }
+    });
+
+    return items;
+  }, [intermediateMessages]);
+
+  const selectedItem = useMemo(() => {
+    return items.find((item) => item.key === selectedKey) || items[0];
+  }, [items, selectedKey]);
+
+  if (intermediateMessages.length === 0) {
+    return (
+      <Modal
+        title="回答中间信息"
+        open={open}
+        onCancel={onClose}
+        footer={null}
+        width="90vw"
+        style={{ top: "5vh" }}
+        destroyOnHidden
+      >
+        <Empty description="暂无中间信息" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+      </Modal>
+    );
+  }
 
   return (
     <Modal
@@ -943,14 +977,66 @@ function LoggingModal({ open, intermediateMessages, onClose }) {
       open={open}
       onCancel={onClose}
       footer={null}
-      width={780}
+      width="90vw"
+      style={{ top: "5vh" }}
       destroyOnHidden
+      styles={{ body: { padding: 0, height: "80vh", overflow: "hidden" } }}
     >
-      {intermediateMessages.length === 0 ? (
-        <Empty description="暂无中间信息" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-      ) : (
-        <Collapse className="logging-collapse" items={items} />
-      )}
+      <div className="logging-split-view">
+        <div className="logging-list">
+          {items.map((item) => (
+            <button
+              key={item.key}
+              className={`logging-list-item ${selectedItem?.key === item.key ? "active" : ""}`}
+              onClick={() => setSelectedKey(item.key)}
+            >
+              {item.type === "tool-call" ? (
+                <div className="logging-list-item-content">
+                  <Text className="role-label">工具调用</Text>
+                  <Text strong>{item.toolName}</Text>
+                </div>
+              ) : (
+                <div className="logging-list-item-content">
+                  <Text className="role-label">{item.entryType}</Text>
+                  <Text type="secondary">{item.entrySummary}</Text>
+                </div>
+              )}
+            </button>
+          ))}
+        </div>
+        <div className="logging-preview">
+          {selectedItem ? (
+            selectedItem.type === "tool-call" ? (
+              <div className="logging-entry">
+                <div>
+                  <Text strong>调用参数：</Text>
+                  <ToolCallDetails toolCalls={[selectedItem.toolCall]} />
+                </div>
+                {selectedItem.toolResults && selectedItem.toolResults.length > 0 && (
+                  <div style={{ marginTop: "16px" }}>
+                    <Text strong>执行结果：</Text>
+                    {selectedItem.toolResults.map((result, i) => (
+                      <div key={`result-${i}`} style={{ marginTop: "10px" }}>
+                        <div className="logging-meta">
+                          <Text type="secondary">工具: {result.tool_name}</Text>
+                        </div>
+                        <MarkdownRenderer
+                          content={result.content || ""}
+                          emptyText="(无内容)"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="logging-entry">
+                <MarkdownRenderer content={selectedItem.content} emptyText="(无内容)" />
+              </div>
+            )
+          ) : null}
+        </div>
+      </div>
     </Modal>
   );
 }
@@ -998,11 +1084,20 @@ function MarkdownRenderer({ content, emptyText = "" }) {
 
   return (
     <div className="markdown-body">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{ img: MarkdownImage }}
+        skipHtml
+      >
         {markdown}
       </ReactMarkdown>
     </div>
   );
+}
+
+function MarkdownImage({ src = "", alt = "", ...props }) {
+  const resolvedSrc = src.startsWith("/api/") ? `${API_BASE}${src}` : src;
+  return <img src={resolvedSrc} alt={alt} {...props} />;
 }
 
 function roleLabel(role) {

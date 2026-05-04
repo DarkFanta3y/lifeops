@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import logging
+import posixpath
 import pickle
+import re
 from pathlib import Path
 from typing import Any, Protocol
+from urllib.parse import quote, urlsplit
 
 from lifeops.core.config import RAGConfig
 from lifeops.rag.bm25 import BM25ChunkIndex
@@ -113,7 +116,7 @@ class RAGRetriever:
                 snippet = _snippet(evidence.chunk.content)
                 lines.append(f"- {evidence.chunk.heading_breadcrumb}: {snippet}")
             lines.append("完整正文:")
-            lines.append(result.content.strip())
+            lines.append(_rewrite_markdown_image_assets(result.content.strip(), result.path))
         return "\n".join(lines)
 
     def _rerank(self, query: str, matches: list[ChunkMatch]) -> list[ChunkMatch]:
@@ -255,3 +258,34 @@ def _snippet(text: str, max_chars: int = 180) -> str:
     if len(compact) <= max_chars:
         return compact
     return f"{compact[:max_chars].rstrip()}..."
+
+
+_MARKDOWN_IMAGE_RE = re.compile(r"(!\[[^\]]*]\()([^)\s]+)([^)]*\))")
+_RAG_ASSET_PREFIX = "/api/rag/assets/"
+
+
+def _rewrite_markdown_image_assets(markdown: str, document_path: str) -> str:
+    def replace(match: re.Match[str]) -> str:
+        prefix, raw_url, suffix = match.groups()
+        local_url = raw_url[1:-1] if raw_url.startswith("<") and raw_url.endswith(">") else raw_url
+        rewritten = _rag_asset_url_for_markdown_image(local_url, document_path)
+        if rewritten is None:
+            return match.group(0)
+        return f"{prefix}{rewritten}{suffix}"
+
+    return _MARKDOWN_IMAGE_RE.sub(replace, markdown)
+
+
+def _rag_asset_url_for_markdown_image(raw_url: str, document_path: str) -> str | None:
+    parsed = urlsplit(raw_url)
+    if parsed.scheme or parsed.netloc or raw_url.startswith(("/", "#")):
+        return None
+
+    normalized = posixpath.normpath(
+        posixpath.join(posixpath.dirname(document_path), parsed.path)
+    )
+    if normalized == "." or normalized.startswith("../") or "/../" in f"/{normalized}/":
+        return None
+
+    encoded_path = quote(normalized, safe="/")
+    return f"{_RAG_ASSET_PREFIX}{encoded_path}"
