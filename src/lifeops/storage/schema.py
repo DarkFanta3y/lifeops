@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS messages (
     content         TEXT    NOT NULL,
     created_at      TEXT    NOT NULL,              -- ISO 8601
     intermediate    INTEGER NOT NULL DEFAULT 0,   -- 0=false, 1=true
+    tool_name       TEXT,                          -- 工具结果消息的工具名（可空）
+    tool_call_id    TEXT,                          -- 工具结果消息的调用 ID（可空）
     record_type     TEXT,                          -- 例: "conversation_title"
     FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id)
 );
@@ -68,6 +70,9 @@ CREATE INDEX IF NOT EXISTS idx_messages_intermediate
 
 CREATE INDEX IF NOT EXISTS idx_tool_calls_message_id
     ON tool_calls(message_id);
+
+CREATE INDEX IF NOT EXISTS idx_messages_tool_call_id
+    ON messages(tool_call_id);
 
 CREATE INDEX IF NOT EXISTS idx_tool_results_tool_call_id
     ON tool_results(tool_call_id);
