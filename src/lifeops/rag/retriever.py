@@ -7,7 +7,11 @@ from typing import Any, Protocol
 
 from lifeops.core.config import RAGConfig
 from lifeops.rag.bm25 import BM25ChunkIndex
-from lifeops.rag.embeddings import EmbeddingProvider, SentenceTransformerEmbeddingProvider
+from lifeops.rag.embeddings import (
+    EmbeddingProvider,
+    SentenceTransformerEmbeddingProvider,
+    resolve_sentence_transformer_model,
+)
 from lifeops.rag.fusion import aggregate_parent_documents, reciprocal_rank_fusion
 from lifeops.rag.types import ChunkMatch, FileSearchResult, KnowledgeChunk, KnowledgeDocument
 
@@ -19,8 +23,9 @@ class Reranker(Protocol):
 
 
 class CrossEncoderReranker:
-    def __init__(self, model_name: str):
-        self.model_name = model_name
+    def __init__(self, model_name: str, cache_folder: str | None = None):
+        self.model_name = resolve_sentence_transformer_model(model_name, cache_folder)
+        self.cache_folder = cache_folder
         self._model = None
 
     @property
@@ -28,7 +33,7 @@ class CrossEncoderReranker:
         if self._model is None:
             from sentence_transformers import CrossEncoder
 
-            self._model = CrossEncoder(self.model_name)
+            self._model = CrossEncoder(self.model_name, cache_folder=self.cache_folder)
         return self._model
 
     def score(self, query: str, texts: list[str]) -> list[float]:
@@ -45,9 +50,13 @@ class RAGRetriever:
     ):
         self.config = config
         self.embedding_provider = embedding_provider or SentenceTransformerEmbeddingProvider(
-            config.embedding_model
+            config.embedding_model,
+            cache_folder=config.model_cache_path,
         )
-        self.reranker = reranker or CrossEncoderReranker(config.reranker_model)
+        self.reranker = reranker or CrossEncoderReranker(
+            config.reranker_model,
+            cache_folder=config.model_cache_path,
+        )
 
     def retrieve(
         self,

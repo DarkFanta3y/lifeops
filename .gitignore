@@ -7,6 +7,7 @@ __pycache__/
 .env.*
 !.env.example
 data/
+.lifeops/chroma/
 .lifeops/conversations.jsonl
 .playwright-mcp/
 *.egg-info/
@@ -22,3 +23,4 @@ PROJECT.md.ecc-hooks-disable
 .ecc-hooks-disable
 .codex
 .sisyphus/
+models/

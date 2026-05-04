@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,7 @@ from lifeops.core.config import AppConfig, clear_proxy_env
 from lifeops.core.context_manager import ContextManager
 from lifeops.history import ConversationHistoryStore
 from lifeops.llm.types import Message, MessageRole
+from lifeops.rag.indexer import RAGIndexer
 from lifeops.skills.loader import _parse_yaml_subset
 from lifeops.skills.manager import SkillManager
 from lifeops.tools.builtin import register_all_builtin_tools
@@ -46,7 +48,7 @@ class CreateSkillRequest(BaseModel):
 
 def create_app(config: AppConfig | None = None) -> FastAPI:
     app_config = config or AppConfig()
-    app = FastAPI(title="LifeOps Web API", version="0.1.0")
+    app = FastAPI(title="LifeOps Web API", version="0.1.0", lifespan=_lifespan(app_config))
     app.add_middleware(
         CORSMiddleware,
         allow_origin_regex=r"^http://(localhost|127\.0\.0\.1):\d+$",
@@ -163,6 +165,20 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
         return {"tools": tools, "mcp_servers": mcp_servers}
 
     return app
+
+
+def _lifespan(config: AppConfig):
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        if config.rag.enabled:
+            try:
+                summary = RAGIndexer(config.rag).sync()
+                logger.info("Web 启动 RAG 索引同步完成: %s", summary)
+            except Exception as exc:
+                logger.warning("Web 启动 RAG 索引同步失败，继续启动: %s", exc)
+        yield
+
+    return lifespan
 
 
 def _get_or_create_web_agent(app: FastAPI, conversation_id: str) -> Agent:

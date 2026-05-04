@@ -104,6 +104,7 @@ class RAGConfig(BaseSettings):
     data_dirs: str = ".lifeops/knowledge"
     chroma_path: str = ".lifeops/chroma"
     collection: str = "lifeops_knowledge"
+    model_cache_dir: str = "models"
     embedding_model: str = "BAAI/bge-small-zh-v1.5"
     vector_top_k: int = 10
     bm25_top_k: int = 10
@@ -122,6 +123,13 @@ class RAGConfig(BaseSettings):
     @property
     def data_dirs_list(self) -> list[str]:
         return [item.strip() for item in self.data_dirs.split(",") if item.strip()]
+
+    @property
+    def model_cache_path(self) -> str:
+        path = Path(self.model_cache_dir).expanduser()
+        if not path.is_absolute():
+            path = PROJECT_ROOT / path
+        return str(path)
 
 
 class AppConfig(BaseSettings):
