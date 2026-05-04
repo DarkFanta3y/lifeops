@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -70,25 +70,81 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
         app.state.mcp_manager.load_from_config(app_config.mcp.servers)
 
     @app.get("/api/conversations")
-    async def list_conversations(query: str | None = None) -> dict[str, Any]:
-        return {"conversations": app.state.history_store.list_conversations(query)}
+    async def list_conversations(
+        query: str | None = None,
+        limit: int | None = Query(None, ge=1),
+        offset: int | None = Query(None, ge=0),
+    ) -> dict[str, Any]:
+        try:
+            result = app.state.history_store.list_conversations(query, limit=limit, offset=offset)
+        except Exception:
+            logger.exception("列出会话失败")
+            raise HTTPException(status_code=500, detail="列出会话时发生内部错误")
+        if isinstance(result, list):
+            return {"conversations": result}
+        return {
+            "conversations": result["items"],
+            "total": result["total"],
+            "limit": result["limit"],
+            "offset": result["offset"],
+        }
 
     @app.get("/api/conversations/{conversation_id}")
-    async def get_conversation(conversation_id: str) -> dict[str, Any]:
-        all_messages = app.state.history_store.get_messages(conversation_id)
-        messages = [m for m in all_messages if not _is_intermediate_message(m)]
-        intermediate_messages = [m for m in all_messages if _is_intermediate_message(m)]
+    async def get_conversation(
+        conversation_id: str,
+        limit: int | None = Query(None, ge=1),
+        offset: int | None = Query(None, ge=0),
+    ) -> dict[str, Any]:
+        try:
+            all_messages = app.state.history_store.get_messages(
+                conversation_id, limit=limit, offset=offset
+            )
+        except Exception:
+            logger.exception("获取会话详情失败")
+            raise HTTPException(status_code=500, detail="获取会话详情时发生内部错误")
+
+        if isinstance(all_messages, list):
+            messages = [m for m in all_messages if not _is_intermediate_message(m)]
+            intermediate_messages = [m for m in all_messages if _is_intermediate_message(m)]
+            return {
+                "conversation_id": conversation_id,
+                "messages": messages,
+                "intermediate_messages": intermediate_messages,
+            }
+
+        items = all_messages["items"]
+        messages = [m for m in items if not _is_intermediate_message(m)]
+        intermediate_messages = [m for m in items if _is_intermediate_message(m)]
         return {
             "conversation_id": conversation_id,
             "messages": messages,
             "intermediate_messages": intermediate_messages,
+            "total": all_messages["total"],
+            "limit": all_messages["limit"],
+            "offset": all_messages["offset"],
         }
 
     @app.delete("/api/conversations/{conversation_id}")
     async def delete_conversation(conversation_id: str) -> dict[str, Any]:
-        deleted_count = app.state.history_store.delete_conversation(conversation_id)
+        try:
+            deleted_count = app.state.history_store.delete_conversation(conversation_id)
+        except Exception:
+            logger.exception("删除会话失败")
+            raise HTTPException(status_code=500, detail="删除会话时发生内部错误")
         app.state.web_agents.pop(conversation_id, None)
         return {"conversation_id": conversation_id, "deleted_count": deleted_count}
+
+    @app.get("/api/search/messages")
+    async def search_messages(
+        q: str = Query(..., min_length=1),
+        limit: int = Query(20, ge=1),
+        offset: int = Query(0, ge=0),
+    ) -> dict[str, Any]:
+        try:
+            return app.state.history_store.search_messages(q, limit, offset)
+        except Exception:
+            logger.exception("搜索消息失败")
+            raise HTTPException(status_code=500, detail="搜索消息时发生内部错误")
 
     @app.post("/api/chat", response_model=ChatResponse)
     async def chat(request: ChatRequest) -> ChatResponse:

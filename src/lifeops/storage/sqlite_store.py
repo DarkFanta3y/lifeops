@@ -38,6 +38,11 @@ class ConversationHistoryStoreSQLite:
             "INSERT OR REPLACE INTO schema_version (version) VALUES (?)",
             (SCHEMA_VERSION,),
         )
+        # 重建 FTS5 索引以确保与已有消息数据一致
+        try:
+            cursor.execute("INSERT INTO full_text_search(full_text_search) VALUES ('rebuild')")
+        except sqlite3.OperationalError:
+            pass
         self._conn.commit()
 
     def _ensure_schema(self) -> None:
@@ -219,9 +224,12 @@ class ConversationHistoryStoreSQLite:
             "record_type": TITLE_RECORD_TYPE,
         }
 
-    def list_records(self) -> list[dict[str, Any]]:
-        cursor = self._conn.cursor()
-        cursor.execute(
+    def list_records(
+        self,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[dict[str, Any]] | dict[str, Any]:
+        _REC_JOIN_SQL = (
             "SELECT m.id, m.conversation_id, c.source, m.role, m.content, "
             "m.created_at, m.tool_name, m.tool_call_id, m.intermediate, "
             "m.record_type "
@@ -229,15 +237,47 @@ class ConversationHistoryStoreSQLite:
             "JOIN conversations c ON m.conversation_id = c.conversation_id "
             "ORDER BY m.created_at ASC, m.id ASC"
         )
+        cursor = self._conn.cursor()
+
+        if limit is None and offset is None:
+            cursor.execute(_REC_JOIN_SQL)
+            rows = cursor.fetchall()
+            records: list[dict[str, Any]] = []
+            for row in rows:
+                tc_list = self._fetch_tool_calls(cursor, row["id"])
+                record = self._row_to_record(row, tool_calls=tc_list if tc_list else None)
+                records.append(record)
+            return records
+
+        cursor.execute("SELECT COUNT(*) FROM messages")
+        total = cursor.fetchone()[0]
+
+        effective_offset = offset or 0
+        sql_limit = limit if limit is not None else -1
+        cursor.execute(
+            _REC_JOIN_SQL + " LIMIT ? OFFSET ?",
+            (sql_limit, effective_offset),
+        )
         rows = cursor.fetchall()
         records: list[dict[str, Any]] = []
         for row in rows:
             tc_list = self._fetch_tool_calls(cursor, row["id"])
             record = self._row_to_record(row, tool_calls=tc_list if tc_list else None)
             records.append(record)
-        return records
 
-    def list_conversations(self, query: str | None = None) -> list[dict[str, Any]]:
+        return {
+            "items": records,
+            "total": total,
+            "limit": limit,
+            "offset": effective_offset,
+        }
+
+    def list_conversations(
+        self,
+        query: str | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[dict[str, Any]] | dict[str, Any]:
         cursor = self._conn.cursor()
         cursor.execute(
             "SELECT conversation_id, source, message_count, title, "
@@ -268,11 +308,30 @@ class ConversationHistoryStoreSQLite:
                 "created_at": row["created_at"],
                 "updated_at": row["updated_at"],
             })
-        return summaries
 
-    def get_messages(self, conversation_id: str) -> list[dict[str, Any]]:
-        cursor = self._conn.cursor()
-        cursor.execute(
+        if limit is None and offset is None:
+            return summaries
+
+        total = len(summaries)
+        effective_offset = offset or 0
+        if limit is not None:
+            items = summaries[effective_offset:effective_offset + limit]
+        else:
+            items = summaries[effective_offset:]
+        return {
+            "items": items,
+            "total": total,
+            "limit": limit,
+            "offset": effective_offset,
+        }
+
+    def get_messages(
+        self,
+        conversation_id: str,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[dict[str, Any]] | dict[str, Any]:
+        _MSG_JOIN_SQL = (
             "SELECT m.id, m.conversation_id, c.source, m.role, m.content, "
             "m.created_at, m.tool_name, m.tool_call_id, m.intermediate, "
             "m.record_type "
@@ -280,8 +339,33 @@ class ConversationHistoryStoreSQLite:
             "JOIN conversations c ON m.conversation_id = c.conversation_id "
             "WHERE m.conversation_id = ? "
             "AND (m.record_type IS NULL OR m.record_type != ?) "
-            "ORDER BY m.created_at ASC, m.id ASC",
+            "ORDER BY m.created_at ASC, m.id ASC"
+        )
+        cursor = self._conn.cursor()
+
+        if limit is None and offset is None:
+            cursor.execute(_MSG_JOIN_SQL, (conversation_id, TITLE_RECORD_TYPE))
+            rows = cursor.fetchall()
+            messages: list[dict[str, Any]] = []
+            for row in rows:
+                tc_list = self._fetch_tool_calls(cursor, row["id"])
+                record = self._row_to_record(row, tool_calls=tc_list if tc_list else None)
+                messages.append(record)
+            return messages
+
+        cursor.execute(
+            "SELECT COUNT(*) FROM messages "
+            "WHERE conversation_id = ? "
+            "AND (record_type IS NULL OR record_type != ?)",
             (conversation_id, TITLE_RECORD_TYPE),
+        )
+        total = cursor.fetchone()[0]
+
+        effective_offset = offset or 0
+        sql_limit = limit if limit is not None else -1
+        cursor.execute(
+            _MSG_JOIN_SQL + " LIMIT ? OFFSET ?",
+            (conversation_id, TITLE_RECORD_TYPE, sql_limit, effective_offset),
         )
         rows = cursor.fetchall()
         messages: list[dict[str, Any]] = []
@@ -289,7 +373,13 @@ class ConversationHistoryStoreSQLite:
             tc_list = self._fetch_tool_calls(cursor, row["id"])
             record = self._row_to_record(row, tool_calls=tc_list if tc_list else None)
             messages.append(record)
-        return messages
+
+        return {
+            "items": messages,
+            "total": total,
+            "limit": limit,
+            "offset": effective_offset,
+        }
 
     def get_first_user_message(self, conversation_id: str) -> str | None:
         cursor = self._conn.cursor()
@@ -312,6 +402,68 @@ class ConversationHistoryStoreSQLite:
             (conversation_id, TITLE_RECORD_TYPE),
         )
         return cursor.fetchone() is not None
+
+    def search_messages(
+        self,
+        query: str,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """Search messages using FTS5 full-text search.
+
+        Returns: {items: [message_dicts], total: N, limit: int, offset: int}
+        """
+        cursor = self._conn.cursor()
+
+        escaped_query = query.replace('"', '""')
+        fts_query = f'"{escaped_query}"'
+
+        cursor.execute(
+            "SELECT rowid, rank FROM full_text_search "
+            "WHERE full_text_search MATCH ? ORDER BY rank",
+            (fts_query,),
+        )
+        all_matches = cursor.fetchall()
+        total = len(all_matches)
+        matches = all_matches[offset:offset + limit]
+
+        if not matches:
+            return {"items": [], "total": total, "limit": limit, "offset": offset}
+
+        id_to_rank = {m[0]: m[1] for m in matches}
+        message_ids = list(id_to_rank.keys())
+
+        placeholders = ",".join("?" * len(message_ids))
+        cursor.execute(
+            f"SELECT m.id, m.conversation_id, c.source, m.role, m.content, "
+            f"m.created_at, m.tool_name, m.tool_call_id, m.intermediate, "
+            f"m.record_type "
+            f"FROM messages m "
+            f"JOIN conversations c ON m.conversation_id = c.conversation_id "
+            f"WHERE m.id IN ({placeholders}) "
+            f"AND (m.record_type IS NULL OR m.record_type != ?)",
+            (*message_ids, TITLE_RECORD_TYPE),
+        )
+
+        ordered_ids = list(id_to_rank.keys())
+        records_by_id: dict[int, dict[str, Any]] = {}
+        for row in cursor.fetchall():
+            msg_id = row["id"]
+            if msg_id not in id_to_rank:
+                continue
+            tc_list = self._fetch_tool_calls(cursor, msg_id)
+            record = self._row_to_record(row, tool_calls=tc_list if tc_list else None)
+            record["rank"] = id_to_rank[msg_id]
+            records_by_id[msg_id] = record
+
+        result_messages = [records_by_id[mid] for mid in ordered_ids if mid in records_by_id]
+
+        return {
+            "items": result_messages,
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+        }
 
     def delete_conversation(self, conversation_id: str) -> int:
         cursor = self._conn.cursor()

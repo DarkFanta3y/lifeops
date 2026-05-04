@@ -76,5 +76,15 @@ CREATE INDEX IF NOT EXISTS idx_messages_tool_call_id
 
 CREATE INDEX IF NOT EXISTS idx_tool_results_tool_call_id
     ON tool_results(tool_call_id);
+
+-- FTS5 同步触发器：插入消息时自动更新全文索引
+CREATE TRIGGER IF NOT EXISTS messages_fts_ai AFTER INSERT ON messages BEGIN
+    INSERT INTO full_text_search(rowid, content) VALUES (new.id, new.content);
+END;
+
+-- FTS5 同步触发器：删除消息时自动清理全文索引
+CREATE TRIGGER IF NOT EXISTS messages_fts_ad AFTER DELETE ON messages BEGIN
+    INSERT INTO full_text_search(full_text_search, rowid, content) VALUES ('delete', old.id, old.content);
+END;
 """
 # fmt: on
