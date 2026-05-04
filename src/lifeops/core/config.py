@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import logging
 import os
+import warnings
 from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
+
+logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
@@ -140,6 +144,7 @@ class AppConfig(BaseSettings):
     skills: SkillsConfig = Field(default_factory=SkillsConfig)
     rag: RAGConfig = Field(default_factory=RAGConfig)
     history_path: str = ".lifeops/conversations.jsonl"
+    db_path: str = ".lifeops/conversations.db"
     debug: bool = False
     log_level: str = "INFO"
 
@@ -149,3 +154,13 @@ class AppConfig(BaseSettings):
         "env_file_encoding": "utf-8",
         "extra": "ignore",
     }
+
+    def __getattribute__(self, name: str) -> object:
+        if name == "history_path":
+            warnings.warn(
+                "history_path is deprecated, use db_path instead",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            logger.warning("history_path is deprecated, use db_path instead")
+        return super().__getattribute__(name)
