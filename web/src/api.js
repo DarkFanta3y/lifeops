@@ -16,17 +16,29 @@ async function request(path, options = {}) {
   return payload;
 }
 
-export function fetchConversations(query) {
+export function fetchConversations(query = "", limit = null, offset = null) {
   const params = new URLSearchParams();
-  if (query) {
-    params.set("query", query);
-  }
-  const suffix = params.toString() ? `?${params.toString()}` : "";
-  return request(`/api/conversations${suffix}`);
+  if (query) params.set("query", query);
+  if (limit !== null) params.set("limit", limit);
+  if (offset !== null) params.set("offset", offset);
+  const qs = params.toString();
+  return request(`/api/conversations${qs ? `?${qs}` : ""}`);
 }
 
-export function fetchConversation(conversationId) {
-  return request(`/api/conversations/${conversationId}`);
+export function fetchConversation(conversationId, limit = null, offset = null) {
+  const params = new URLSearchParams();
+  if (limit !== null) params.set("limit", limit);
+  if (offset !== null) params.set("offset", offset);
+  const qs = params.toString();
+  return request(`/api/conversations/${conversationId}${qs ? `?${qs}` : ""}`);
+}
+
+export function searchMessages(query, limit = 20, offset = 0) {
+  const params = new URLSearchParams();
+  params.set("q", query);
+  params.set("limit", limit);
+  params.set("offset", offset);
+  return request(`/api/search/messages?${params.toString()}`);
 }
 
 export function sendChatMessage({ message, conversationId }) {
