@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from hashlib import sha1
 from typing import Any
 from uuid import uuid4
@@ -9,7 +10,7 @@ from lifeops.core.config import AppConfig
 from lifeops.core.context_manager import ContextLayer, ContextManager
 from lifeops.history import ConversationHistoryStore, HistorySource
 from lifeops.llm.client import LLMClient
-from lifeops.llm.types import Message, MessageRole, ToolCallResult
+from lifeops.llm.types import ChatResponse, Message, MessageRole, ToolCallResult
 from lifeops.skills.manager import SkillManager
 from lifeops.skills.matcher import SkillMatcher
 from lifeops.tools.base import ToolDefinition, ToolParams, ToolResult
@@ -21,6 +22,22 @@ from lifeops.utils.logging import get_logger
 from lifeops.utils.text import sanitize_unicode_text
 
 logger = get_logger(__name__)
+
+
+@dataclass(frozen=True)
+class RetrievalRouteDecision:
+    should_use_rag: bool
+    should_use_web: bool
+    rag_query: str | None
+    web_query: str | None
+    reason: str
+
+
+@dataclass(frozen=True)
+class RagSufficiencyDecision:
+    is_sufficient: bool
+    missing_information: str
+    web_query: str | None
 
 DEFAULT_SYSTEM_PROMPT = """# 身份与目标
 
@@ -42,7 +59,8 @@ DEFAULT_SYSTEM_PROMPT = """# 身份与目标
 # 工具使用策略
 
 - 需要读取或编辑本地文件、执行命令、搜索互联网、调用 MCP 或其他外部服务时，使用可用工具完成。
-- 当用户询问食谱、已有 Markdown 文档、做法、食材、替代方案或个人知识库内容时，优先调用 `retrieve_knowledge` 检索本地知识库，再基于结果回答。
+- 检索类问题由系统在回答前按“结构化意图判断 → 本地知识库检索 → 充分性判断 → 必要时网络搜索”的顺序编排；回答阶段基于已注入上下文融合结果，不重复描述内部编排过程。
+- 当系统已提供本地知识库或网络搜索结果时，优先使用这些上下文；只有仍需读取文件、执行命令、调用 MCP 或其他非检索工具时，才继续调用对应工具。
 - 调用工具前明确目标；工具结果返回后综合判断，不机械复述原始输出。
 - 工具调用失败、信息缺失或权限受限时，说明限制、已尝试内容和下一步选择。
 - 不为可直接回答的常识性或低风险问题过度调用工具。
@@ -143,27 +161,35 @@ class Agent:
 
         class RetrieveKnowledgeParams(ToolParams):
             query: str
-            domain: str | None = None
-            category: str | None = None
+            data_type: str | None = None
             top_files: int = Field(default=3, ge=1)
 
         async def handler(params: dict[str, Any]) -> ToolResult:
+            from lifeops.rag.router import discover_rag_data_types, route_rag_query
+
             validated = RetrieveKnowledgeParams.model_validate(params)
             if self.rag_retriever is None:
                 return ToolResult(success=False, output="", error="RAG 检索器未初始化")
 
             top_files = min(validated.top_files, 3)
+            data_types = discover_rag_data_types(self.config.rag)
+            route_plan = route_rag_query(
+                validated.query,
+                data_types,
+                data_type=validated.data_type,
+            )
             results = self.rag_retriever.retrieve(
                 validated.query,
-                domain=validated.domain,
-                category=validated.category,
+                domain=route_plan.domain,
+                category=route_plan.category,
+                path_prefix=route_plan.path_prefix,
                 top_files=top_files,
             )
             formatted = self.rag_retriever.format_results(results)
-            domain_key = validated.domain or "all"
+            route_key = route_plan.data_type or route_plan.domain or "all"
             query_hash = sha1(validated.query.encode("utf-8")).hexdigest()[:12]
             self.context.add_content(
-                f"rag:{domain_key}:{query_hash}",
+                f"rag:{route_key}:{query_hash}",
                 formatted,
                 ContextLayer.L2,
                 token_count=len(formatted) // 4,
@@ -171,15 +197,26 @@ class Agent:
             return ToolResult(
                 success=True,
                 output=formatted,
-                metadata={"result_count": len(results), "top_files": top_files},
+                metadata={
+                    "selected_data_type": route_plan.data_type,
+                    "path_prefix": route_plan.path_prefix,
+                    "result_count": len(results),
+                    "top_files": top_files,
+                    "route_reason": route_plan.reason,
+                },
             )
 
+        from lifeops.rag.router import discover_rag_data_types, format_data_type_catalog
+
+        catalog = format_data_type_catalog(discover_rag_data_types(self.config.rag))
         self.tools.register(
             ToolDefinition(
                 name="retrieve_knowledge",
                 description=(
-                    "从本地 Markdown 知识库检索相关文件。适合查询食谱、做法、食材、替代方案、"
-                    "已有笔记或个人知识库内容；最多返回 3 个文件级结果。"
+                    "知识库路由检索：从本地知识库自动选择合适的数据类型和检索范围，"
+                    "适合查询食谱、做法、食材、替代方案、已有笔记或个人知识库内容；"
+                    "最多返回 3 个文件级结果。可选 data_type 用于明确指定范围。\n"
+                    f"{catalog}"
                 ),
                 parameters_model=RetrieveKnowledgeParams,
                 category="builtin",
@@ -266,11 +303,16 @@ class Agent:
             token_count=len(user_input) // 4,
         )
 
+        first_response = await self._orchestrate_retrieval_before_answer(user_input)
+
         for iteration in range(self.max_iterations):
             all_messages = self._build_messages()
             tool_defs = self.tools.list_definitions()
 
-            response = await self.llm.chat(all_messages, tools=tool_defs if tool_defs else None)
+            if iteration == 0 and first_response is not None:
+                response = first_response
+            else:
+                response = await self.llm.chat(all_messages, tools=tool_defs if tool_defs else None)
 
             if response.content and not response.tool_calls:
                 response_content = sanitize_unicode_text(response.content)
@@ -301,51 +343,217 @@ class Agent:
                 )
 
                 for tc in response.tool_calls:
-                    try:
-                        params = json.loads(tc.arguments)
-                    except json.JSONDecodeError:
-                        params = {}
-
-                    logger.info(f"Tool call: {tc.name}({params})")
-
-                    try:
-                        result = await self.tools.execute(tc.name, params)
-                    except KeyError:
-                        result = ToolResult(
-                            success=False, output="", error=f"Unknown tool: {tc.name}"
-                        )
-                    except Exception as e:
-                        result = ToolResult(success=False, output="", error=str(e))
-
-                    raw_tool_output = result.output if result.success else f"Error: {result.error}"
-                    tool_output = sanitize_unicode_text(raw_tool_output)
-                    self.messages.append(
-                        Message(
-                            role=MessageRole.TOOL,
-                            content=tool_output,
-                            tool_call_id=tc.id,
-                            name=tc.name,
-                        )
-                    )
-                    self._persist_message(
-                        MessageRole.TOOL,
-                        tool_output,
-                        tool_name=tc.name,
-                        tool_call_id=tc.id,
-                        intermediate=True,
-                    )
-                    self.context.add_content(
-                        f"tool_{tc.id}",
-                        tool_output,
-                        ContextLayer.L3,
-                        token_count=len(tool_output) // 4,
-                    )
+                    await self._execute_tool_call_result(tc)
 
             if not response.content and not response.tool_calls:
                 return "I couldn't generate a response. Please try again."
 
         self.context.compress_l3()
         return "I reached the maximum number of iterations. Please rephrase your request or break it into smaller steps."
+
+    async def _orchestrate_retrieval_before_answer(
+        self, user_input: str
+    ) -> ChatResponse | None:
+        route_decision, fallback_response = await self._plan_retrieval_route(user_input)
+        if route_decision is None:
+            return fallback_response
+
+        rag_result: ToolResult | None = None
+        rag_was_requested = route_decision.should_use_rag
+        rag_is_available = self.tools.get_definition("retrieve_knowledge") is not None
+        if rag_was_requested and rag_is_available:
+            rag_query = route_decision.rag_query or user_input
+            rag_result = await self._execute_pre_answer_tool(
+                "retrieve_knowledge",
+                {"query": rag_query},
+            )
+
+        should_use_web = route_decision.should_use_web
+        web_query = route_decision.web_query
+        if rag_result is not None and rag_result.success:
+            sufficiency_decision = await self._evaluate_rag_sufficiency(user_input, rag_result)
+            if sufficiency_decision is not None and not sufficiency_decision.is_sufficient:
+                should_use_web = True
+                web_query = sufficiency_decision.web_query or web_query
+        elif rag_was_requested and not rag_is_available:
+            should_use_web = True
+            web_query = web_query or route_decision.rag_query or user_input
+        elif rag_result is not None and not rag_result.success:
+            should_use_web = True
+            web_query = web_query or route_decision.rag_query or user_input
+
+        if should_use_web and self.tools.get_definition("web_search") is not None:
+            await self._execute_pre_answer_tool(
+                "web_search",
+                {"query": web_query or user_input},
+            )
+
+        return None
+
+    async def _plan_retrieval_route(
+        self, user_input: str
+    ) -> tuple[RetrievalRouteDecision | None, ChatResponse | None]:
+        prompt = (
+            "请判断回答用户问题前是否需要检索。只输出 JSON 对象，不要输出 Markdown。\n"
+            "字段：should_use_rag(boolean), should_use_web(boolean), "
+            "rag_query(string|null), web_query(string|null), reason(string)。\n"
+            "判断原则：\n"
+            "- 涉及用户本地知识库、已有文档、食谱、笔记、个人资料时 should_use_rag=true。\n"
+            "- 涉及最新信息、外部事实、价格、政策、新闻、网页资料时 should_use_web=true。\n"
+            "- 常识、闲聊、无需额外资料的任务两个字段都为 false。\n\n"
+            f"用户问题：{user_input}"
+        )
+        response = await self.llm.chat(
+            self._build_messages() + [Message(role=MessageRole.USER, content=prompt)],
+            tools=None,
+        )
+        if response.tool_calls:
+            return None, response
+
+        payload = self._parse_json_object(response.content)
+        if payload is None:
+            return None, None
+
+        try:
+            return (
+                RetrievalRouteDecision(
+                    should_use_rag=self._coerce_bool(payload.get("should_use_rag")),
+                    should_use_web=self._coerce_bool(payload.get("should_use_web")),
+                    rag_query=self._optional_text(payload.get("rag_query")),
+                    web_query=self._optional_text(payload.get("web_query")),
+                    reason=str(payload.get("reason") or ""),
+                ),
+                None,
+            )
+        except Exception:
+            logger.exception("检索路由结构化结果解析失败")
+            return None, None
+
+    async def _evaluate_rag_sufficiency(
+        self, user_input: str, rag_result: ToolResult
+    ) -> RagSufficiencyDecision | None:
+        prompt = (
+            "请判断以下本地知识库检索结果是否足够回答用户问题。只输出 JSON 对象，"
+            "不要输出 Markdown。\n"
+            "字段：is_sufficient(boolean), missing_information(string), web_query(string|null)。\n"
+            "如果本地资料不足且需要外部补充，请给出适合网络搜索的 web_query。\n\n"
+            f"用户问题：{user_input}\n\n"
+            f"本地知识库结果：\n{rag_result.output}"
+        )
+        response = await self.llm.chat(
+            self._build_messages() + [Message(role=MessageRole.USER, content=prompt)],
+            tools=None,
+        )
+        payload = self._parse_json_object(response.content)
+        if payload is None:
+            return None
+
+        try:
+            return RagSufficiencyDecision(
+                is_sufficient=self._coerce_bool(payload.get("is_sufficient")),
+                missing_information=str(payload.get("missing_information") or ""),
+                web_query=self._optional_text(payload.get("web_query")),
+            )
+        except Exception:
+            logger.exception("RAG 充分性结构化结果解析失败")
+            return None
+
+    async def _execute_pre_answer_tool(
+        self, tool_name: str, params: dict[str, Any]
+    ) -> ToolResult:
+        tool_call = ToolCallResult(
+            id=f"pre_{uuid4().hex}",
+            name=tool_name,
+            arguments=json.dumps(params, ensure_ascii=False),
+            type="function",
+        )
+        tool_calls = [self._tool_call_to_dict(tool_call)]
+        self.messages.append(
+            Message(
+                role=MessageRole.ASSISTANT,
+                content=f"准备调用 {tool_name}",
+                tool_calls=tool_calls,
+            )
+        )
+        self._persist_message(
+            MessageRole.ASSISTANT,
+            f"准备调用 {tool_name}",
+            tool_calls=tool_calls,
+            intermediate=True,
+        )
+        return await self._execute_tool_call_result(tool_call)
+
+    async def _execute_tool_call_result(self, tc: ToolCallResult) -> ToolResult:
+        try:
+            params = json.loads(tc.arguments)
+        except json.JSONDecodeError:
+            params = {}
+
+        logger.info(f"Tool call: {tc.name}({params})")
+
+        try:
+            result = await self.tools.execute(tc.name, params)
+        except KeyError:
+            result = ToolResult(success=False, output="", error=f"Unknown tool: {tc.name}")
+        except Exception as e:
+            result = ToolResult(success=False, output="", error=str(e))
+
+        raw_tool_output = result.output if result.success else f"Error: {result.error}"
+        tool_output = sanitize_unicode_text(raw_tool_output)
+        self.messages.append(
+            Message(
+                role=MessageRole.TOOL,
+                content=tool_output,
+                tool_call_id=tc.id,
+                name=tc.name,
+            )
+        )
+        self._persist_message(
+            MessageRole.TOOL,
+            tool_output,
+            tool_name=tc.name,
+            tool_call_id=tc.id,
+            intermediate=True,
+        )
+        self.context.add_content(
+            f"tool_{tc.id}",
+            tool_output,
+            ContextLayer.L3,
+            token_count=len(tool_output) // 4,
+        )
+        return result
+
+    def _parse_json_object(self, content: str | None) -> dict[str, Any] | None:
+        if not content:
+            return None
+        text = content.strip()
+        if text.startswith("```"):
+            lines = text.splitlines()
+            if lines and lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].startswith("```"):
+                lines = lines[:-1]
+            text = "\n".join(lines).strip()
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(payload, dict):
+            return None
+        return payload
+
+    def _optional_text(self, value: Any) -> str | None:
+        if value is None:
+            return None
+        text = str(value).strip()
+        return text or None
+
+    def _coerce_bool(self, value: Any) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() in {"true", "1", "yes", "y"}
+        return bool(value)
 
     def _tool_call_to_dict(self, tc: ToolCallResult) -> dict:
         return {

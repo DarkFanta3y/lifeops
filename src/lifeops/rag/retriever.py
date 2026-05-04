@@ -64,11 +64,22 @@ class RAGRetriever:
         *,
         domain: str | None = None,
         category: str | None = None,
+        path_prefix: str | None = None,
         top_files: int | None = None,
     ) -> list[FileSearchResult]:
         final_top_files = min(top_files or self.config.final_top_files, self.config.final_top_files, 3)
-        vector_matches = self._vector_search(query, domain=domain, category=category)
-        bm25_matches = self._bm25_search(query, domain=domain, category=category)
+        vector_matches = self._vector_search(
+            query,
+            domain=domain,
+            category=category,
+            path_prefix=path_prefix,
+        )
+        bm25_matches = self._bm25_search(
+            query,
+            domain=domain,
+            category=category,
+            path_prefix=path_prefix,
+        )
         fused = reciprocal_rank_fusion(
             [vector_matches, bm25_matches],
             rrf_k=self.config.rrf_k,
@@ -127,6 +138,7 @@ class RAGRetriever:
         *,
         domain: str | None,
         category: str | None,
+        path_prefix: str | None,
     ) -> list[ChunkMatch]:
         path = Path(self.config.chroma_path) / "bm25_index.pkl"
         if not path.exists():
@@ -142,6 +154,7 @@ class RAGRetriever:
             top_k=self.config.bm25_top_k,
             domain=domain,
             category=category,
+            path_prefix=path_prefix,
         )
 
     def _vector_search(
@@ -150,6 +163,7 @@ class RAGRetriever:
         *,
         domain: str | None,
         category: str | None,
+        path_prefix: str | None,
     ) -> list[ChunkMatch]:
         try:
             import chromadb
@@ -158,7 +172,7 @@ class RAGRetriever:
             collection = client.get_collection(self.config.collection)
             response = collection.query(
                 query_embeddings=[self.embedding_provider.embed_query(query)],
-                n_results=self.config.vector_top_k,
+                n_results=self.config.vector_top_k * 5 if path_prefix else self.config.vector_top_k,
                 where=_where_filter(domain, category),
                 include=["documents", "metadatas", "distances"],
             )
@@ -175,6 +189,8 @@ class RAGRetriever:
             ids, documents, metadatas, distances, strict=False
         ):
             chunk = _chunk_from_chroma(chunk_id, document or "", metadata or {})
+            if path_prefix and not chunk.path.startswith(path_prefix):
+                continue
             score = 1.0 / (1.0 + float(distance or 0.0))
             matches.append(ChunkMatch(chunk=chunk, score=score))
         return matches

@@ -30,6 +30,7 @@ class BM25ChunkIndex:
         top_k: int,
         domain: str | None = None,
         category: str | None = None,
+        path_prefix: str | None = None,
     ) -> list[ChunkMatch]:
         query_tokens = tokenize(query)
         if not query_tokens:
@@ -43,6 +44,8 @@ class BM25ChunkIndex:
             if domain and chunk.domain != domain:
                 continue
             if category and chunk.category != category:
+                continue
+            if path_prefix and not chunk.path.startswith(path_prefix):
                 continue
             matches.append(ChunkMatch(chunk=chunk, score=float(score)))
 

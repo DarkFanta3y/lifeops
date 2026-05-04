@@ -51,3 +51,23 @@ class FileSearchResult:
     score: float
     content: str = ""
     evidence_chunks: list[ChunkMatch] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class RAGDataType:
+    id: str
+    label: str
+    domain: str | None
+    path_prefix: str
+    document_count: int
+    examples: list[str]
+
+
+@dataclass(frozen=True)
+class RAGRoutePlan:
+    query: str
+    data_type: str | None
+    domain: str | None
+    category: str | None
+    path_prefix: str | None
+    reason: str
