@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from lifeops.agent import Agent
 from lifeops.core.config import PROJECT_ROOT, AppConfig, clear_proxy_env
 from lifeops.core.context_manager import ContextManager
-from lifeops.history import ConversationHistoryStore
+from lifeops.storage import ConversationHistoryStoreSQLite
 from lifeops.llm.types import Message, MessageRole
 from lifeops.rag.indexer import RAGIndexer
 from lifeops.skills.loader import _parse_yaml_subset
@@ -61,7 +61,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
     )
 
     app.state.config = app_config
-    app.state.history_store = ConversationHistoryStore(app_config.history_path)
+    app.state.history_store = ConversationHistoryStoreSQLite(app_config.db_path)
     app.state.web_agents = {}
     app.state.tool_registry = ToolRegistry()
     register_all_builtin_tools(app.state.tool_registry, app_config)
@@ -243,7 +243,7 @@ def _is_intermediate_message(record: dict[str, Any]) -> bool:
 
 
 async def _backfill_conversation_title_if_missing(
-    history_store: ConversationHistoryStore,
+    history_store: ConversationHistoryStoreSQLite,
     conversation_id: str,
     llm: Any,
 ) -> str | None:
