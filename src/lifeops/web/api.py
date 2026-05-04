@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from lifeops.agent import Agent
 from lifeops.core.config import PROJECT_ROOT, AppConfig, clear_proxy_env
 from lifeops.core.context_manager import ContextManager
-from lifeops.storage import ConversationHistoryStoreSQLite
+from lifeops.storage import ConversationHistoryStoreSQLite, auto_migrate
 from lifeops.llm.types import Message, MessageRole
 from lifeops.rag.indexer import RAGIndexer
 from lifeops.skills.loader import _parse_yaml_subset
@@ -178,6 +178,18 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
 def _lifespan(config: AppConfig):
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        jsonl_path = object.__getattribute__(config, "history_path")
+        try:
+            migration_result = auto_migrate(jsonl_path, config.db_path)
+            if migration_result is not None:
+                logger.info(
+                    "Web 启动 JSONL 迁移完成: 成功 %d 条, 失败 %d 条",
+                    migration_result["success"],
+                    migration_result["failed"],
+                )
+        except Exception as exc:
+            logger.warning("Web 启动 JSONL 迁移失败，继续启动: %s", exc)
+
         if config.rag.enabled:
             try:
                 summary = RAGIndexer(config.rag).sync()

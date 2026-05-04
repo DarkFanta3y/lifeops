@@ -139,7 +139,7 @@ class ConversationHistoryStoreSQLite:
                 if not isinstance(tc_args, str):
                     tc_args = json.dumps(tc_args, ensure_ascii=False)
                 cursor.execute(
-                    "INSERT INTO tool_calls "
+                    "INSERT OR IGNORE INTO tool_calls "
                     "(message_id, tool_call_id, tool_name, arguments, created_at) "
                     "VALUES (?, ?, ?, ?, ?)",
                     (message_id, tc_id, tc_name, tc_args, ts),
