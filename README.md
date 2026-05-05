@@ -246,13 +246,7 @@ src/lifeops/
 ```
 ## Star History
 
-<a href="https://www.star-history.com/?type=date&repos=DarkFanta3y%2Flifeops">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=DarkFanta3y/lifeops&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=DarkFanta3y/lifeops&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=DarkFanta3y/lifeops&type=date&legend=top-left" />
- </picture>
-</a>
+[![Star History Chart](https://api.star-history.com/chart?repos=DarkFanta3ylifeops/DarkFanta3ylifeops&type=date&logscale&legend=top-left)](https://www.star-history.com/?repos=DarkFanta3ylifeops%2FDarkFanta3ylifeops&type=date&logscale=&legend=top-left)
 
 ## License
 
