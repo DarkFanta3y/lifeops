@@ -246,7 +246,7 @@ src/lifeops/
 ```
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/chart?repos=DarkFanta3ylifeops/DarkFanta3ylifeops&type=date&logscale&legend=top-left)](https://www.star-history.com/?repos=DarkFanta3ylifeops%2FDarkFanta3ylifeops&type=date&logscale=&legend=top-left)
+[![Star History Chart](https://api.star-history.com/chart?repos=DarkFanta3y/lifeops&type=date&logscale&legend=top-left)](https://www.star-history.com/?repos=DarkFanta3y%2Flifeops&type=date&logscale=&legend=top-left)
 
 ## License
 
