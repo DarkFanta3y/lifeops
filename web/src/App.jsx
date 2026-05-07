@@ -557,6 +557,7 @@ function ChatWorkspace({
 }) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [loggingOpen, setLoggingOpen] = useState(false);
+  const messagesEndRef = useRef(null);
 
   return (
     <section className="workspace chat-workspace">
