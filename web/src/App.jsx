@@ -559,6 +559,10 @@ function ChatWorkspace({
   const [loggingOpen, setLoggingOpen] = useState(false);
   const messagesEndRef = useRef(null);
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
   return (
     <section className="workspace chat-workspace">
       <main className="chat-pane">
@@ -593,6 +597,7 @@ function ChatWorkspace({
               </div>
             ))
           )}
+          <div ref={messagesEndRef} />
         </div>
         <div className="composer">
           <div className="composer-actions">
