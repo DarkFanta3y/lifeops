@@ -11,10 +11,12 @@ class EmbeddingProvider(Protocol):
 
 
 class SentenceTransformerEmbeddingProvider:
+    _model_cache = {}
+
     def __init__(self, model_name: str, cache_folder: str | None = None):
         self.model_name = resolve_sentence_transformer_model(model_name, cache_folder)
         self.cache_folder = cache_folder
-        self._model = None
+        self._model = self._model_cache.get((self.model_name, self.cache_folder))
 
     @property
     def model(self):
@@ -22,6 +24,7 @@ class SentenceTransformerEmbeddingProvider:
             from sentence_transformers import SentenceTransformer
 
             self._model = SentenceTransformer(self.model_name, cache_folder=self.cache_folder)
+            self._model_cache[(self.model_name, self.cache_folder)] = self._model
         return self._model
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:

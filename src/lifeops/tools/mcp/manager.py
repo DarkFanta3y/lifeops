@@ -151,6 +151,14 @@ class MCPManager:
             return
         await client.close()
 
+    async def disconnect_all(self) -> None:
+        """关闭所有已连接 server，供 Web 进程退出时清理全局连接。"""
+        for name, client in list(self._clients.items()):
+            try:
+                await client.close()
+            except Exception:
+                logger.exception(f"MCP server '{name}' 断开失败")
+
     async def re_register_tools(self, server_name: str) -> None:
         """重连后重新注册工具：先注销旧工具，再重新获取并注册。"""
         if self._registry is None:

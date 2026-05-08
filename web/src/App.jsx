@@ -298,11 +298,30 @@ function App() {
     setChatInput("");
 
     try {
+      let streamedContent = "";
+
       const payload = await sendChatMessage({
         message: content,
         conversationId: selectedConversationId,
+        onToken: (tokenText) => {
+          streamedContent += tokenText;
+          setConversationMessages((current) => {
+            const msgs = [...current];
+            const lastMsg = msgs[msgs.length - 1];
+            if (lastMsg && lastMsg.role === "assistant") {
+              msgs[msgs.length - 1] = { ...lastMsg, content: streamedContent };
+            } else {
+              msgs.push({
+                role: "assistant",
+                content: streamedContent,
+                created_at: new Date().toISOString(),
+              });
+            }
+            return msgs;
+          });
+        },
       });
-      message.success("已发送");
+
       await loadConversations({
         nextSelectedId: payload.conversation_id,
         autoSelect: false,

@@ -13,6 +13,15 @@ class ToolRegistry:
         self._definitions: dict[str, ToolDefinition] = {}
         self._handlers: dict[str, ToolHandler] = {}
 
+    def clone(self) -> ToolRegistry:
+        registry = ToolRegistry()
+        registry.copy_from(self)
+        return registry
+
+    def copy_from(self, other: ToolRegistry) -> None:
+        self._definitions = dict(other._definitions)
+        self._handlers = dict(other._handlers)
+
     def register(self, definition: ToolDefinition, handler: ToolHandler) -> None:
         name = definition.name
         if name in self._definitions:

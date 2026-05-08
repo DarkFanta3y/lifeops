@@ -83,3 +83,67 @@ class LLMClient:
         )
 
         return ChatResponse.from_openai_response(response)
+
+    async def chat_stream(
+        self,
+        messages: list[Message],
+        tools: list[ToolDefinition] | None = None,
+        **kwargs: object,
+    ):
+        import json
+
+        msg_dicts = sanitize_unicode_data([m.to_dict() for m in messages])
+        request_kwargs: dict[str, object] = {
+            "model": self.model,
+            "messages": msg_dicts,
+            "max_tokens": self.max_tokens,
+            "temperature": self.temperature,
+            "stream": True,
+            **kwargs,
+        }
+        if tools:
+            request_kwargs["tools"] = self._build_tool_schemas(tools)
+
+        logger.debug(
+            f"LLM stream request: {len(messages)} messages, {len(tools or [])} tools"
+        )
+
+        try:
+            response = await self._client.chat.completions.create(**request_kwargs)
+        except Exception as e:
+            yield {"type": "error", "data": str(e)}
+            return
+
+        buffers: dict[int, dict[str, str]] = {}
+        try:
+            async for chunk in response:
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
+
+                if delta.content:
+                    yield {"type": "token", "data": delta.content}
+
+                if delta.tool_calls:
+                    for tc in delta.tool_calls:
+                        idx = tc.index
+                        if idx not in buffers:
+                            buffers[idx] = {"name": "", "arguments": ""}
+                        if tc.id:
+                            buffers[idx]["id"] = tc.id
+                        if tc.function.name:
+                            buffers[idx]["name"] = tc.function.name
+                        if tc.function.arguments:
+                            buffers[idx]["arguments"] += tc.function.arguments
+
+            for idx in sorted(buffers):
+                buf = buffers[idx]
+                yield {
+                    "type": "tool_call",
+                    "data": {
+                        "name": buf["name"],
+                        "args": json.loads(buf["arguments"]) if buf["arguments"] else {},
+                    },
+                }
+        except Exception as e:
+            yield {"type": "error", "data": str(e)}

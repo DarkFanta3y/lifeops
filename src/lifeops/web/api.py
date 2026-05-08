@@ -1,26 +1,30 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path, PurePosixPath
 from typing import Any
+from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from lifeops.agent import Agent
+from lifeops.agent import Agent, AgentServices
 from lifeops.core.config import PROJECT_ROOT, AppConfig, clear_proxy_env
 from lifeops.core.context_manager import ContextManager
-from lifeops.storage import ConversationHistoryStoreSQLite, auto_migrate
 from lifeops.llm.types import Message, MessageRole
 from lifeops.rag.indexer import RAGIndexer
+from lifeops.storage import ConversationHistoryStoreSQLite, auto_migrate
 from lifeops.skills.loader import _parse_yaml_subset
 from lifeops.skills.manager import SkillManager
 from lifeops.tools.builtin import register_all_builtin_tools
 from lifeops.tools.mcp.manager import MCPManager
 from lifeops.tools.mcp.types import MCPToolInfo
+from lifeops.tools.base import ToolResult
 from lifeops.tools.registry import ToolRegistry
 from lifeops.utils.logging import get_logger
 from lifeops.utils.logging import setup_logger
@@ -63,11 +67,11 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
     app.state.config = app_config
     app.state.history_store = ConversationHistoryStoreSQLite(app_config.db_path)
     app.state.web_agents = {}
-    app.state.tool_registry = ToolRegistry()
-    register_all_builtin_tools(app.state.tool_registry, app_config)
-    app.state.mcp_manager = MCPManager()
-    if app_config.mcp.enabled and app_config.mcp.servers.strip():
-        app.state.mcp_manager.load_from_config(app_config.mcp.servers)
+    app.state.services = _create_agent_services(app_config)
+    app.state.tool_registry = app.state.services.base_tool_registry
+    app.state.mcp_manager = app.state.services.mcp_manager
+    app.state.services_started = False
+    app.state.mcp_started = False
 
     @app.get("/api/conversations")
     async def list_conversations(
@@ -146,8 +150,8 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
             logger.exception("搜索消息失败")
             raise HTTPException(status_code=500, detail="搜索消息时发生内部错误")
 
-    @app.post("/api/chat", response_model=ChatResponse)
-    async def chat(request: ChatRequest) -> ChatResponse:
+    @app.post("/api/chat")
+    async def chat(request: ChatRequest) -> StreamingResponse:
         if not app.state.config.llm.api_key:
             raise HTTPException(
                 status_code=400,
@@ -156,34 +160,32 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
 
         is_new_conversation = request.conversation_id is None
         conversation_id = request.conversation_id or _new_web_conversation_id()
+        await _ensure_services_initialized(app, include_mcp=False)
         agent = _get_or_create_web_agent(app, conversation_id)
-        if not is_new_conversation:
-            reply = await agent.run(request.message)
-            title = await _backfill_conversation_title_if_missing(
-                app.state.history_store,
-                conversation_id,
-                agent.llm,
+        title_task = None
+        if is_new_conversation:
+            logger.info(f"Web 新会话进入标题生成: conversation_id={conversation_id}")
+            title_task = asyncio.create_task(
+                summarize_conversation_title(agent.llm, request.message)
             )
-            return ChatResponse(conversation_id=conversation_id, reply=reply, title=title)
 
-        logger.info(f"Web 新会话进入标题生成: conversation_id={conversation_id}")
-        reply_task = asyncio.create_task(agent.run(request.message))
-        title_task = asyncio.create_task(summarize_conversation_title(agent.llm, request.message))
-        reply_result, title_result = await asyncio.gather(
-            reply_task,
-            title_task,
-            return_exceptions=True,
+        return StreamingResponse(
+            _generate_sse_messages(
+                agent=agent,
+                user_message=request.message,
+                conversation_id=conversation_id,
+                is_new_conversation=is_new_conversation,
+                title_task=title_task,
+                history_store=app.state.history_store,
+                first_user_message=request.message,
+            ),
+            media_type="text/event-stream",
         )
-        if isinstance(reply_result, Exception):
-            raise reply_result
-
-        title = _resolve_title_result(request.message, title_result, conversation_id)
-        app.state.history_store.append_conversation_title(conversation_id, "web", title)
-        return ChatResponse(conversation_id=conversation_id, reply=reply_result, title=title)
 
     @app.get("/api/skills")
     async def list_skills() -> dict[str, Any]:
-        manager = _discover_skill_manager(app.state.config)
+        await _ensure_services_initialized(app, include_mcp=False)
+        manager = _skill_manager_from_catalog(app.state.config, app.state.services.skill_catalog)
         skills = [
             {
                 "name": skill.name,
@@ -200,12 +202,16 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
 
     @app.post("/api/skills", status_code=status.HTTP_201_CREATED)
     async def create_skill(request: CreateSkillRequest) -> dict[str, Any]:
-        existing_manager = _discover_skill_manager(app.state.config)
+        await _ensure_services_initialized(app, include_mcp=False)
+        existing_manager = _skill_manager_from_catalog(
+            app.state.config, app.state.services.skill_catalog
+        )
         if request.name in existing_manager.skills:
             raise HTTPException(status_code=409, detail=f"Skill '{request.name}' 已存在。")
 
         metadata = _parse_metadata_fragment(request.metadata)
         skill_file = _write_project_skill(app.state.config, request, metadata)
+        _refresh_global_skill_catalog(app)
         return {"name": request.name, "path": str(skill_file)}
 
     @app.get("/api/rag/assets/{asset_path:path}")
@@ -215,8 +221,9 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
 
     @app.get("/api/tools")
     async def list_tools() -> dict[str, Any]:
-        registry: ToolRegistry = app.state.tool_registry
-        mcp_servers = await _connect_and_describe_mcp_servers(app.state.mcp_manager, registry)
+        await _ensure_services_initialized(app)
+        registry: ToolRegistry = app.state.services.base_tool_registry
+        mcp_servers = await _describe_mcp_servers(app.state.services.mcp_manager)
         tools = [
             {
                 "name": tool.name,
@@ -234,6 +241,56 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
 def _lifespan(config: AppConfig):
     @asynccontextmanager
     async def lifespan(app: FastAPI):
+        await _ensure_services_initialized(app)
+        try:
+            yield
+        finally:
+            await app.state.services.mcp_manager.disconnect_all()
+
+    return lifespan
+
+
+def _create_agent_services(config: AppConfig) -> AgentServices:
+    from lifeops.agent import LLMClient as AgentLLMClient
+
+    base_tool_registry = ToolRegistry()
+    register_all_builtin_tools(base_tool_registry, config)
+    mcp_manager = MCPManager()
+    if config.mcp.enabled and config.mcp.servers.strip():
+        mcp_manager.load_from_config(config.mcp.servers)
+    llm = AgentLLMClient(
+        api_key=config.llm.api_key,
+        model=config.llm.model,
+        api_base=config.llm.api_base,
+        max_tokens=config.llm.max_tokens,
+        temperature=config.llm.temperature,
+        timeout=config.llm.timeout,
+    )
+    return AgentServices(
+        llm=llm,
+        base_tool_registry=base_tool_registry,
+        mcp_manager=mcp_manager,
+    )
+
+
+async def _ensure_services_initialized(app: FastAPI, *, include_mcp: bool = True) -> None:
+    if getattr(app.state, "services_started", False):
+        if include_mcp:
+            await _ensure_mcp_initialized(app)
+        return
+
+    services: AgentServices = app.state.services
+    config: AppConfig = app.state.config
+
+    if not hasattr(app.state, "services_start_lock"):
+        app.state.services_start_lock = asyncio.Lock()
+
+    async with app.state.services_start_lock:
+        if getattr(app.state, "services_started", False):
+            if include_mcp:
+                await _ensure_mcp_initialized(app)
+            return
+
         jsonl_path = object.__getattribute__(config, "history_path")
         try:
             migration_result = auto_migrate(jsonl_path, config.db_path)
@@ -252,9 +309,49 @@ def _lifespan(config: AppConfig):
                 logger.info("Web 启动 RAG 索引同步完成: %s", summary)
             except Exception as exc:
                 logger.warning("Web 启动 RAG 索引同步失败，继续启动: %s", exc)
-        yield
 
-    return lifespan
+            try:
+                from lifeops.rag.retriever import RAGRetriever
+
+                services.rag_retriever = RAGRetriever(config.rag)
+                services.rag_retriever.warm_up()
+                logger.info("Web 启动 RAG 模型预热完成")
+            except Exception as exc:
+                logger.warning("Web 启动 RAG 模型预热失败，继续启动: %s", exc)
+
+        if config.skills.enabled:
+            manager = _discover_skill_manager(config)
+            services.skill_catalog = manager.catalog
+
+        app.state.services_started = True
+        if include_mcp:
+            await _ensure_mcp_initialized(app)
+
+
+async def _ensure_mcp_initialized(app: FastAPI) -> None:
+    if getattr(app.state, "mcp_started", False):
+        return
+    services: AgentServices = app.state.services
+    config: AppConfig = app.state.config
+    if _should_skip_pytest_env_mcp(config):
+        app.state.mcp_started = True
+        return
+    if config.mcp.enabled and services.mcp_manager.list_servers():
+        try:
+            await asyncio.wait_for(
+                services.mcp_manager.connect_and_register_all(services.base_tool_registry),
+                timeout=10,
+            )
+        except TimeoutError:
+            logger.warning("Web 启动 MCP 连接超时，继续启动")
+    app.state.mcp_started = True
+
+
+def _should_skip_pytest_env_mcp(config: AppConfig) -> bool:
+    if "PYTEST_CURRENT_TEST" not in os.environ:
+        return False
+    servers = config.mcp.servers
+    return any(marker in servers for marker in ('"command":"docker"', '"command":"uvx"', "workspace-mcp"))
 
 
 def _get_or_create_web_agent(app: FastAPI, conversation_id: str) -> Agent:
@@ -267,6 +364,7 @@ def _get_or_create_web_agent(app: FastAPI, conversation_id: str) -> Agent:
         history_store=app.state.history_store,
         source="web",
         conversation_id=conversation_id,
+        services=app.state.services,
     )
     agent.messages = _hydrate_messages(app.state.history_store.get_messages(conversation_id))
     agents[conversation_id] = agent
@@ -350,6 +448,115 @@ def _resolve_title_result(
     return fallback_conversation_title(first_user_message)
 
 
+async def _generate_sse_messages(
+    *,
+    agent: Agent,
+    user_message: str,
+    conversation_id: str,
+    is_new_conversation: bool,
+    title_task: asyncio.Task | None,
+    history_store: ConversationHistoryStoreSQLite,
+    first_user_message: str,
+):
+    queue: asyncio.Queue[str] = asyncio.Queue()
+    previous_on_tool_call = getattr(agent, "on_tool_call", None)
+    previous_on_tool_result = getattr(agent, "on_tool_result", None)
+    previous_on_token = getattr(agent, "on_token", None)
+
+    async def on_tool_call(tool_name: str, params: dict[str, Any]) -> None:
+        await queue.put(
+            _sse_line(
+                "tool_call",
+                {
+                    "name": tool_name,
+                    "args": params,
+                    "tool_name": tool_name,
+                    "params": params,
+                },
+            )
+        )
+        if previous_on_tool_call is not None:
+            await previous_on_tool_call(tool_name, params)
+
+    async def on_tool_result(tool_name: str, result: ToolResult) -> None:
+        payload = {
+            "tool_name": tool_name,
+            "success": result.success,
+            "result": result.output,
+            "output": result.output,
+            "error": result.error,
+            "metadata": result.metadata,
+        }
+        await queue.put(_sse_line("tool_result", payload))
+        if not result.success:
+            await queue.put(
+                _sse_line(
+                    "tool_error",
+                    {"tool_name": tool_name, "error": result.error or "工具执行失败"},
+                )
+            )
+        if previous_on_tool_result is not None:
+            await previous_on_tool_result(tool_name, result)
+
+    async def on_token(token: str) -> None:
+        await queue.put(_sse_line("token", token))
+        if previous_on_token is not None:
+            await previous_on_token(token)
+
+    agent.on_tool_call = on_tool_call
+    agent.on_tool_result = on_tool_result
+    agent.on_token = on_token
+    run_task = asyncio.create_task(agent.run(user_message))
+    title: str | None = None
+
+    try:
+        while not run_task.done():
+            try:
+                yield await asyncio.wait_for(queue.get(), timeout=0.05)
+            except TimeoutError:
+                continue
+
+        while not queue.empty():
+            yield await queue.get()
+
+        try:
+            await run_task
+        except Exception as exc:
+            yield _sse_line("error", str(exc))
+
+        if is_new_conversation:
+            if title_task is not None:
+                try:
+                    title_result = await title_task
+                except Exception as exc:
+                    title_result = exc
+                title = _resolve_title_result(first_user_message, title_result, conversation_id)
+            else:
+                title = fallback_conversation_title(first_user_message)
+            history_store.append_conversation_title(conversation_id, "web", title)
+        else:
+            title = await _backfill_conversation_title_if_missing(
+                history_store,
+                conversation_id,
+                agent.llm,
+            )
+
+        yield _sse_line("done", {"conversation_id": conversation_id, "title": title})
+    finally:
+        agent.on_tool_call = previous_on_tool_call
+        agent.on_tool_result = previous_on_tool_result
+        agent.on_token = previous_on_token
+
+
+def _sse_line(event_type: str, data: Any) -> str:
+    payload = {
+        "id": uuid4().hex,
+        "type": event_type,
+        "data": data,
+    }
+    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
 def _discover_skill_manager(config: AppConfig) -> SkillManager:
     context = ContextManager(
         max_tokens=config.context.max_context_tokens,
@@ -366,6 +573,35 @@ def _discover_skill_manager(config: AppConfig) -> SkillManager:
     )
     manager.discover()
     return manager
+
+
+def _skill_manager_from_catalog(config: AppConfig, catalog: Any | None) -> SkillManager:
+    context = ContextManager(
+        max_tokens=config.context.max_context_tokens,
+        l1_budget_ratio=config.context.l1_budget_ratio,
+        l2_budget_ratio=config.context.l2_budget_ratio,
+        l3_budget_ratio=config.context.l3_budget_ratio,
+        reserve_ratio=config.context.reserve_ratio,
+    )
+    manager = SkillManager(
+        context=context,
+        project_dir=config.skills.project_dir,
+        user_dir=config.skills.user_dir,
+        max_active=config.skills.max_active,
+    )
+    if catalog is None:
+        manager.discover()
+    else:
+        manager.catalog = catalog
+        manager.inject_catalog()
+    return manager
+
+
+def _refresh_global_skill_catalog(app: FastAPI) -> None:
+    if not app.state.config.skills.enabled:
+        return
+    manager = _discover_skill_manager(app.state.config)
+    app.state.services.skill_catalog = manager.catalog
 
 
 def _resolve_rag_asset(config: AppConfig, asset_path: str) -> Path:
@@ -513,10 +749,7 @@ def _dump_yaml_scalar(value: Any) -> str:
     return str(value)
 
 
-async def _connect_and_describe_mcp_servers(
-    manager: MCPManager, registry: ToolRegistry
-) -> list[dict[str, Any]]:
-    await manager.connect_and_register_all(registry)
+async def _describe_mcp_servers(manager: MCPManager) -> list[dict[str, Any]]:
     server_groups: list[dict[str, Any]] = []
     for server_name in manager.list_servers():
         client = manager.get_client(server_name)

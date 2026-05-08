@@ -26,10 +26,12 @@ class Reranker(Protocol):
 
 
 class CrossEncoderReranker:
+    _model_cache = {}
+
     def __init__(self, model_name: str, cache_folder: str | None = None):
         self.model_name = resolve_sentence_transformer_model(model_name, cache_folder)
         self.cache_folder = cache_folder
-        self._model = None
+        self._model = self._model_cache.get((self.model_name, self.cache_folder))
 
     @property
     def model(self):
@@ -37,6 +39,7 @@ class CrossEncoderReranker:
             from sentence_transformers import CrossEncoder
 
             self._model = CrossEncoder(self.model_name, cache_folder=self.cache_folder)
+            self._model_cache[(self.model_name, self.cache_folder)] = self._model
         return self._model
 
     def score(self, query: str, texts: list[str]) -> list[float]:
@@ -60,6 +63,24 @@ class RAGRetriever:
             config.reranker_model,
             cache_folder=config.model_cache_path,
         )
+
+    def warm_up(self) -> None:
+        """提前加载 embedding 与 reranker 模型，避免首次检索承担模型加载开销。"""
+        embedding_model_name = getattr(self.embedding_provider, "model_name", None)
+        if _can_warm_up_model(embedding_model_name):
+            embedding_model = getattr(self.embedding_provider, "model", None)
+            if embedding_model is None:
+                self.embedding_provider.embed_query("warmup")
+        else:
+            logger.warning("RAG embedding model is not cached locally, skip warmup")
+
+        reranker_model_name = getattr(self.reranker, "model_name", None)
+        if _can_warm_up_model(reranker_model_name):
+            reranker_model = getattr(self.reranker, "model", None)
+            if reranker_model is None:
+                self.reranker.score("warmup", ["warmup"])
+        else:
+            logger.warning("RAG reranker model is not cached locally, skip warmup")
 
     def retrieve(
         self,
@@ -222,6 +243,15 @@ def _where_filter(domain: str | None, category: str | None) -> dict[str, Any] | 
     if len(filters) == 1:
         return filters[0]
     return {"$and": filters}
+
+
+def _can_warm_up_model(model_name: Any) -> bool:
+    if not isinstance(model_name, str) or not model_name:
+        return True
+    path = Path(model_name).expanduser()
+    if path.exists():
+        return True
+    return "/" not in model_name and "\\" not in model_name
 
 
 def _chunk_from_chroma(chunk_id: str, document: str, metadata: dict[str, Any]) -> KnowledgeChunk:

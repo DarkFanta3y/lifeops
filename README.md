@@ -47,7 +47,9 @@ npm run dev
 
 LifeOps 的主入口是本地 Web 控制台。前端调用 FastAPI，后端按会话复用 `Agent` 实例，并把用户消息、最终回复、工具调用中间记录写入本地 JSONL 历史。
 
-`Agent` 是核心调度器。每轮输入先激活相关 Skill、确保 MCP 工具已注册，再按“检索预编排 → LLM 推理 → 工具调用 → 继续推理 → 最终回答”的 ReAct 流程运行，最多迭代 10 轮。
+`/api/chat` 使用 **SSE（Server-Sent Events）** 实现流式响应。后端通过 `LLMClient.chat_stream()` 逐 token 调用 LLM，`_generate_sse_messages()` 将 token 实时转发给前端；前端 `sendChatMessage()` 通过 `ReadableStream` 读取 SSE 流，`handleSend()` 逐字渲染到界面，告别等待完整响应。
+
+`Agent` 是核心调度器。每轮输入先激活相关 Skill、确保 MCP 工具已注册，再按“检索预编排 → LLM 推理 → 工具调用 → 继续推理 → 最终回答”的 ReAct 流程运行，最多迭代 10 轮。推理阶段通过 `on_token` 回调逐 token 产出，工具调用仍批量处理。
 
 上下文由 `ContextManager` 分三层管理：L1 放系统提示、Skill 目录和近期对话；L2 放已激活 Skill 正文和 RAG 结果；L3 放工具执行结果，并在容量不足时压缩。
 

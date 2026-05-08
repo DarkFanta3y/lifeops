@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from hashlib import sha1
 from typing import Any
@@ -13,6 +14,7 @@ from lifeops.llm.client import LLMClient
 from lifeops.llm.types import ChatResponse, Message, MessageRole, ToolCallResult
 from lifeops.skills.manager import SkillManager
 from lifeops.skills.matcher import SkillMatcher
+from lifeops.skills.types import SkillCatalog
 from lifeops.tools.base import ToolDefinition, ToolParams, ToolResult
 from lifeops.tools.builtin import register_all_builtin_tools
 from lifeops.tools.mcp.manager import MCPManager
@@ -38,6 +40,15 @@ class RagSufficiencyDecision:
     is_sufficient: bool
     missing_information: str
     web_query: str | None
+
+
+@dataclass
+class AgentServices:
+    llm: LLMClient
+    base_tool_registry: ToolRegistry
+    mcp_manager: MCPManager
+    rag_retriever: Any | None = None
+    skill_catalog: SkillCatalog | None = None
 
 DEFAULT_SYSTEM_PROMPT = """# 身份与目标
 
@@ -92,9 +103,11 @@ class Agent:
         history_store: ConversationHistoryStore | None = None,
         source: HistorySource = "web",
         conversation_id: str | None = None,
+        services: AgentServices | None = None,
     ):
         self.config = config
-        self.llm = LLMClient(
+        self.services = services
+        self.llm = services.llm if services is not None else LLMClient(
             api_key=config.llm.api_key,
             model=config.llm.model,
             api_base=config.llm.api_base,
@@ -102,8 +115,8 @@ class Agent:
             temperature=config.llm.temperature,
             timeout=config.llm.timeout,
         )
-        self.tools = ToolRegistry()
-        self.mcp_manager = MCPManager()
+        self.tools = services.base_tool_registry.clone() if services is not None else ToolRegistry()
+        self.mcp_manager = services.mcp_manager if services is not None else MCPManager()
         self.context = ContextManager(
             max_tokens=config.context.max_context_tokens,
             l1_budget_ratio=config.context.l1_budget_ratio,
@@ -114,24 +127,35 @@ class Agent:
         self.system_prompt = system_prompt or DEFAULT_SYSTEM_PROMPT
         self.messages: list[Message] = []
         self.max_iterations = 10
+        self.on_tool_call: Any | None = None
+        self.on_tool_result: Any | None = None
+        self.on_token: Any | None = None
         self.skill_manager: SkillManager | None = None
         self.skill_matcher: SkillMatcher | None = None
         self.rag_retriever: Any | None = None
-        self._mcp_tools_registered = False
+        self._mcp_tools_registered = services is not None
         self.history_store = history_store or ConversationHistoryStore(config.history_path)
         self.source = source
         self.conversation_id = conversation_id or self._new_conversation_id()
 
-        if config.rag.enabled:
+        if services is not None:
+            self.rag_retriever = services.rag_retriever
+        elif config.rag.enabled:
             from lifeops.rag.retriever import RAGRetriever
 
             self.rag_retriever = RAGRetriever(config.rag)
 
-        self._register_default_tools()
+        if services is None:
+            self._register_default_tools()
         self._register_rag_tool()
 
         # MCP 静态配置加载
-        if config.mcp.enabled and config.mcp.servers.strip():
+        if (
+            services is None
+            and config.mcp.enabled
+            and config.mcp.servers.strip()
+            and not _should_skip_pytest_env_mcp(config.mcp.servers)
+        ):
             self.mcp_manager.load_from_config(config.mcp.servers)
 
         self.context.add_content(
@@ -141,14 +165,21 @@ class Agent:
             token_count=len(self.system_prompt) // 4,
         )
         if config.skills.enabled:
-            self.skill_manager = SkillManager(
-                context=self.context,
-                project_dir=config.skills.project_dir,
-                user_dir=config.skills.user_dir,
-                max_active=config.skills.max_active,
-            )
+            self.skill_manager = self._create_skill_manager()
             self.skill_matcher = SkillMatcher(self.llm)
-            self.skill_manager.discover()
+            if services is not None and services.skill_catalog is not None:
+                self.skill_manager.catalog = services.skill_catalog
+                self.skill_manager.inject_catalog()
+            else:
+                self.skill_manager.discover()
+
+    def _create_skill_manager(self) -> SkillManager:
+        return SkillManager(
+            context=self.context,
+            project_dir=self.config.skills.project_dir,
+            user_dir=self.config.skills.user_dir,
+            max_active=self.config.skills.max_active,
+        )
 
     def _register_default_tools(self) -> None:
         register_all_builtin_tools(self.tools, self.config)
@@ -311,6 +342,37 @@ class Agent:
 
             if iteration == 0 and first_response is not None:
                 response = first_response
+            elif self.on_token is not None:
+                content_parts: list[str] = []
+                stream_tool_calls: list[dict[str, Any]] = []
+                async for event in self.llm.chat_stream(
+                    all_messages, tools=tool_defs if tool_defs else None
+                ):
+                    if event["type"] == "token":
+                        content_parts.append(event["data"])
+                        await self.on_token(event["data"])
+                    elif event["type"] == "tool_call":
+                        stream_tool_calls.append(event["data"])
+                    elif event["type"] == "error":
+                        raise RuntimeError(f"LLM stream error: {event['data']}")
+                if stream_tool_calls:
+                    tc_results = [
+                        ToolCallResult(
+                            id=f"tc_{i}",
+                            name=tc["name"],
+                            arguments=json.dumps(tc["args"], ensure_ascii=False),
+                        )
+                        for i, tc in enumerate(stream_tool_calls)
+                    ]
+                    response = ChatResponse(
+                        content="".join(content_parts) if content_parts else "",
+                        tool_calls=tc_results,
+                    )
+                else:
+                    response = ChatResponse(
+                        content="".join(content_parts) if content_parts else None,
+                        tool_calls=None,
+                    )
             else:
                 response = await self.llm.chat(all_messages, tools=tool_defs if tool_defs else None)
 
@@ -490,6 +552,8 @@ class Agent:
             params = {}
 
         logger.info(f"Tool call: {tc.name}({params})")
+        if self.on_tool_call is not None:
+            await self.on_tool_call(tc.name, params)
 
         try:
             result = await self.tools.execute(tc.name, params)
@@ -497,6 +561,8 @@ class Agent:
             result = ToolResult(success=False, output="", error=f"Unknown tool: {tc.name}")
         except Exception as e:
             result = ToolResult(success=False, output="", error=str(e))
+        if self.on_tool_result is not None:
+            await self.on_tool_result(tc.name, result)
 
         raw_tool_output = result.output if result.success else f"Error: {result.error}"
         tool_output = sanitize_unicode_text(raw_tool_output)
@@ -611,14 +677,13 @@ class Agent:
             token_count=len(self.system_prompt) // 4,
         )
         if self.config.skills.enabled:
-            self.skill_manager = SkillManager(
-                context=self.context,
-                project_dir=self.config.skills.project_dir,
-                user_dir=self.config.skills.user_dir,
-                max_active=self.config.skills.max_active,
-            )
+            self.skill_manager = self._create_skill_manager()
             self.skill_matcher = SkillMatcher(self.llm)
-            self.skill_manager.discover()
+            if self.services is not None and self.services.skill_catalog is not None:
+                self.skill_manager.catalog = self.services.skill_catalog
+                self.skill_manager.inject_catalog()
+            else:
+                self.skill_manager.discover()
 
     async def _activate_skills_for_input(self, user_input: str) -> None:
         if self.skill_manager is None or self.skill_matcher is None:
@@ -637,3 +702,9 @@ class Agent:
 
         for match in matches[: self.config.skills.max_active]:
             self.skill_manager.activate(match.name)
+
+
+def _should_skip_pytest_env_mcp(servers: str) -> bool:
+    if "PYTEST_CURRENT_TEST" not in os.environ:
+        return False
+    return any(marker in servers for marker in ('"command":"docker"', '"command":"uvx"', "workspace-mcp"))

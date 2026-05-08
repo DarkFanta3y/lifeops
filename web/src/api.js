@@ -41,14 +41,52 @@ export function searchMessages(query, limit = 20, offset = 0) {
   return request(`/api/search/messages?${params.toString()}`);
 }
 
-export function sendChatMessage({ message, conversationId }) {
-  return request("/api/chat", {
+export async function sendChatMessage({ message, conversationId, onToken }) {
+  const response = await fetch(`${API_BASE}/api/chat`, {
     method: "POST",
-    body: JSON.stringify({
-      message,
-      conversation_id: conversationId || undefined,
-    }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, conversation_id: conversationId || undefined }),
   });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  if (!response.body) {
+    return response.json();
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let result = {};
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    const parts = buffer.split("\n\n");
+    buffer = parts.pop() || "";
+
+    for (const part of parts) {
+      const events = parseSSEMessages(part + "\n\n");
+      for (const event of events) {
+        if (event.type === "token") {
+          const tokenData = event.data ?? event.content ?? "";
+          onToken?.(tokenData);
+        } else if (event.type === "done") {
+          result = { ...event };
+          if (event.data && typeof event.data === "object" && !Array.isArray(event.data)) {
+            result = { ...result, ...event.data };
+          }
+        }
+      }
+    }
+  }
+
+  return result;
 }
 
 export function deleteConversation(conversationId) {
@@ -70,4 +108,26 @@ export function createSkill(skill) {
 
 export function fetchTools() {
   return request("/api/tools");
+}
+
+export function parseSSEMessages(rawText) {
+  if (!rawText) return [];
+
+  const results = [];
+  const messages = rawText.split("\n\n");
+
+  for (const msg of messages) {
+    const lines = msg.split("\n");
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        try {
+          results.push(JSON.parse(line.slice(6)));
+        } catch {
+          // 跳过无法解析的 data 行
+        }
+      }
+    }
+  }
+
+  return results;
 }
