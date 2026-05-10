@@ -45,13 +45,15 @@ npm run dev
 
 ![alt text](assets/agent.png)
 
-LifeOps 的主入口是本地 Web 控制台。前端调用 FastAPI，后端按会话复用 `Agent` 实例，并把用户消息、最终回复、工具调用中间记录写入本地 JSONL 历史。
+LifeOps 的主入口是本地 Web 控制台。前端调用 FastAPI，后端按会话复用 `Agent` 实例，并把用户消息、最终回复、工具调用中间记录写入本地 SQLite 历史。
 
 `/api/chat` 使用 **SSE（Server-Sent Events）** 实现流式响应。后端通过 `LLMClient.chat_stream()` 逐 token 调用 LLM，`_generate_sse_messages()` 将 token 实时转发给前端；前端 `sendChatMessage()` 通过 `ReadableStream` 读取 SSE 流，`handleSend()` 逐字渲染到界面，告别等待完整响应。
 
 `Agent` 是核心调度器。每轮输入先激活相关 Skill、确保 MCP 工具已注册，再按“检索预编排 → LLM 推理 → 工具调用 → 继续推理 → 最终回答”的 ReAct 流程运行，最多迭代 10 轮。推理阶段通过 `on_token` 回调逐 token 产出，工具调用仍批量处理。
 
-上下文由 `ContextManager` 分三层管理：L1 放系统提示、Skill 目录和近期对话；L2 放已激活 Skill 正文和 RAG 结果；L3 放工具执行结果，并在容量不足时压缩。
+上下文由 `ContextManager` 分三层管理：L1 放系统提示、Skill 目录和近期对话；L2 放已激活 Skill 正文、RAG 结果和高相关长期记忆；L3 放工具执行结果，并在压力达到阈值后记录、卸载、修剪或摘要压缩。
+
+长期记忆系统基于同一个 SQLite 数据库保存跨会话摘要、用户偏好、知识图谱实体/关系、消息向量和压缩事件。每轮 `Agent.run()` 会在 Skill 匹配前注入最多 3 条相关摘要和高置信偏好；Web SSE 完成后会生成当前会话摘要并更新用户画像。只读观测接口包括 `/api/memory/stats`、`/api/memory/user-profile`、`/api/memory/knowledge-graph` 和 `/api/memory/summaries`。
 
 工具统一进入 `ToolRegistry`。内置工具包括命令执行、文件读写、网页搜索和本地知识库检索；MCP Server 通过适配器映射成同一套工具定义，因此 Agent 不需要区分工具来源。
 
@@ -86,6 +88,15 @@ RAG 系统负责把本地 Markdown 索引到 ChromaDB 与 BM25，并在回答前
 | `LIFEOPS_HISTORY_PATH` | Web / 本地 API JSONL 历史缓存路径 | `.lifeops/conversations.jsonl` |
 | `LIFEOPS_DEBUG` | 调试模式 | `false` |
 | `LIFEOPS_LOG_LEVEL` | 日志级别 | `INFO` |
+
+### 记忆系统配置
+
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `LIFEOPS_MEMORY_ENABLED` | 启用跨会话长期记忆学习与注入 | `true` |
+| `LIFEOPS_MEMORY_SUMMARY_TOP_K` | 每轮最多注入的相关会话摘要数量 | `3` |
+| `LIFEOPS_MEMORY_PREFERENCE_MIN_CONFIDENCE` | 注入用户偏好的最低置信度 | `0.7` |
+| `LIFEOPS_MEMORY_OFFLOAD_DIR` | 大型 L3 工具结果卸载目录 | `.lifeops/offload` |
 
 ### 上下文调优
 

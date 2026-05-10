@@ -136,6 +136,20 @@ class RAGConfig(BaseSettings):
         return str(path)
 
 
+class MemoryConfig(BaseSettings):
+    enabled: bool = True
+    summary_top_k: int = 3
+    preference_min_confidence: float = 0.7
+    offload_dir: str = ".lifeops/offload"
+
+    model_config = {
+        "env_prefix": "LIFEOPS_MEMORY_",
+        "env_file": _ENV_FILE,
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+    }
+
+
 class AppConfig(BaseSettings):
     llm: LLMConfig = Field(default_factory=LLMConfig)
     context: ContextConfig = Field(default_factory=ContextConfig)
@@ -143,6 +157,7 @@ class AppConfig(BaseSettings):
     mcp: MCPConfig = Field(default_factory=MCPConfig)
     skills: SkillsConfig = Field(default_factory=SkillsConfig)
     rag: RAGConfig = Field(default_factory=RAGConfig)
+    memory: MemoryConfig = Field(default_factory=MemoryConfig)
     history_path: str = ".lifeops/conversations.jsonl"
     db_path: str = ".lifeops/conversations.db"
     debug: bool = False

@@ -41,6 +41,7 @@ class ContextManager:
         self._l1_keys: set[str] = set()
         self._l2_keys: set[str] = set()
         self._l3_keys: set[str] = set()
+        self._compression_events: list[dict[str, Any]] = []
 
     @property
     def used_tokens(self) -> int:
@@ -149,6 +150,62 @@ class ContextManager:
             "l2_entries": len(self._l2_keys),
             "l3_entries": len(self._l3_keys),
         }
+
+    def get_context_summary(self) -> dict[str, Any]:
+        return self.get_summary()
+
+    def suggest_compression(self) -> dict[str, Any]:
+        pressure = self.used_tokens / self.max_tokens if self.max_tokens else 0
+        if pressure >= 0.95:
+            phase = "critical"
+        elif pressure >= 0.90:
+            phase = "summarize"
+        elif pressure >= 0.85:
+            phase = "trim"
+        elif pressure >= 0.80:
+            phase = "offload"
+        elif pressure >= 0.70:
+            phase = "pressure"
+        else:
+            phase = "none"
+        return {
+            "phase": phase,
+            "pressure": pressure,
+            "used_tokens": self.used_tokens,
+            "max_tokens": self.max_tokens,
+        }
+
+    def prioritize_by_intent(self, intent: str) -> list[ContextEntry]:
+        intent_text = intent.casefold()
+        entries = list(self._entries.values())
+
+        def score(entry: ContextEntry) -> tuple[int, int]:
+            content = f"{entry.key}\n{entry.content}".casefold()
+            matched = sum(1 for term in intent_text.split() if term and term in content)
+            layer_priority = {
+                ContextLayer.L1: 3,
+                ContextLayer.L2: 2,
+                ContextLayer.L3: 1,
+            }[entry.layer]
+            return (matched, layer_priority)
+
+        return sorted(entries, key=score, reverse=True)
+
+    def log_compression_event(
+        self,
+        phase: str,
+        freed_tokens: int,
+        reason: str,
+        conversation_id: str | None = None,
+    ) -> None:
+        self._compression_events.append(
+            {
+                "phase": phase,
+                "freed_tokens": freed_tokens,
+                "reason": reason,
+                "conversation_id": conversation_id,
+            }
+        )
 
     def _estimate_tokens(self, text: str) -> int:
         return max(1, len(text) // 4)

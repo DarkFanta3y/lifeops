@@ -17,6 +17,7 @@ from lifeops.agent import Agent, AgentServices
 from lifeops.core.config import PROJECT_ROOT, AppConfig, clear_proxy_env
 from lifeops.core.context_manager import ContextManager
 from lifeops.llm.types import Message, MessageRole
+from lifeops.memory import MemoryService
 from lifeops.rag.indexer import RAGIndexer
 from lifeops.storage import ConversationHistoryStoreSQLite, auto_migrate
 from lifeops.skills.loader import _parse_yaml_subset
@@ -68,6 +69,11 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
     app.state.history_store = ConversationHistoryStoreSQLite(app_config.db_path)
     app.state.web_agents = {}
     app.state.services = _create_agent_services(app_config)
+    app.state.memory_service = MemoryService(
+        app.state.history_store,
+        app.state.services.llm,
+        app_config.memory,
+    )
     app.state.tool_registry = app.state.services.base_tool_registry
     app.state.mcp_manager = app.state.services.mcp_manager
     app.state.services_started = False
@@ -150,8 +156,51 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
             logger.exception("搜索消息失败")
             raise HTTPException(status_code=500, detail="搜索消息时发生内部错误")
 
+    @app.get("/api/memory/stats")
+    async def memory_stats() -> dict[str, Any]:
+        try:
+            return app.state.memory_service.stats()
+        except Exception:
+            logger.exception("读取记忆统计失败")
+            raise HTTPException(status_code=500, detail="读取记忆统计时发生内部错误")
+
+    @app.get("/api/memory/user-profile")
+    async def memory_user_profile() -> dict[str, Any]:
+        try:
+            return app.state.memory_service.user_profile()
+        except Exception:
+            logger.exception("读取用户画像失败")
+            raise HTTPException(status_code=500, detail="读取用户画像时发生内部错误")
+
+    @app.get("/api/memory/knowledge-graph")
+    async def memory_knowledge_graph() -> dict[str, Any]:
+        try:
+            return app.state.memory_service.knowledge_graph()
+        except Exception:
+            logger.exception("读取知识图谱失败")
+            raise HTTPException(status_code=500, detail="读取知识图谱时发生内部错误")
+
+    @app.get("/api/memory/summaries")
+    async def memory_summaries(
+        limit: int | None = Query(None, ge=1),
+        offset: int = Query(0, ge=0),
+    ) -> dict[str, Any]:
+        try:
+            return {
+                "summaries": app.state.memory_service.summaries(
+                    limit=limit,
+                    offset=offset,
+                )
+            }
+        except Exception:
+            logger.exception("读取记忆摘要失败")
+            raise HTTPException(status_code=500, detail="读取记忆摘要时发生内部错误")
+
     @app.post("/api/chat")
-    async def chat(request: ChatRequest) -> StreamingResponse:
+    async def chat(
+        request: ChatRequest,
+        resume_from: int | None = Query(None),
+    ) -> StreamingResponse:
         if not app.state.config.llm.api_key:
             raise HTTPException(
                 status_code=400,
@@ -178,6 +227,8 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
                 title_task=title_task,
                 history_store=app.state.history_store,
                 first_user_message=request.message,
+                memory_service=app.state.memory_service,
+                resume_from=resume_from,
             ),
             media_type="text/event-stream",
         )
@@ -365,6 +416,7 @@ def _get_or_create_web_agent(app: FastAPI, conversation_id: str) -> Agent:
         source="web",
         conversation_id=conversation_id,
         services=app.state.services,
+        memory_service=app.state.memory_service,
     )
     agent.messages = _hydrate_messages(app.state.history_store.get_messages(conversation_id))
     agents[conversation_id] = agent
@@ -457,24 +509,35 @@ async def _generate_sse_messages(
     title_task: asyncio.Task | None,
     history_store: ConversationHistoryStoreSQLite,
     first_user_message: str,
+    memory_service: MemoryService | None = None,
+    resume_from: int | None = None,
 ):
     queue: asyncio.Queue[str] = asyncio.Queue()
+    next_event_id = 0
     previous_on_tool_call = getattr(agent, "on_tool_call", None)
     previous_on_tool_result = getattr(agent, "on_tool_result", None)
     previous_on_token = getattr(agent, "on_token", None)
 
+    def make_sse(event_type: str, data: Any, *, always_send: bool = False) -> str | None:
+        nonlocal next_event_id
+        event_id = next_event_id
+        next_event_id += 1
+        if not always_send and resume_from is not None and event_id <= resume_from:
+            return None
+        return _sse_line(event_type, data, event_id=event_id)
+
     async def on_tool_call(tool_name: str, params: dict[str, Any]) -> None:
-        await queue.put(
-            _sse_line(
-                "tool_call",
-                {
-                    "name": tool_name,
-                    "args": params,
-                    "tool_name": tool_name,
-                    "params": params,
-                },
-            )
+        line = make_sse(
+            "tool_call",
+            {
+                "name": tool_name,
+                "args": params,
+                "tool_name": tool_name,
+                "params": params,
+            },
         )
+        if line is not None:
+            await queue.put(line)
         if previous_on_tool_call is not None:
             await previous_on_tool_call(tool_name, params)
 
@@ -487,19 +550,23 @@ async def _generate_sse_messages(
             "error": result.error,
             "metadata": result.metadata,
         }
-        await queue.put(_sse_line("tool_result", payload))
+        line = make_sse("tool_result", payload)
+        if line is not None:
+            await queue.put(line)
         if not result.success:
-            await queue.put(
-                _sse_line(
-                    "tool_error",
-                    {"tool_name": tool_name, "error": result.error or "工具执行失败"},
-                )
+            line = make_sse(
+                "tool_error",
+                {"tool_name": tool_name, "error": result.error or "工具执行失败"},
             )
+            if line is not None:
+                await queue.put(line)
         if previous_on_tool_result is not None:
             await previous_on_tool_result(tool_name, result)
 
     async def on_token(token: str) -> None:
-        await queue.put(_sse_line("token", token))
+        line = make_sse("token", token)
+        if line is not None:
+            await queue.put(line)
         if previous_on_token is not None:
             await previous_on_token(token)
 
@@ -522,7 +589,9 @@ async def _generate_sse_messages(
         try:
             await run_task
         except Exception as exc:
-            yield _sse_line("error", str(exc))
+            line = make_sse("error", str(exc))
+            if line is not None:
+                yield line
 
         if is_new_conversation:
             if title_task is not None:
@@ -541,16 +610,26 @@ async def _generate_sse_messages(
                 agent.llm,
             )
 
-        yield _sse_line("done", {"conversation_id": conversation_id, "title": title})
+        if memory_service is not None:
+            try:
+                await memory_service.finalize_conversation(conversation_id)
+            except Exception:
+                logger.exception("Web SSE 结束时更新长期记忆失败")
+
+        yield make_sse(
+            "done",
+            {"conversation_id": conversation_id, "title": title},
+            always_send=True,
+        )
     finally:
         agent.on_tool_call = previous_on_tool_call
         agent.on_tool_result = previous_on_tool_result
         agent.on_token = previous_on_token
 
 
-def _sse_line(event_type: str, data: Any) -> str:
+def _sse_line(event_type: str, data: Any, event_id: int | None = None) -> str:
     payload = {
-        "id": uuid4().hex,
+        "id": uuid4().hex if event_id is None else event_id,
         "type": event_type,
         "data": data,
     }

@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 import os
+import inspect
 from dataclasses import dataclass
 from hashlib import sha1
 from typing import Any
 from uuid import uuid4
 
+from lifeops.core.compression_pipeline import CompressionPipeline
 from lifeops.core.config import AppConfig
 from lifeops.core.context_manager import ContextLayer, ContextManager
 from lifeops.history import ConversationHistoryStore, HistorySource
@@ -104,6 +106,7 @@ class Agent:
         source: HistorySource = "web",
         conversation_id: str | None = None,
         services: AgentServices | None = None,
+        memory_service: Any | None = None,
     ):
         self.config = config
         self.services = services
@@ -137,6 +140,7 @@ class Agent:
         self.history_store = history_store or ConversationHistoryStore(config.history_path)
         self.source = source
         self.conversation_id = conversation_id or self._new_conversation_id()
+        self.memory_service = memory_service
 
         if services is not None:
             self.rag_retriever = services.rag_retriever
@@ -321,6 +325,15 @@ class Agent:
 
     async def run(self, user_input: str) -> str:
         user_input = sanitize_unicode_text(user_input)
+        if self.memory_service is not None:
+            try:
+                await self.memory_service.bootstrap_context(
+                    user_input,
+                    self.conversation_id,
+                    self.context,
+                )
+            except Exception:
+                logger.exception("长期记忆启动注入失败")
         if self.skill_matcher is not None:
             self.skill_matcher.llm = self.llm
         await self._activate_skills_for_input(user_input)
@@ -345,34 +358,47 @@ class Agent:
             elif self.on_token is not None:
                 content_parts: list[str] = []
                 stream_tool_calls: list[dict[str, Any]] = []
-                async for event in self.llm.chat_stream(
-                    all_messages, tools=tool_defs if tool_defs else None
-                ):
-                    if event["type"] == "token":
-                        content_parts.append(event["data"])
-                        await self.on_token(event["data"])
-                    elif event["type"] == "tool_call":
-                        stream_tool_calls.append(event["data"])
-                    elif event["type"] == "error":
-                        raise RuntimeError(f"LLM stream error: {event['data']}")
-                if stream_tool_calls:
-                    tc_results = [
-                        ToolCallResult(
-                            id=f"tc_{i}",
-                            name=tc["name"],
-                            arguments=json.dumps(tc["args"], ensure_ascii=False),
-                        )
-                        for i, tc in enumerate(stream_tool_calls)
-                    ]
-                    response = ChatResponse(
-                        content="".join(content_parts) if content_parts else "",
-                        tool_calls=tc_results,
-                    )
+                emitted_from_stream = False
+                stream = self.llm.chat_stream(all_messages, tools=tool_defs if tool_defs else None)
+                if not hasattr(stream, "__aiter__"):
+                    if inspect.iscoroutine(stream):
+                        stream.close()
+                    response = await self.llm.chat(all_messages, tools=tool_defs if tool_defs else None)
                 else:
-                    response = ChatResponse(
-                        content="".join(content_parts) if content_parts else None,
-                        tool_calls=None,
-                    )
+                    async for event in stream:
+                        if event["type"] == "token":
+                            content_parts.append(event["data"])
+                            emitted_from_stream = True
+                            await self.on_token(event["data"])
+                        elif event["type"] == "tool_call":
+                            stream_tool_calls.append(event["data"])
+                        elif event["type"] == "error":
+                            raise RuntimeError(f"LLM stream error: {event['data']}")
+                    if stream_tool_calls:
+                        tc_results = [
+                            ToolCallResult(
+                                id=f"tc_{i}",
+                                name=tc["name"],
+                                arguments=json.dumps(tc["args"], ensure_ascii=False),
+                            )
+                            for i, tc in enumerate(stream_tool_calls)
+                        ]
+                        response = ChatResponse(
+                            content="".join(content_parts) if content_parts else "",
+                            tool_calls=tc_results,
+                        )
+                    else:
+                        response = ChatResponse(
+                            content="".join(content_parts) if content_parts else None,
+                            tool_calls=None,
+                        )
+                if (
+                    not emitted_from_stream
+                    and response.content
+                    and not response.tool_calls
+                    and self.on_token is not None
+                ):
+                    await self.on_token(response.content)
             else:
                 response = await self.llm.chat(all_messages, tools=tool_defs if tool_defs else None)
 
@@ -587,7 +613,15 @@ class Agent:
             ContextLayer.L3,
             token_count=len(tool_output) // 4,
         )
+        self._run_compression_pipeline()
         return result
+
+    def _run_compression_pipeline(self) -> None:
+        store = self.history_store if hasattr(self.history_store, "record_compression_event") else None
+        try:
+            CompressionPipeline(self.context, store, self.config.memory).execute(self.conversation_id)
+        except Exception:
+            logger.exception("上下文压缩管道执行失败")
 
     def _parse_json_object(self, content: str | None) -> dict[str, Any] | None:
         if not content:

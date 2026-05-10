@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sqlite3
+from array import array
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -30,12 +32,16 @@ class ConversationHistoryStoreSQLite:
 
     def _init_db(self) -> None:
         cursor = self._conn.cursor()
+        current_version = self._get_schema_version(cursor)
+        if current_version is not None and current_version < SCHEMA_VERSION:
+            self._backup_before_schema_upgrade(current_version)
         cursor.executescript(CREATE_TABLES_SQL)
         cursor.execute(
             "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY)"
         )
+        cursor.execute("DELETE FROM schema_version")
         cursor.execute(
-            "INSERT OR REPLACE INTO schema_version (version) VALUES (?)",
+            "INSERT INTO schema_version (version) VALUES (?)",
             (SCHEMA_VERSION,),
         )
         # 重建 FTS5 索引以确保与已有消息数据一致
@@ -53,6 +59,24 @@ class ConversationHistoryStoreSQLite:
             raise ValueError(
                 f"Schema version mismatch: expected {SCHEMA_VERSION}, got {row[0]}"
             )
+
+    def _get_schema_version(self, cursor: sqlite3.Cursor) -> int | None:
+        cursor.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_version'"
+        )
+        if cursor.fetchone() is None:
+            return None
+        cursor.execute("SELECT version FROM schema_version ORDER BY version DESC LIMIT 1")
+        row = cursor.fetchone()
+        return int(row[0]) if row else None
+
+    def _backup_before_schema_upgrade(self, current_version: int) -> None:
+        if not self._path.exists():
+            return
+        backup_path = self._path.with_name(f"{self._path.name}.v{current_version}.backup")
+        if backup_path.exists():
+            return
+        shutil.copy2(self._path, backup_path)
 
     def _now(self) -> str:
         return datetime.now().astimezone().isoformat(timespec="seconds")
@@ -465,6 +489,283 @@ class ConversationHistoryStoreSQLite:
             "offset": offset,
         }
 
+    def insert_or_update_conversation_summary(self, summary: dict[str, Any]) -> None:
+        conversation_id = str(summary["conversation_id"])
+        self._get_or_create_conversation(conversation_id, "web")
+        now = self._now()
+        embedding = summary.get("embedding")
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "INSERT INTO conversation_summaries "
+            "(conversation_id, summary, key_decisions, action_items, topics, tone, "
+            "embedding, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(conversation_id) DO UPDATE SET "
+            "summary = excluded.summary, key_decisions = excluded.key_decisions, "
+            "action_items = excluded.action_items, topics = excluded.topics, "
+            "tone = excluded.tone, embedding = excluded.embedding, updated_at = excluded.updated_at",
+            (
+                conversation_id,
+                self._sanitize_unicode_text(str(summary.get("summary") or "")),
+                self._json_dumps(summary.get("key_decisions", [])),
+                self._json_dumps(summary.get("action_items", [])),
+                self._json_dumps(summary.get("topics", [])),
+                self._sanitize_unicode_text(str(summary.get("tone") or ""))
+                if summary.get("tone") is not None
+                else None,
+                self._embedding_to_blob(embedding) if embedding is not None else None,
+                now,
+                now,
+            ),
+        )
+        self._conn.commit()
+
+    def list_conversation_summaries(
+        self,
+        limit: int | None = None,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        cursor = self._conn.cursor()
+        sql = (
+            "SELECT conversation_id, summary, key_decisions, action_items, topics, "
+            "tone, embedding, created_at, updated_at "
+            "FROM conversation_summaries ORDER BY updated_at DESC"
+        )
+        params: tuple[Any, ...] = ()
+        if limit is not None:
+            sql += " LIMIT ? OFFSET ?"
+            params = (limit, offset)
+        cursor.execute(sql, params)
+        return [self._summary_row_to_dict(row) for row in cursor.fetchall()]
+
+    def get_conversation_summary(self, conversation_id: str) -> dict[str, Any] | None:
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "SELECT conversation_id, summary, key_decisions, action_items, topics, "
+            "tone, embedding, created_at, updated_at "
+            "FROM conversation_summaries WHERE conversation_id = ?",
+            (conversation_id,),
+        )
+        row = cursor.fetchone()
+        return self._summary_row_to_dict(row) if row else None
+
+    def upsert_user_preferences(self, preferences: list[dict[str, Any]]) -> None:
+        if not preferences:
+            return
+        now = self._now()
+        cursor = self._conn.cursor()
+        for pref in preferences:
+            key = self._sanitize_unicode_text(str(pref.get("key") or "")).strip()
+            if not key:
+                continue
+            value = self._sanitize_unicode_text(str(pref.get("value") or ""))
+            confidence = float(pref.get("confidence") or 0)
+            evidence = pref.get("evidence")
+            cursor.execute(
+                "INSERT INTO user_preferences "
+                "(key, value, confidence, evidence, observation_count, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, 1, ?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET "
+                "value = excluded.value, "
+                "confidence = MAX(user_preferences.confidence, excluded.confidence), "
+                "evidence = COALESCE(excluded.evidence, user_preferences.evidence), "
+                "observation_count = user_preferences.observation_count + 1, "
+                "updated_at = excluded.updated_at",
+                (
+                    key,
+                    value,
+                    confidence,
+                    self._sanitize_unicode_text(str(evidence)) if evidence is not None else None,
+                    now,
+                    now,
+                ),
+            )
+        self._conn.commit()
+
+    def get_user_preferences(self, min_confidence: float = 0.0) -> list[dict[str, Any]]:
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "SELECT key, value, confidence, evidence, observation_count, created_at, updated_at "
+            "FROM user_preferences WHERE confidence >= ? ORDER BY confidence DESC, key ASC",
+            (min_confidence,),
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
+    def upsert_knowledge_entities(self, entities: list[dict[str, Any]]) -> None:
+        if not entities:
+            return
+        now = self._now()
+        cursor = self._conn.cursor()
+        for entity in entities:
+            name = self._sanitize_unicode_text(str(entity.get("name") or "")).strip()
+            entity_type = self._sanitize_unicode_text(
+                str(entity.get("entity_type") or "unknown")
+            ).strip()
+            if not name:
+                continue
+            cursor.execute(
+                "INSERT INTO knowledge_graph_entities "
+                "(name, entity_type, attributes, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?) "
+                "ON CONFLICT(name, entity_type) DO UPDATE SET "
+                "attributes = excluded.attributes, updated_at = excluded.updated_at",
+                (
+                    name,
+                    entity_type,
+                    self._json_dumps(entity.get("attributes", {})),
+                    now,
+                    now,
+                ),
+            )
+        self._conn.commit()
+
+    def upsert_knowledge_relations(self, relations: list[dict[str, Any]]) -> None:
+        if not relations:
+            return
+        now = self._now()
+        cursor = self._conn.cursor()
+        for relation in relations:
+            source = self._sanitize_unicode_text(str(relation.get("source") or "")).strip()
+            target = self._sanitize_unicode_text(str(relation.get("target") or "")).strip()
+            relation_type = self._sanitize_unicode_text(
+                str(relation.get("relation_type") or "")
+            ).strip()
+            if not source or not target or not relation_type:
+                continue
+            cursor.execute(
+                "INSERT INTO knowledge_graph_relations "
+                "(source, target, relation_type, confidence, attributes, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(source, target, relation_type) DO UPDATE SET "
+                "confidence = MAX(knowledge_graph_relations.confidence, excluded.confidence), "
+                "attributes = excluded.attributes, updated_at = excluded.updated_at",
+                (
+                    source,
+                    target,
+                    relation_type,
+                    float(relation.get("confidence") or 0),
+                    self._json_dumps(relation.get("attributes", {})),
+                    now,
+                    now,
+                ),
+            )
+        self._conn.commit()
+
+    def get_knowledge_graph(self) -> dict[str, list[dict[str, Any]]]:
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "SELECT name, entity_type, attributes, created_at, updated_at "
+            "FROM knowledge_graph_entities ORDER BY name ASC"
+        )
+        entities = []
+        for row in cursor.fetchall():
+            item = dict(row)
+            item["attributes"] = self._json_loads(item["attributes"], {})
+            entities.append(item)
+        cursor.execute(
+            "SELECT source, target, relation_type, confidence, attributes, created_at, updated_at "
+            "FROM knowledge_graph_relations ORDER BY source ASC, target ASC"
+        )
+        relations = []
+        for row in cursor.fetchall():
+            item = dict(row)
+            item["attributes"] = self._json_loads(item["attributes"], {})
+            relations.append(item)
+        return {"entities": entities, "relations": relations}
+
+    def record_message_embedding(
+        self, conversation_id: str, message_id: int, embedding: list[float]
+    ) -> None:
+        now = self._now()
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "INSERT INTO message_embeddings "
+            "(conversation_id, message_id, embedding, created_at) VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(message_id) DO UPDATE SET "
+            "embedding = excluded.embedding, created_at = excluded.created_at",
+            (conversation_id, message_id, self._embedding_to_blob(embedding), now),
+        )
+        self._conn.commit()
+
+    def get_message_embedding(self, message_id: int) -> list[float] | None:
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "SELECT embedding FROM message_embeddings WHERE message_id = ?",
+            (message_id,),
+        )
+        row = cursor.fetchone()
+        return self._blob_to_embedding(row["embedding"]) if row else None
+
+    def record_offload_metadata(
+        self,
+        conversation_id: str,
+        context_key: str,
+        file_path: str,
+        original_tokens: int,
+        summary: str,
+    ) -> None:
+        self._get_or_create_conversation(conversation_id, "web")
+        now = self._now()
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "INSERT INTO message_offload_metadata "
+            "(conversation_id, context_key, file_path, original_tokens, summary, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(conversation_id, context_key) DO UPDATE SET "
+            "file_path = excluded.file_path, original_tokens = excluded.original_tokens, "
+            "summary = excluded.summary, created_at = excluded.created_at",
+            (
+                conversation_id,
+                context_key,
+                file_path,
+                original_tokens,
+                self._sanitize_unicode_text(summary),
+                now,
+            ),
+        )
+        self._conn.commit()
+
+    def record_compression_event(
+        self,
+        conversation_id: str | None,
+        phase: str,
+        freed_tokens: int,
+        reason: str,
+    ) -> None:
+        if conversation_id:
+            self._get_or_create_conversation(conversation_id, "web")
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "INSERT INTO compression_events "
+            "(conversation_id, phase, freed_tokens, reason, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (
+                conversation_id,
+                self._sanitize_unicode_text(phase),
+                int(freed_tokens),
+                self._sanitize_unicode_text(reason),
+                self._now(),
+            ),
+        )
+        self._conn.commit()
+
+    def get_memory_stats(self) -> dict[str, int]:
+        cursor = self._conn.cursor()
+        names = {
+            "conversations": "conversations",
+            "messages": "messages",
+            "summaries": "conversation_summaries",
+            "entities": "knowledge_graph_entities",
+            "relations": "knowledge_graph_relations",
+            "preferences": "user_preferences",
+            "compression_events": "compression_events",
+        }
+        stats: dict[str, int] = {}
+        for key, table in names.items():
+            cursor.execute(f"SELECT COUNT(*) FROM {table}")
+            stats[key] = int(cursor.fetchone()[0])
+        return stats
+
     def delete_conversation(self, conversation_id: str) -> int:
         cursor = self._conn.cursor()
 
@@ -478,6 +779,22 @@ class ConversationHistoryStoreSQLite:
             return 0
 
         placeholders = ",".join("?" * len(message_ids))
+        cursor.execute(
+            f"DELETE FROM message_embeddings WHERE message_id IN ({placeholders})",
+            message_ids,
+        )
+        cursor.execute(
+            "DELETE FROM message_offload_metadata WHERE conversation_id = ?",
+            (conversation_id,),
+        )
+        cursor.execute(
+            "DELETE FROM compression_events WHERE conversation_id = ?",
+            (conversation_id,),
+        )
+        cursor.execute(
+            "DELETE FROM conversation_summaries WHERE conversation_id = ?",
+            (conversation_id,),
+        )
         cursor.execute(
             f"DELETE FROM tool_results WHERE tool_call_id IN ("
             f"SELECT tool_call_id FROM tool_calls WHERE message_id IN ({placeholders})"
@@ -510,6 +827,41 @@ class ConversationHistoryStoreSQLite:
 
         self._conn.commit()
         return deleted_count
+
+    def _json_dumps(self, value: Any) -> str:
+        return json.dumps(self._sanitize_unicode_data(value), ensure_ascii=False)
+
+    def _json_loads(self, value: str | None, default: Any) -> Any:
+        if value is None:
+            return default
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return default
+
+    def _embedding_to_blob(self, embedding: Any) -> bytes:
+        values = [float(item) for item in (embedding or [])]
+        return array("f", values).tobytes()
+
+    def _blob_to_embedding(self, blob: bytes | memoryview | None) -> list[float] | None:
+        if blob is None:
+            return None
+        values = array("f")
+        values.frombytes(bytes(blob))
+        return [round(float(item), 7) for item in values]
+
+    def _summary_row_to_dict(self, row: sqlite3.Row) -> dict[str, Any]:
+        return {
+            "conversation_id": row["conversation_id"],
+            "summary": row["summary"],
+            "key_decisions": self._json_loads(row["key_decisions"], []),
+            "action_items": self._json_loads(row["action_items"], []),
+            "topics": self._json_loads(row["topics"], []),
+            "tone": row["tone"],
+            "embedding": self._blob_to_embedding(row["embedding"]),
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        }
 
     def _fetch_tool_calls(self, cursor: sqlite3.Cursor, message_id: int) -> list[dict]:
         cursor.execute(

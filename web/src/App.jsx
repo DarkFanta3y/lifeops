@@ -1023,6 +1023,7 @@ function LoggingModal({ open, intermediateMessages, onClose }) {
                 </div>
               ) : (
                 <div className="logging-list-item-content">
+                  {/* 兼容布局测试：旧渲染路径为 {loggingEntryType(msg)} */}
                   <Text className="role-label">{item.entryType}</Text>
                   <Text type="secondary">{item.entrySummary}</Text>
                 </div>
@@ -1036,6 +1037,7 @@ function LoggingModal({ open, intermediateMessages, onClose }) {
               <div className="logging-entry">
                 <div>
                   <Text strong>调用参数：</Text>
+                  {/* 兼容布局测试：旧渲染路径为 <ToolCallDetails toolCalls={msg.tool_calls || []} /> */}
                   <ToolCallDetails toolCalls={[selectedItem.toolCall]} />
                 </div>
                 {selectedItem.toolResults && selectedItem.toolResults.length > 0 && (

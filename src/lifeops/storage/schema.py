@@ -1,6 +1,6 @@
 """SQLite 数据库 schema 定义：对话历史存储的 DDL 与版本常量。"""
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 # fmt: off
 CREATE_TABLES_SQL = """
@@ -76,6 +76,114 @@ CREATE INDEX IF NOT EXISTS idx_messages_tool_call_id
 
 CREATE INDEX IF NOT EXISTS idx_tool_results_tool_call_id
     ON tool_results(tool_call_id);
+
+-- conversation_summaries: 跨会话长期摘要
+CREATE TABLE IF NOT EXISTS conversation_summaries (
+    conversation_id TEXT PRIMARY KEY,
+    summary         TEXT NOT NULL,
+    key_decisions   TEXT NOT NULL DEFAULT '[]',
+    action_items    TEXT NOT NULL DEFAULT '[]',
+    topics          TEXT NOT NULL DEFAULT '[]',
+    tone            TEXT,
+    embedding       BLOB,
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL,
+    FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id) ON DELETE CASCADE
+);
+
+-- user_preferences: 全局用户偏好画像
+CREATE TABLE IF NOT EXISTS user_preferences (
+    key               TEXT PRIMARY KEY,
+    value             TEXT NOT NULL,
+    confidence        REAL NOT NULL DEFAULT 0,
+    evidence          TEXT,
+    observation_count INTEGER NOT NULL DEFAULT 1,
+    created_at        TEXT NOT NULL,
+    updated_at        TEXT NOT NULL
+);
+
+-- skill_usage_stats: Skill 使用统计
+CREATE TABLE IF NOT EXISTS skill_usage_stats (
+    skill_name      TEXT PRIMARY KEY,
+    activation_count INTEGER NOT NULL DEFAULT 0,
+    last_used_at    TEXT,
+    metadata        TEXT NOT NULL DEFAULT '{}'
+);
+
+-- knowledge_graph_entities: 全局知识图谱实体
+CREATE TABLE IF NOT EXISTS knowledge_graph_entities (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    attributes  TEXT NOT NULL DEFAULT '{}',
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL,
+    UNIQUE(name, entity_type)
+);
+
+-- knowledge_graph_relations: 全局知识图谱关系
+CREATE TABLE IF NOT EXISTS knowledge_graph_relations (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    source        TEXT NOT NULL,
+    target        TEXT NOT NULL,
+    relation_type TEXT NOT NULL,
+    confidence    REAL NOT NULL DEFAULT 0,
+    attributes    TEXT NOT NULL DEFAULT '{}',
+    created_at    TEXT NOT NULL,
+    updated_at    TEXT NOT NULL,
+    UNIQUE(source, target, relation_type)
+);
+
+-- message_embeddings: 消息向量缓存
+CREATE TABLE IF NOT EXISTS message_embeddings (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id TEXT NOT NULL,
+    message_id      INTEGER NOT NULL,
+    embedding       BLOB NOT NULL,
+    created_at      TEXT NOT NULL,
+    UNIQUE(message_id),
+    FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id) ON DELETE CASCADE,
+    FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
+);
+
+-- message_offload_metadata: L3 工具结果卸载记录
+CREATE TABLE IF NOT EXISTS message_offload_metadata (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id TEXT NOT NULL,
+    context_key     TEXT NOT NULL,
+    file_path       TEXT NOT NULL,
+    original_tokens INTEGER NOT NULL DEFAULT 0,
+    summary         TEXT NOT NULL,
+    created_at      TEXT NOT NULL,
+    UNIQUE(conversation_id, context_key),
+    FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id) ON DELETE CASCADE
+);
+
+-- compression_events: 上下文压缩事件
+CREATE TABLE IF NOT EXISTS compression_events (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id TEXT,
+    phase           TEXT NOT NULL,
+    freed_tokens    INTEGER NOT NULL DEFAULT 0,
+    reason          TEXT NOT NULL,
+    created_at      TEXT NOT NULL,
+    FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_conversation_summaries_updated
+    ON conversation_summaries(updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_user_preferences_confidence
+    ON user_preferences(confidence DESC);
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_entities_name
+    ON knowledge_graph_entities(name);
+
+CREATE INDEX IF NOT EXISTS idx_knowledge_relations_source
+    ON knowledge_graph_relations(source);
+
+CREATE INDEX IF NOT EXISTS idx_compression_events_conversation
+    ON compression_events(conversation_id, created_at DESC);
 
 -- FTS5 同步触发器：插入消息时自动更新全文索引
 CREATE TRIGGER IF NOT EXISTS messages_fts_ai AFTER INSERT ON messages BEGIN
