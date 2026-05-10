@@ -8,10 +8,16 @@ from lifeops.tools.mcp.servers.google_workspace import (
     create_google_workspace_mcp_config,
     get_google_workspace_mcp_server_name,
 )
+from lifeops.tools.mcp.servers.mcp_12306 import (
+    create_12306_mcp_config,
+    get_12306_mcp_server_name,
+)
 
 __all__ = [
+    "create_12306_mcp_config",
     "create_github_mcp_config",
     "create_google_workspace_mcp_config",
+    "get_12306_mcp_server_name",
     "get_github_mcp_server_name",
     "get_google_workspace_mcp_server_name",
 ]
