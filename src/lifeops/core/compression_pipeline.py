@@ -59,7 +59,7 @@ class CompressionPipeline:
             self.store.record_offload_metadata(
                 conversation_id,
                 target.key,
-                str(file_path),
+                file_path.relative_to(offload_dir).as_posix(),
                 target.token_count,
                 summary,
             )

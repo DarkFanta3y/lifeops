@@ -1,6 +1,6 @@
 """SQLite 数据库 schema 定义：对话历史存储的 DDL 与版本常量。"""
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 # fmt: off
 CREATE_TABLES_SQL = """
@@ -86,6 +86,10 @@ CREATE TABLE IF NOT EXISTS conversation_summaries (
     topics          TEXT NOT NULL DEFAULT '[]',
     tone            TEXT,
     embedding       BLOB,
+    importance_score REAL NOT NULL DEFAULT 0,
+    last_accessed_at TEXT,
+    access_count    INTEGER NOT NULL DEFAULT 0,
+    message_count   INTEGER NOT NULL DEFAULT 0,
     created_at      TEXT NOT NULL,
     updated_at      TEXT NOT NULL,
     FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id) ON DELETE CASCADE
@@ -93,11 +97,16 @@ CREATE TABLE IF NOT EXISTS conversation_summaries (
 
 -- user_preferences: 全局用户偏好画像
 CREATE TABLE IF NOT EXISTS user_preferences (
+    preference_id    TEXT NOT NULL DEFAULT '',
+    preference_type  TEXT NOT NULL DEFAULT 'general',
     key               TEXT PRIMARY KEY,
     value             TEXT NOT NULL,
     confidence        REAL NOT NULL DEFAULT 0,
     evidence          TEXT,
+    source_conversation_id TEXT,
     observation_count INTEGER NOT NULL DEFAULT 1,
+    last_observed_at  TEXT,
+    is_active         INTEGER NOT NULL DEFAULT 1,
     created_at        TEXT NOT NULL,
     updated_at        TEXT NOT NULL
 );
@@ -106,16 +115,37 @@ CREATE TABLE IF NOT EXISTS user_preferences (
 CREATE TABLE IF NOT EXISTS skill_usage_stats (
     skill_name      TEXT PRIMARY KEY,
     activation_count INTEGER NOT NULL DEFAULT 0,
+    explicit_activation_count INTEGER NOT NULL DEFAULT 0,
+    implicit_activation_count INTEGER NOT NULL DEFAULT 0,
+    success_count   INTEGER NOT NULL DEFAULT 0,
+    failure_count   INTEGER NOT NULL DEFAULT 0,
     last_used_at    TEXT,
+    metadata        TEXT NOT NULL DEFAULT '{}'
+);
+
+-- tool_usage_stats: 工具执行统计
+CREATE TABLE IF NOT EXISTS tool_usage_stats (
+    tool_name       TEXT PRIMARY KEY,
+    call_count      INTEGER NOT NULL DEFAULT 0,
+    success_count   INTEGER NOT NULL DEFAULT 0,
+    failure_count   INTEGER NOT NULL DEFAULT 0,
+    total_duration_ms REAL NOT NULL DEFAULT 0,
+    last_used_at    TEXT,
+    last_error      TEXT,
     metadata        TEXT NOT NULL DEFAULT '{}'
 );
 
 -- knowledge_graph_entities: 全局知识图谱实体
 CREATE TABLE IF NOT EXISTS knowledge_graph_entities (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    entity_id   TEXT NOT NULL DEFAULT '',
     name        TEXT NOT NULL,
+    normalized_name TEXT NOT NULL DEFAULT '',
     entity_type TEXT NOT NULL,
     attributes  TEXT NOT NULL DEFAULT '{}',
+    mention_count INTEGER NOT NULL DEFAULT 1,
+    last_mentioned_at TEXT,
+    is_active   INTEGER NOT NULL DEFAULT 1,
     created_at  TEXT NOT NULL,
     updated_at  TEXT NOT NULL,
     UNIQUE(name, entity_type)
@@ -128,10 +158,21 @@ CREATE TABLE IF NOT EXISTS knowledge_graph_relations (
     target        TEXT NOT NULL,
     relation_type TEXT NOT NULL,
     confidence    REAL NOT NULL DEFAULT 0,
+    strength      REAL NOT NULL DEFAULT 0,
+    mention_count INTEGER NOT NULL DEFAULT 1,
+    last_observed_at TEXT,
+    is_active     INTEGER NOT NULL DEFAULT 1,
     attributes    TEXT NOT NULL DEFAULT '{}',
     created_at    TEXT NOT NULL,
     updated_at    TEXT NOT NULL,
     UNIQUE(source, target, relation_type)
+);
+
+-- memory_config_snapshots: 记忆配置快照，便于排查运行时行为
+CREATE TABLE IF NOT EXISTS memory_config_snapshots (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    snapshot    TEXT NOT NULL,
+    created_at  TEXT NOT NULL
 );
 
 -- message_embeddings: 消息向量缓存

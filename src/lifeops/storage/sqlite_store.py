@@ -4,11 +4,13 @@ from __future__ import annotations
 import json
 import shutil
 import sqlite3
+from hashlib import sha1
 from array import array
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from lifeops.memory.confidence import normalize_confidence
 from lifeops.storage.schema import CREATE_TABLES_SQL, SCHEMA_VERSION
 from lifeops.utils.text import sanitize_unicode_data, sanitize_unicode_text
 
@@ -36,6 +38,7 @@ class ConversationHistoryStoreSQLite:
         if current_version is not None and current_version < SCHEMA_VERSION:
             self._backup_before_schema_upgrade(current_version)
         cursor.executescript(CREATE_TABLES_SQL)
+        self._migrate_schema_v3(cursor)
         cursor.execute(
             "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY)"
         )
@@ -50,6 +53,118 @@ class ConversationHistoryStoreSQLite:
         except sqlite3.OperationalError:
             pass
         self._conn.commit()
+
+    def _migrate_schema_v3(self, cursor: sqlite3.Cursor) -> None:
+        self._add_column_if_missing(
+            cursor, "conversation_summaries", "importance_score",
+            "REAL NOT NULL DEFAULT 0",
+        )
+        self._add_column_if_missing(
+            cursor, "conversation_summaries", "last_accessed_at", "TEXT"
+        )
+        self._add_column_if_missing(
+            cursor, "conversation_summaries", "access_count", "INTEGER NOT NULL DEFAULT 0"
+        )
+        self._add_column_if_missing(
+            cursor, "conversation_summaries", "message_count", "INTEGER NOT NULL DEFAULT 0"
+        )
+        self._add_column_if_missing(
+            cursor, "user_preferences", "preference_id", "TEXT NOT NULL DEFAULT ''"
+        )
+        self._add_column_if_missing(
+            cursor, "user_preferences", "preference_type", "TEXT NOT NULL DEFAULT 'general'"
+        )
+        self._add_column_if_missing(
+            cursor, "user_preferences", "source_conversation_id", "TEXT"
+        )
+        self._add_column_if_missing(
+            cursor, "user_preferences", "last_observed_at", "TEXT"
+        )
+        self._add_column_if_missing(
+            cursor, "user_preferences", "is_active", "INTEGER NOT NULL DEFAULT 1"
+        )
+        self._add_column_if_missing(
+            cursor, "skill_usage_stats", "explicit_activation_count",
+            "INTEGER NOT NULL DEFAULT 0",
+        )
+        self._add_column_if_missing(
+            cursor, "skill_usage_stats", "implicit_activation_count",
+            "INTEGER NOT NULL DEFAULT 0",
+        )
+        self._add_column_if_missing(
+            cursor, "skill_usage_stats", "success_count", "INTEGER NOT NULL DEFAULT 0"
+        )
+        self._add_column_if_missing(
+            cursor, "skill_usage_stats", "failure_count", "INTEGER NOT NULL DEFAULT 0"
+        )
+        self._add_column_if_missing(
+            cursor, "knowledge_graph_entities", "entity_id", "TEXT NOT NULL DEFAULT ''"
+        )
+        self._add_column_if_missing(
+            cursor, "knowledge_graph_entities", "normalized_name",
+            "TEXT NOT NULL DEFAULT ''",
+        )
+        self._add_column_if_missing(
+            cursor, "knowledge_graph_entities", "mention_count",
+            "INTEGER NOT NULL DEFAULT 1",
+        )
+        self._add_column_if_missing(
+            cursor, "knowledge_graph_entities", "last_mentioned_at", "TEXT"
+        )
+        self._add_column_if_missing(
+            cursor, "knowledge_graph_entities", "is_active", "INTEGER NOT NULL DEFAULT 1"
+        )
+        self._add_column_if_missing(
+            cursor, "knowledge_graph_relations", "strength", "REAL NOT NULL DEFAULT 0"
+        )
+        self._add_column_if_missing(
+            cursor, "knowledge_graph_relations", "mention_count",
+            "INTEGER NOT NULL DEFAULT 1",
+        )
+        self._add_column_if_missing(
+            cursor, "knowledge_graph_relations", "last_observed_at", "TEXT"
+        )
+        self._add_column_if_missing(
+            cursor, "knowledge_graph_relations", "is_active", "INTEGER NOT NULL DEFAULT 1"
+        )
+        now = self._now()
+        cursor.execute(
+            "UPDATE user_preferences SET preference_id = "
+            "'pref_' || lower(hex(randomblob(8))) WHERE preference_id = ''"
+        )
+        cursor.execute(
+            "UPDATE user_preferences SET last_observed_at = COALESCE(last_observed_at, updated_at, ?)",
+            (now,),
+        )
+        cursor.execute(
+            "UPDATE knowledge_graph_entities SET normalized_name = lower(name) "
+            "WHERE normalized_name = ''"
+        )
+        cursor.execute(
+            "UPDATE knowledge_graph_entities SET entity_id = "
+            "'ent_' || lower(hex(randomblob(8))) WHERE entity_id = ''"
+        )
+        cursor.execute(
+            "UPDATE knowledge_graph_entities SET last_mentioned_at = "
+            "COALESCE(last_mentioned_at, updated_at, ?)",
+            (now,),
+        )
+        cursor.execute(
+            "UPDATE knowledge_graph_relations SET strength = confidence WHERE strength = 0"
+        )
+        cursor.execute(
+            "UPDATE knowledge_graph_relations SET last_observed_at = "
+            "COALESCE(last_observed_at, updated_at, ?)",
+            (now,),
+        )
+
+    def _add_column_if_missing(
+        self, cursor: sqlite3.Cursor, table: str, column: str, definition: str
+    ) -> None:
+        cursor.execute(f"PRAGMA table_info({table})")
+        columns = {row[1] for row in cursor.fetchall()}
+        if column not in columns:
+            cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
     def _ensure_schema(self) -> None:
         cursor = self._conn.cursor()
@@ -494,16 +609,20 @@ class ConversationHistoryStoreSQLite:
         self._get_or_create_conversation(conversation_id, "web")
         now = self._now()
         embedding = summary.get("embedding")
+        message_count = int(summary.get("message_count") or self._visible_message_count(conversation_id))
         cursor = self._conn.cursor()
         cursor.execute(
             "INSERT INTO conversation_summaries "
             "(conversation_id, summary, key_decisions, action_items, topics, tone, "
-            "embedding, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "embedding, importance_score, last_accessed_at, access_count, message_count, "
+            "created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(conversation_id) DO UPDATE SET "
             "summary = excluded.summary, key_decisions = excluded.key_decisions, "
             "action_items = excluded.action_items, topics = excluded.topics, "
-            "tone = excluded.tone, embedding = excluded.embedding, updated_at = excluded.updated_at",
+            "tone = excluded.tone, embedding = excluded.embedding, "
+            "importance_score = excluded.importance_score, "
+            "message_count = excluded.message_count, updated_at = excluded.updated_at",
             (
                 conversation_id,
                 self._sanitize_unicode_text(str(summary.get("summary") or "")),
@@ -514,6 +633,10 @@ class ConversationHistoryStoreSQLite:
                 if summary.get("tone") is not None
                 else None,
                 self._embedding_to_blob(embedding) if embedding is not None else None,
+                normalize_confidence(summary.get("importance_score")),
+                summary.get("last_accessed_at"),
+                int(summary.get("access_count") or 0),
+                message_count,
                 now,
                 now,
             ),
@@ -528,7 +651,8 @@ class ConversationHistoryStoreSQLite:
         cursor = self._conn.cursor()
         sql = (
             "SELECT conversation_id, summary, key_decisions, action_items, topics, "
-            "tone, embedding, created_at, updated_at "
+            "tone, embedding, importance_score, last_accessed_at, access_count, "
+            "message_count, created_at, updated_at "
             "FROM conversation_summaries ORDER BY updated_at DESC"
         )
         params: tuple[Any, ...] = ()
@@ -542,12 +666,22 @@ class ConversationHistoryStoreSQLite:
         cursor = self._conn.cursor()
         cursor.execute(
             "SELECT conversation_id, summary, key_decisions, action_items, topics, "
-            "tone, embedding, created_at, updated_at "
+            "tone, embedding, importance_score, last_accessed_at, access_count, "
+            "message_count, created_at, updated_at "
             "FROM conversation_summaries WHERE conversation_id = ?",
             (conversation_id,),
         )
         row = cursor.fetchone()
         return self._summary_row_to_dict(row) if row else None
+
+    def mark_summary_accessed(self, conversation_id: str) -> None:
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "UPDATE conversation_summaries SET access_count = access_count + 1, "
+            "last_accessed_at = ? WHERE conversation_id = ?",
+            (self._now(), conversation_id),
+        )
+        self._conn.commit()
 
     def upsert_user_preferences(self, preferences: list[dict[str, Any]]) -> None:
         if not preferences:
@@ -558,24 +692,46 @@ class ConversationHistoryStoreSQLite:
             key = self._sanitize_unicode_text(str(pref.get("key") or "")).strip()
             if not key:
                 continue
+            preference_type = self._sanitize_unicode_text(
+                str(pref.get("preference_type") or pref.get("type") or "general")
+            ).strip() or "general"
             value = self._sanitize_unicode_text(str(pref.get("value") or ""))
-            confidence = float(pref.get("confidence") or 0)
+            confidence = normalize_confidence(pref.get("confidence"))
             evidence = pref.get("evidence")
+            source_conversation_id = pref.get("source_conversation_id")
+            preference_id = pref.get("preference_id") or self._stable_id(
+                "pref", f"{preference_type}:{key}"
+            )
             cursor.execute(
                 "INSERT INTO user_preferences "
-                "(key, value, confidence, evidence, observation_count, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, 1, ?, ?) "
+                "(preference_id, preference_type, key, value, confidence, evidence, "
+                "source_conversation_id, observation_count, last_observed_at, is_active, "
+                "created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, 1, ?, ?) "
                 "ON CONFLICT(key) DO UPDATE SET "
-                "value = excluded.value, "
+                "preference_type = excluded.preference_type, "
+                "value = CASE "
+                "WHEN excluded.confidence >= user_preferences.confidence THEN excluded.value "
+                "ELSE user_preferences.value END, "
                 "confidence = MAX(user_preferences.confidence, excluded.confidence), "
                 "evidence = COALESCE(excluded.evidence, user_preferences.evidence), "
+                "source_conversation_id = COALESCE(excluded.source_conversation_id, "
+                "user_preferences.source_conversation_id), "
                 "observation_count = user_preferences.observation_count + 1, "
+                "last_observed_at = excluded.last_observed_at, "
+                "is_active = 1, "
                 "updated_at = excluded.updated_at",
                 (
+                    preference_id,
+                    preference_type,
                     key,
                     value,
                     confidence,
                     self._sanitize_unicode_text(str(evidence)) if evidence is not None else None,
+                    self._sanitize_unicode_text(str(source_conversation_id))
+                    if source_conversation_id is not None
+                    else None,
+                    now,
                     now,
                     now,
                 ),
@@ -585,8 +741,11 @@ class ConversationHistoryStoreSQLite:
     def get_user_preferences(self, min_confidence: float = 0.0) -> list[dict[str, Any]]:
         cursor = self._conn.cursor()
         cursor.execute(
-            "SELECT key, value, confidence, evidence, observation_count, created_at, updated_at "
-            "FROM user_preferences WHERE confidence >= ? ORDER BY confidence DESC, key ASC",
+            "SELECT preference_id, preference_type, key, value, confidence, evidence, "
+            "source_conversation_id, observation_count, last_observed_at, is_active, "
+            "created_at, updated_at "
+            "FROM user_preferences WHERE confidence >= ? AND is_active = 1 "
+            "ORDER BY confidence DESC, key ASC",
             (min_confidence,),
         )
         return [dict(row) for row in cursor.fetchall()]
@@ -603,16 +762,28 @@ class ConversationHistoryStoreSQLite:
             ).strip()
             if not name:
                 continue
+            normalized_name = name.casefold()
+            entity_id = entity.get("entity_id") or self._stable_id(
+                "ent", f"{entity_type}:{normalized_name}"
+            )
             cursor.execute(
                 "INSERT INTO knowledge_graph_entities "
-                "(name, entity_type, attributes, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?) "
+                "(entity_id, name, normalized_name, entity_type, attributes, mention_count, "
+                "last_mentioned_at, is_active, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, 1, ?, 1, ?, ?) "
                 "ON CONFLICT(name, entity_type) DO UPDATE SET "
-                "attributes = excluded.attributes, updated_at = excluded.updated_at",
+                "normalized_name = excluded.normalized_name, "
+                "attributes = excluded.attributes, "
+                "mention_count = knowledge_graph_entities.mention_count + 1, "
+                "last_mentioned_at = excluded.last_mentioned_at, is_active = 1, "
+                "updated_at = excluded.updated_at",
                 (
+                    entity_id,
                     name,
+                    normalized_name,
                     entity_type,
                     self._json_dumps(entity.get("attributes", {})),
+                    now,
                     now,
                     now,
                 ),
@@ -632,18 +803,29 @@ class ConversationHistoryStoreSQLite:
             ).strip()
             if not source or not target or not relation_type:
                 continue
+            confidence = normalize_confidence(
+                relation.get("confidence")
+                if relation.get("confidence") is not None
+                else relation.get("strength")
+            )
             cursor.execute(
                 "INSERT INTO knowledge_graph_relations "
-                "(source, target, relation_type, confidence, attributes, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?) "
+                "(source, target, relation_type, confidence, strength, mention_count, "
+                "last_observed_at, is_active, attributes, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, 1, ?, 1, ?, ?, ?) "
                 "ON CONFLICT(source, target, relation_type) DO UPDATE SET "
                 "confidence = MAX(knowledge_graph_relations.confidence, excluded.confidence), "
+                "strength = MAX(knowledge_graph_relations.strength, excluded.strength), "
+                "mention_count = knowledge_graph_relations.mention_count + 1, "
+                "last_observed_at = excluded.last_observed_at, is_active = 1, "
                 "attributes = excluded.attributes, updated_at = excluded.updated_at",
                 (
                     source,
                     target,
                     relation_type,
-                    float(relation.get("confidence") or 0),
+                    confidence,
+                    confidence,
+                    now,
                     self._json_dumps(relation.get("attributes", {})),
                     now,
                     now,
@@ -654,8 +836,9 @@ class ConversationHistoryStoreSQLite:
     def get_knowledge_graph(self) -> dict[str, list[dict[str, Any]]]:
         cursor = self._conn.cursor()
         cursor.execute(
-            "SELECT name, entity_type, attributes, created_at, updated_at "
-            "FROM knowledge_graph_entities ORDER BY name ASC"
+            "SELECT entity_id, name, normalized_name, entity_type, attributes, "
+            "mention_count, last_mentioned_at, is_active, created_at, updated_at "
+            "FROM knowledge_graph_entities WHERE is_active = 1 ORDER BY name ASC"
         )
         entities = []
         for row in cursor.fetchall():
@@ -663,8 +846,9 @@ class ConversationHistoryStoreSQLite:
             item["attributes"] = self._json_loads(item["attributes"], {})
             entities.append(item)
         cursor.execute(
-            "SELECT source, target, relation_type, confidence, attributes, created_at, updated_at "
-            "FROM knowledge_graph_relations ORDER BY source ASC, target ASC"
+            "SELECT source, target, relation_type, confidence, strength, mention_count, "
+            "last_observed_at, is_active, attributes, created_at, updated_at "
+            "FROM knowledge_graph_relations WHERE is_active = 1 ORDER BY source ASC, target ASC"
         )
         relations = []
         for row in cursor.fetchall():
@@ -749,6 +933,213 @@ class ConversationHistoryStoreSQLite:
         )
         self._conn.commit()
 
+    def list_compression_events(
+        self, limit: int | None = None, offset: int = 0
+    ) -> list[dict[str, Any]]:
+        cursor = self._conn.cursor()
+        sql = (
+            "SELECT id, conversation_id, phase, freed_tokens, reason, created_at "
+            "FROM compression_events ORDER BY created_at DESC, id DESC"
+        )
+        params: tuple[Any, ...] = ()
+        if limit is not None:
+            sql += " LIMIT ? OFFSET ?"
+            params = (limit, offset)
+        cursor.execute(sql, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+    def record_skill_usage(
+        self,
+        skill_name: str,
+        *,
+        activation_type: str = "implicit",
+        success: bool | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        name = self._sanitize_unicode_text(skill_name).strip()
+        if not name:
+            return
+        now = self._now()
+        explicit_inc = 1 if activation_type == "explicit" else 0
+        implicit_inc = 1 if activation_type != "explicit" else 0
+        success_inc = 1 if success is True else 0
+        failure_inc = 1 if success is False else 0
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "INSERT INTO skill_usage_stats "
+            "(skill_name, activation_count, explicit_activation_count, "
+            "implicit_activation_count, success_count, failure_count, last_used_at, metadata) "
+            "VALUES (?, 1, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(skill_name) DO UPDATE SET "
+            "activation_count = skill_usage_stats.activation_count + 1, "
+            "explicit_activation_count = skill_usage_stats.explicit_activation_count + ?, "
+            "implicit_activation_count = skill_usage_stats.implicit_activation_count + ?, "
+            "success_count = skill_usage_stats.success_count + ?, "
+            "failure_count = skill_usage_stats.failure_count + ?, "
+            "last_used_at = excluded.last_used_at, metadata = excluded.metadata",
+            (
+                name,
+                explicit_inc,
+                implicit_inc,
+                success_inc,
+                failure_inc,
+                now,
+                self._json_dumps(metadata or {}),
+                explicit_inc,
+                implicit_inc,
+                success_inc,
+                failure_inc,
+            ),
+        )
+        self._conn.commit()
+
+    def list_skill_usage(self) -> list[dict[str, Any]]:
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "SELECT skill_name, activation_count, explicit_activation_count, "
+            "implicit_activation_count, success_count, failure_count, last_used_at, metadata "
+            "FROM skill_usage_stats ORDER BY activation_count DESC, skill_name ASC"
+        )
+        rows = []
+        for row in cursor.fetchall():
+            item = dict(row)
+            item["metadata"] = self._json_loads(item["metadata"], {})
+            rows.append(item)
+        return rows
+
+    def record_tool_usage(
+        self,
+        tool_name: str,
+        *,
+        success: bool,
+        duration_ms: float = 0,
+        error: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        name = self._sanitize_unicode_text(tool_name).strip()
+        if not name:
+            return
+        now = self._now()
+        success_inc = 1 if success else 0
+        failure_inc = 0 if success else 1
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "INSERT INTO tool_usage_stats "
+            "(tool_name, call_count, success_count, failure_count, total_duration_ms, "
+            "last_used_at, last_error, metadata) "
+            "VALUES (?, 1, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(tool_name) DO UPDATE SET "
+            "call_count = tool_usage_stats.call_count + 1, "
+            "success_count = tool_usage_stats.success_count + ?, "
+            "failure_count = tool_usage_stats.failure_count + ?, "
+            "total_duration_ms = tool_usage_stats.total_duration_ms + ?, "
+            "last_used_at = excluded.last_used_at, "
+            "last_error = COALESCE(excluded.last_error, tool_usage_stats.last_error), "
+            "metadata = excluded.metadata",
+            (
+                name,
+                success_inc,
+                failure_inc,
+                float(duration_ms),
+                now,
+                self._sanitize_unicode_text(error) if error else None,
+                self._json_dumps(metadata or {}),
+                success_inc,
+                failure_inc,
+                float(duration_ms),
+            ),
+        )
+        self._conn.commit()
+
+    def list_tool_usage_stats(self) -> list[dict[str, Any]]:
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "SELECT tool_name, call_count, success_count, failure_count, "
+            "total_duration_ms, last_used_at, last_error, metadata "
+            "FROM tool_usage_stats ORDER BY call_count DESC, tool_name ASC"
+        )
+        rows = []
+        for row in cursor.fetchall():
+            item = dict(row)
+            item["metadata"] = self._json_loads(item["metadata"], {})
+            if item["call_count"]:
+                item["average_duration_ms"] = item["total_duration_ms"] / item["call_count"]
+            else:
+                item["average_duration_ms"] = 0
+            rows.append(item)
+        return rows
+
+    def record_memory_config_snapshot(self, snapshot: dict[str, Any]) -> None:
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "INSERT INTO memory_config_snapshots (snapshot, created_at) VALUES (?, ?)",
+            (self._json_dumps(snapshot), self._now()),
+        )
+        self._conn.commit()
+
+    def delete_user_preference(self, preference_id: str) -> bool:
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "DELETE FROM user_preferences WHERE preference_id = ? OR key = ?",
+            (preference_id, preference_id),
+        )
+        self._conn.commit()
+        return cursor.rowcount > 0
+
+    def delete_knowledge_entity(self, entity_id: str) -> bool:
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "DELETE FROM knowledge_graph_entities WHERE entity_id = ? OR name = ?",
+            (entity_id, entity_id),
+        )
+        self._conn.commit()
+        return cursor.rowcount > 0
+
+    def search_knowledge_entities(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
+        query_text = query.casefold().strip()
+        if not query_text:
+            return self.get_knowledge_graph()["entities"][:limit]
+        entities = self.get_knowledge_graph()["entities"]
+        scored = []
+        for item in entities:
+            haystack = f"{item.get('name', '')} {item.get('entity_type', '')} {item.get('attributes', '')}".casefold()
+            score = 1 if query_text in haystack else 0
+            score += sum(1 for term in query_text.split() if term and term in haystack)
+            if score > 0:
+                scored.append((score, item))
+        scored.sort(key=lambda pair: pair[0], reverse=True)
+        return [item for _, item in scored[:limit]]
+
+    def forget_low_value_memories(
+        self,
+        *,
+        dry_run: bool = True,
+        preference_confidence_below: float = 0.2,
+        relation_strength_below: float = 0.2,
+    ) -> dict[str, int | bool]:
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "SELECT COUNT(*) FROM user_preferences WHERE confidence < ?",
+            (preference_confidence_below,),
+        )
+        preferences = int(cursor.fetchone()[0])
+        cursor.execute(
+            "SELECT COUNT(*) FROM knowledge_graph_relations WHERE strength < ?",
+            (relation_strength_below,),
+        )
+        relations = int(cursor.fetchone()[0])
+        if not dry_run:
+            cursor.execute(
+                "DELETE FROM user_preferences WHERE confidence < ?",
+                (preference_confidence_below,),
+            )
+            cursor.execute(
+                "DELETE FROM knowledge_graph_relations WHERE strength < ?",
+                (relation_strength_below,),
+            )
+            self._conn.commit()
+        return {"dry_run": dry_run, "preferences": preferences, "relations": relations}
+
     def get_memory_stats(self) -> dict[str, int]:
         cursor = self._conn.cursor()
         names = {
@@ -759,6 +1150,8 @@ class ConversationHistoryStoreSQLite:
             "relations": "knowledge_graph_relations",
             "preferences": "user_preferences",
             "compression_events": "compression_events",
+            "skills": "skill_usage_stats",
+            "tools": "tool_usage_stats",
         }
         stats: dict[str, int] = {}
         for key, table in names.items():
@@ -859,9 +1252,27 @@ class ConversationHistoryStoreSQLite:
             "topics": self._json_loads(row["topics"], []),
             "tone": row["tone"],
             "embedding": self._blob_to_embedding(row["embedding"]),
+            "importance_score": row["importance_score"],
+            "last_accessed_at": row["last_accessed_at"],
+            "access_count": row["access_count"],
+            "message_count": row["message_count"],
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
         }
+
+    def _visible_message_count(self, conversation_id: str) -> int:
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "SELECT COUNT(*) FROM messages WHERE conversation_id = ? "
+            "AND intermediate = 0 AND role != 'tool' "
+            "AND (record_type IS NULL OR record_type != ?)",
+            (conversation_id, TITLE_RECORD_TYPE),
+        )
+        return int(cursor.fetchone()[0])
+
+    def _stable_id(self, prefix: str, value: str) -> str:
+        digest = sha1(value.encode("utf-8")).hexdigest()[:16]
+        return f"{prefix}_{digest}"
 
     def _fetch_tool_calls(self, cursor: sqlite3.Cursor, message_id: int) -> list[dict]:
         cursor.execute(

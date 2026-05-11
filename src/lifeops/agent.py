@@ -5,6 +5,7 @@ import os
 import inspect
 from dataclasses import dataclass
 from hashlib import sha1
+from time import perf_counter
 from typing import Any
 from uuid import uuid4
 
@@ -582,11 +583,23 @@ class Agent:
             await self.on_tool_call(tc.name, params)
 
         try:
+            started_at = perf_counter()
             result = await self.tools.execute(tc.name, params)
         except KeyError:
             result = ToolResult(success=False, output="", error=f"Unknown tool: {tc.name}")
         except Exception as e:
             result = ToolResult(success=False, output="", error=str(e))
+        duration_ms = (perf_counter() - started_at) * 1000
+        if self.memory_service is not None and hasattr(self.memory_service, "record_tool_usage"):
+            try:
+                self.memory_service.record_tool_usage(
+                    tc.name,
+                    success=result.success,
+                    duration_ms=duration_ms,
+                    error=result.error,
+                )
+            except Exception:
+                logger.exception("记录工具使用统计失败")
         if self.on_tool_result is not None:
             await self.on_tool_result(tc.name, result)
 
@@ -727,6 +740,7 @@ class Agent:
         for unknown_name in explicit_result.unknown_names:
             logger.warning(f"用户显式调用了未知 Skill: {unknown_name}")
 
+        explicit_names = {match.name for match in explicit_result.matches}
         matches = explicit_result.matches
         if not matches and self.config.skills.implicit_match_enabled:
             implicit_result = await self.skill_matcher.match_implicit(
@@ -736,6 +750,17 @@ class Agent:
 
         for match in matches[: self.config.skills.max_active]:
             self.skill_manager.activate(match.name)
+            if self.memory_service is not None and hasattr(
+                self.memory_service, "record_skill_usage"
+            ):
+                try:
+                    self.memory_service.record_skill_usage(
+                        match.name,
+                        activation_type="explicit" if match.name in explicit_names else "implicit",
+                        success=None,
+                    )
+                except Exception:
+                    logger.exception("记录 Skill 使用统计失败")
 
 
 def _should_skip_pytest_env_mcp(servers: str) -> bool:

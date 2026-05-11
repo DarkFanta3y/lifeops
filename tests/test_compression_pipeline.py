@@ -32,6 +32,8 @@ def test_pipeline_at_80_percent_offloads_large_l3(tmp_path):
     assert result["freed_tokens"] > 0
     assert "已卸载" in (context.get_content("tool_large") or "")
     assert list((tmp_path / "offload").glob("*.txt"))
+    row = store._conn.execute("SELECT file_path FROM message_offload_metadata").fetchone()
+    assert "/" not in row["file_path"]
     store.close()
 
 

@@ -18,6 +18,7 @@ from lifeops.core.config import PROJECT_ROOT, AppConfig, clear_proxy_env
 from lifeops.core.context_manager import ContextManager
 from lifeops.llm.types import Message, MessageRole
 from lifeops.memory import MemoryService
+from lifeops.rag.embeddings import SentenceTransformerEmbeddingProvider
 from lifeops.rag.indexer import RAGIndexer
 from lifeops.storage import ConversationHistoryStoreSQLite, auto_migrate
 from lifeops.skills.loader import _parse_yaml_subset
@@ -54,6 +55,17 @@ class CreateSkillRequest(BaseModel):
     content: str = Field(min_length=1)
 
 
+class MemorySearchRequest(BaseModel):
+    query: str = Field(min_length=1)
+    top_k: int | None = Field(default=None, ge=1)
+
+
+class MemoryForgetRequest(BaseModel):
+    dry_run: bool = True
+    preference_confidence_below: float = Field(default=0.2, ge=0, le=1)
+    relation_strength_below: float = Field(default=0.2, ge=0, le=1)
+
+
 def create_app(config: AppConfig | None = None) -> FastAPI:
     app_config = config or AppConfig()
     app = FastAPI(title="LifeOps Web API", version="0.1.0", lifespan=_lifespan(app_config))
@@ -73,6 +85,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
         app.state.history_store,
         app.state.services.llm,
         app_config.memory,
+        embedding_provider=_create_memory_embedding_provider(app_config),
     )
     app.state.tool_registry = app.state.services.base_tool_registry
     app.state.mcp_manager = app.state.services.mcp_manager
@@ -195,6 +208,74 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
         except Exception:
             logger.exception("读取记忆摘要失败")
             raise HTTPException(status_code=500, detail="读取记忆摘要时发生内部错误")
+
+    @app.get("/api/memory/compression-events")
+    async def memory_compression_events(
+        limit: int | None = Query(None, ge=1),
+        offset: int = Query(0, ge=0),
+    ) -> dict[str, Any]:
+        try:
+            return {
+                "events": app.state.memory_service.compression_events(
+                    limit=limit,
+                    offset=offset,
+                )
+            }
+        except Exception:
+            logger.exception("读取压缩事件失败")
+            raise HTTPException(status_code=500, detail="读取压缩事件时发生内部错误")
+
+    @app.get("/api/memory/skill-usage")
+    async def memory_skill_usage() -> dict[str, Any]:
+        try:
+            return {"skills": app.state.memory_service.skill_usage()}
+        except Exception:
+            logger.exception("读取 Skill 使用统计失败")
+            raise HTTPException(status_code=500, detail="读取 Skill 使用统计时发生内部错误")
+
+    @app.get("/api/memory/tool-stats")
+    async def memory_tool_stats() -> dict[str, Any]:
+        try:
+            return {"tools": app.state.memory_service.tool_stats()}
+        except Exception:
+            logger.exception("读取工具统计失败")
+            raise HTTPException(status_code=500, detail="读取工具统计时发生内部错误")
+
+    @app.post("/api/memory/search")
+    async def memory_search(request: MemorySearchRequest) -> dict[str, Any]:
+        try:
+            return app.state.memory_service.search(request.query, top_k=request.top_k)
+        except Exception:
+            logger.exception("搜索长期记忆失败")
+            raise HTTPException(status_code=500, detail="搜索长期记忆时发生内部错误")
+
+    @app.delete("/api/memory/preferences/{preference_id}")
+    async def memory_delete_preference(preference_id: str) -> dict[str, Any]:
+        try:
+            return {"deleted": app.state.memory_service.delete_preference(preference_id)}
+        except Exception:
+            logger.exception("删除用户偏好失败")
+            raise HTTPException(status_code=500, detail="删除用户偏好时发生内部错误")
+
+    @app.delete("/api/memory/entities/{entity_id}")
+    async def memory_delete_entity(entity_id: str) -> dict[str, Any]:
+        try:
+            return {"deleted": app.state.memory_service.delete_entity(entity_id)}
+        except Exception:
+            logger.exception("删除知识图谱实体失败")
+            raise HTTPException(status_code=500, detail="删除知识图谱实体时发生内部错误")
+
+    @app.post("/api/memory/maintenance/forget")
+    async def memory_forget(request: MemoryForgetRequest) -> dict[str, Any]:
+        try:
+            return app.state.memory_service.forget(
+                dry_run=request.dry_run,
+                preference_confidence_below=request.preference_confidence_below,
+                relation_strength_below=request.relation_strength_below,
+            )
+        except Exception:
+            logger.exception("执行记忆清理失败")
+            raise HTTPException(status_code=500, detail="执行记忆清理时发生内部错误")
 
     @app.post("/api/chat")
     async def chat(
@@ -322,6 +403,17 @@ def _create_agent_services(config: AppConfig) -> AgentServices:
         base_tool_registry=base_tool_registry,
         mcp_manager=mcp_manager,
     )
+
+
+def _create_memory_embedding_provider(config: AppConfig) -> Any | None:
+    try:
+        return SentenceTransformerEmbeddingProvider(
+            config.rag.embedding_model,
+            cache_folder=config.rag.model_cache_path,
+        )
+    except Exception:
+        logger.warning("长期记忆 embedding provider 初始化失败，将仅使用 BM25", exc_info=True)
+        return None
 
 
 async def _ensure_services_initialized(app: FastAPI, *, include_mcp: bool = True) -> None:
