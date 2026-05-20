@@ -71,5 +71,8 @@ def create_file_edit_tool(registry: ToolRegistry) -> None:
         description="Create, replace text, or append to files",
         parameters_model=FileEditParams,
         category="builtin",
+        canonical_name="builtin.file_edit",
+        risk_level="high",
+        requires_approval=True,
     )
     registry.register(definition, _file_edit_handler)

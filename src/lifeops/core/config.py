@@ -4,6 +4,7 @@ import logging
 import os
 import warnings
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -150,6 +151,30 @@ class MemoryConfig(BaseSettings):
     }
 
 
+class RuntimeConfig(BaseSettings):
+    enabled: bool = True
+    trace_max_payload_chars: int = Field(default=12000, ge=1000)
+
+    model_config = {
+        "env_prefix": "LIFEOPS_RUNTIME_",
+        "env_file": _ENV_FILE,
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+    }
+
+
+class ToolPolicyConfig(BaseSettings):
+    mode: Literal["off", "balanced", "strict"] = "balanced"
+    path: str = ".lifeops/tool-policy.json"
+
+    model_config = {
+        "env_prefix": "LIFEOPS_TOOL_POLICY_",
+        "env_file": _ENV_FILE,
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+    }
+
+
 class AppConfig(BaseSettings):
     llm: LLMConfig = Field(default_factory=LLMConfig)
     context: ContextConfig = Field(default_factory=ContextConfig)
@@ -158,6 +183,8 @@ class AppConfig(BaseSettings):
     skills: SkillsConfig = Field(default_factory=SkillsConfig)
     rag: RAGConfig = Field(default_factory=RAGConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
+    runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
+    tool_policy: ToolPolicyConfig = Field(default_factory=ToolPolicyConfig)
     history_path: str = ".lifeops/conversations.jsonl"
     db_path: str = ".lifeops/conversations.db"
     debug: bool = False

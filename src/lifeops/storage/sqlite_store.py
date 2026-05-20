@@ -127,6 +127,7 @@ class ConversationHistoryStoreSQLite:
         self._add_column_if_missing(
             cursor, "knowledge_graph_relations", "is_active", "INTEGER NOT NULL DEFAULT 1"
         )
+        self._add_column_if_missing(cursor, "compression_events", "run_id", "TEXT")
         now = self._now()
         cursor.execute(
             "UPDATE user_preferences SET preference_id = "
@@ -915,16 +916,18 @@ class ConversationHistoryStoreSQLite:
         phase: str,
         freed_tokens: int,
         reason: str,
+        run_id: str | None = None,
     ) -> None:
         if conversation_id:
             self._get_or_create_conversation(conversation_id, "web")
         cursor = self._conn.cursor()
         cursor.execute(
             "INSERT INTO compression_events "
-            "(conversation_id, phase, freed_tokens, reason, created_at) "
-            "VALUES (?, ?, ?, ?, ?)",
+            "(conversation_id, run_id, phase, freed_tokens, reason, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
             (
                 conversation_id,
+                run_id,
                 self._sanitize_unicode_text(phase),
                 int(freed_tokens),
                 self._sanitize_unicode_text(reason),
@@ -934,17 +937,21 @@ class ConversationHistoryStoreSQLite:
         self._conn.commit()
 
     def list_compression_events(
-        self, limit: int | None = None, offset: int = 0
+        self, limit: int | None = None, offset: int = 0, run_id: str | None = None
     ) -> list[dict[str, Any]]:
         cursor = self._conn.cursor()
         sql = (
-            "SELECT id, conversation_id, phase, freed_tokens, reason, created_at "
-            "FROM compression_events ORDER BY created_at DESC, id DESC"
+            "SELECT id, conversation_id, run_id, phase, freed_tokens, reason, created_at "
+            "FROM compression_events"
         )
-        params: tuple[Any, ...] = ()
+        params: list[Any] = []
+        if run_id is not None:
+            sql += " WHERE run_id = ?"
+            params.append(run_id)
+        sql += " ORDER BY created_at DESC, id DESC"
         if limit is not None:
             sql += " LIMIT ? OFFSET ?"
-            params = (limit, offset)
+            params.extend([limit, offset])
         cursor.execute(sql, params)
         return [dict(row) for row in cursor.fetchall()]
 
@@ -955,6 +962,7 @@ class ConversationHistoryStoreSQLite:
         activation_type: str = "implicit",
         success: bool | None = None,
         metadata: dict[str, Any] | None = None,
+        run_id: str | None = None,
     ) -> None:
         name = self._sanitize_unicode_text(skill_name).strip()
         if not name:
@@ -991,6 +999,11 @@ class ConversationHistoryStoreSQLite:
                 failure_inc,
             ),
         )
+        cursor.execute(
+            "INSERT INTO skill_usage_events "
+            "(run_id, skill_name, activation_type, success, created_at) VALUES (?, ?, ?, ?, ?)",
+            (run_id, name, self._sanitize_unicode_text(activation_type), None if success is None else int(success), now),
+        )
         self._conn.commit()
 
     def list_skill_usage(self) -> list[dict[str, Any]]:
@@ -1015,6 +1028,7 @@ class ConversationHistoryStoreSQLite:
         duration_ms: float = 0,
         error: str | None = None,
         metadata: dict[str, Any] | None = None,
+        run_id: str | None = None,
     ) -> None:
         name = self._sanitize_unicode_text(tool_name).strip()
         if not name:
@@ -1049,7 +1063,37 @@ class ConversationHistoryStoreSQLite:
                 float(duration_ms),
             ),
         )
+        cursor.execute(
+            "INSERT INTO tool_usage_events "
+            "(run_id, tool_name, success, duration_ms, error, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                run_id,
+                name,
+                int(success),
+                float(duration_ms),
+                self._sanitize_unicode_text(error) if error else None,
+                now,
+            ),
+        )
         self._conn.commit()
+
+    def list_tool_usage_events(self, run_id: str | None = None) -> list[dict[str, Any]]:
+        sql = "SELECT run_id, tool_name, success, duration_ms, error, created_at FROM tool_usage_events"
+        params: list[Any] = []
+        if run_id is not None:
+            sql += " WHERE run_id = ?"
+            params.append(run_id)
+        sql += " ORDER BY created_at DESC, id DESC"
+        return [dict(row) for row in self._conn.execute(sql, params).fetchall()]
+
+    def list_skill_usage_events(self, run_id: str | None = None) -> list[dict[str, Any]]:
+        sql = "SELECT run_id, skill_name, activation_type, success, created_at FROM skill_usage_events"
+        params: list[Any] = []
+        if run_id is not None:
+            sql += " WHERE run_id = ?"
+            params.append(run_id)
+        sql += " ORDER BY created_at DESC, id DESC"
+        return [dict(row) for row in self._conn.execute(sql, params).fetchall()]
 
     def list_tool_usage_stats(self) -> list[dict[str, Any]]:
         cursor = self._conn.cursor()

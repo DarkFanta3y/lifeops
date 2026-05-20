@@ -53,5 +53,8 @@ def create_bash_tool(registry: ToolRegistry) -> None:
         description="Execute a bash command and return the output",
         parameters_model=BashParams,
         category="builtin",
+        canonical_name="builtin.bash",
+        risk_level="high",
+        requires_approval=True,
     )
     registry.register(definition, _bash_handler)

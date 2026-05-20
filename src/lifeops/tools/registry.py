@@ -35,6 +35,14 @@ class ToolRegistry:
     def get_handler(self, name: str) -> ToolHandler | None:
         return self._handlers.get(name)
 
+    def get_canonical_name(self, name: str) -> str:
+        definition = self._definitions.get(name)
+        if definition is None:
+            return name
+        if definition.canonical_name:
+            return definition.canonical_name
+        return definition.name
+
     def list_definitions(self) -> list[ToolDefinition]:
         return list(self._definitions.values())
 

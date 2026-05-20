@@ -15,6 +15,10 @@ from lifeops.core.context_manager import ContextLayer, ContextManager
 from lifeops.history import ConversationHistoryStore, HistorySource
 from lifeops.llm.client import LLMClient
 from lifeops.llm.types import ChatResponse, Message, MessageRole, ToolCallResult
+from lifeops.runtime.errors import RuntimeErrorType
+from lifeops.runtime.policy import ToolPolicyContext, ToolPolicyEngine
+from lifeops.runtime.policy_rules import PolicyAction
+from lifeops.runtime.types import RunStatus, TraceEventType, TraceRecorder
 from lifeops.skills.manager import SkillManager
 from lifeops.skills.matcher import SkillMatcher
 from lifeops.skills.types import SkillCatalog
@@ -108,6 +112,9 @@ class Agent:
         conversation_id: str | None = None,
         services: AgentServices | None = None,
         memory_service: Any | None = None,
+        run_id: str | None = None,
+        trace_recorder: TraceRecorder | None = None,
+        tool_policy_engine: ToolPolicyEngine | None = None,
     ):
         self.config = config
         self.services = services
@@ -142,6 +149,9 @@ class Agent:
         self.source = source
         self.conversation_id = conversation_id or self._new_conversation_id()
         self.memory_service = memory_service
+        self.run_id = run_id
+        self.trace_recorder = trace_recorder
+        self.tool_policy_engine = tool_policy_engine or ToolPolicyEngine(config.tool_policy)
 
         if services is not None:
             self.rag_retriever = services.rag_retriever
@@ -214,13 +224,22 @@ class Agent:
                 data_types,
                 data_type=validated.data_type,
             )
-            results = self.rag_retriever.retrieve(
-                validated.query,
-                domain=route_plan.domain,
-                category=route_plan.category,
-                path_prefix=route_plan.path_prefix,
-                top_files=top_files,
-            )
+            try:
+                results = self.rag_retriever.retrieve(
+                    validated.query,
+                    domain=route_plan.domain,
+                    category=route_plan.category,
+                    path_prefix=route_plan.path_prefix,
+                    top_files=top_files,
+                )
+            except Exception as exc:
+                logger.exception("本地知识库检索失败")
+                return ToolResult(
+                    success=False,
+                    output="",
+                    error=f"本地知识库检索失败：{str(exc)[:120]}",
+                    metadata={"error_type": RuntimeErrorType.RAG_ERROR.value},
+                )
             formatted = self.rag_retriever.format_results(results)
             route_key = route_plan.data_type or route_plan.domain or "all"
             query_hash = sha1(validated.query.encode("utf-8")).hexdigest()[:12]
@@ -256,6 +275,9 @@ class Agent:
                 ),
                 parameters_model=RetrieveKnowledgeParams,
                 category="builtin",
+                canonical_name="builtin.retrieve_knowledge",
+                read_only=True,
+                risk_level="low",
             ),
             handler,
         )
@@ -326,13 +348,23 @@ class Agent:
 
     async def run(self, user_input: str) -> str:
         user_input = sanitize_unicode_text(user_input)
+        self._record_trace(
+            TraceEventType.RUN_STARTED,
+            {"input_length": len(user_input), "conversation_id": self.conversation_id},
+        )
         if self.memory_service is not None:
             try:
-                await self.memory_service.bootstrap_context(
-                    user_input,
-                    self.conversation_id,
-                    self.context,
-                )
+                bootstrap = self.memory_service.bootstrap_context
+                if _call_accepts_keyword(bootstrap, "run_id"):
+                    await bootstrap(
+                        user_input,
+                        self.conversation_id,
+                        self.context,
+                        run_id=self.run_id,
+                        trace_recorder=self.trace_recorder,
+                    )
+                else:
+                    await bootstrap(user_input, self.conversation_id, self.context)
             except Exception:
                 logger.exception("长期记忆启动注入失败")
         if self.skill_matcher is not None:
@@ -353,6 +385,14 @@ class Agent:
         for iteration in range(self.max_iterations):
             all_messages = self._build_messages()
             tool_defs = self.tools.list_definitions()
+            self._record_trace(
+                TraceEventType.LLM_CALL_STARTED,
+                {
+                    "message_count": len(all_messages),
+                    "tool_count": len(tool_defs),
+                    "iteration": iteration,
+                },
+            )
 
             if iteration == 0 and first_response is not None:
                 response = first_response
@@ -402,6 +442,14 @@ class Agent:
                     await self.on_token(response.content)
             else:
                 response = await self.llm.chat(all_messages, tools=tool_defs if tool_defs else None)
+            self._record_trace(
+                TraceEventType.LLM_CALL_FINISHED,
+                {
+                    "has_content": bool(response.content),
+                    "tool_call_count": len(response.tool_calls or []),
+                    "iteration": iteration,
+                },
+            )
 
             if response.content and not response.tool_calls:
                 response_content = sanitize_unicode_text(response.content)
@@ -413,6 +461,11 @@ class Agent:
                     token_count=len(response_content) // 4,
                 )
                 self._persist_message(MessageRole.ASSISTANT, response_content)
+                self._record_trace(
+                    TraceEventType.RUN_COMPLETED,
+                    {"output_length": len(response_content)},
+                )
+                self._update_run_status(RunStatus.COMPLETED, final_output=response_content)
                 return response_content
 
             if response.tool_calls:
@@ -438,7 +491,20 @@ class Agent:
                 return "I couldn't generate a response. Please try again."
 
         self.context.compress_l3()
-        return "I reached the maximum number of iterations. Please rephrase your request or break it into smaller steps."
+        message = "已达到最大迭代次数。请改写请求，或把任务拆成更小的步骤后重试。"
+        self._record_trace(
+            TraceEventType.RUN_FAILED,
+            {
+                "error_type": RuntimeErrorType.MAX_ITERATIONS_REACHED.value,
+                "message": message,
+            },
+        )
+        self._update_run_status(
+            RunStatus.FAILED,
+            error_type=RuntimeErrorType.MAX_ITERATIONS_REACHED.value,
+            error_message=message,
+        )
+        return message
 
     async def _orchestrate_retrieval_before_answer(
         self, user_input: str
@@ -501,21 +567,36 @@ class Agent:
 
         payload = self._parse_json_object(response.content)
         if payload is None:
+            self._record_trace(
+                TraceEventType.LLM_PARSE_ERROR,
+                {"stage": "retrieval_route", "content_length": len(response.content or "")},
+            )
             return None, None
 
         try:
-            return (
-                RetrievalRouteDecision(
-                    should_use_rag=self._coerce_bool(payload.get("should_use_rag")),
-                    should_use_web=self._coerce_bool(payload.get("should_use_web")),
-                    rag_query=self._optional_text(payload.get("rag_query")),
-                    web_query=self._optional_text(payload.get("web_query")),
-                    reason=str(payload.get("reason") or ""),
-                ),
-                None,
+            decision = RetrievalRouteDecision(
+                should_use_rag=self._coerce_bool(payload.get("should_use_rag")),
+                should_use_web=self._coerce_bool(payload.get("should_use_web")),
+                rag_query=self._optional_text(payload.get("rag_query")),
+                web_query=self._optional_text(payload.get("web_query")),
+                reason=str(payload.get("reason") or ""),
             )
+            self._record_trace(
+                TraceEventType.RETRIEVAL_ROUTE_DECIDED,
+                {
+                    "should_use_rag": decision.should_use_rag,
+                    "should_use_web": decision.should_use_web,
+                    "has_rag_query": decision.rag_query is not None,
+                    "has_web_query": decision.web_query is not None,
+                },
+            )
+            return (decision, None)
         except Exception:
             logger.exception("检索路由结构化结果解析失败")
+            self._record_trace(
+                TraceEventType.LLM_PARSE_ERROR,
+                {"stage": "retrieval_route", "error": "结构化结果解析失败"},
+            )
             return None, None
 
     async def _evaluate_rag_sufficiency(
@@ -535,6 +616,10 @@ class Agent:
         )
         payload = self._parse_json_object(response.content)
         if payload is None:
+            self._record_trace(
+                TraceEventType.LLM_PARSE_ERROR,
+                {"stage": "rag_sufficiency", "content_length": len(response.content or "")},
+            )
             return None
 
         try:
@@ -579,17 +664,70 @@ class Agent:
             params = {}
 
         logger.info(f"Tool call: {tc.name}({params})")
+        definition = self.tools.get_definition(tc.name)
+        canonical_name = self.tools.get_canonical_name(tc.name)
+        self._record_trace(
+            TraceEventType.TOOL_REQUESTED,
+            {
+                "tool_name": tc.name,
+                "canonical_name": canonical_name,
+                "param_keys": sorted(params.keys()),
+            },
+        )
         if self.on_tool_call is not None:
             await self.on_tool_call(tc.name, params)
 
+        started_at = perf_counter()
+        policy_result = self._evaluate_tool_policy(definition, tc.name, canonical_name, params)
+        if policy_result is not None:
+            self._record_trace(
+                TraceEventType.TOOL_POLICY_DECISION,
+                {
+                    "tool_name": tc.name,
+                    "canonical_name": canonical_name,
+                    "action": policy_result.action.value,
+                    "reason": policy_result.reason,
+                    "risk_level": policy_result.risk_level,
+                    "matched_rule": policy_result.matched_rule,
+                },
+            )
+            if policy_result.action in {PolicyAction.ASK, PolicyAction.DENY}:
+                result = ToolResult(
+                    success=False,
+                    output="",
+                    error=policy_result.reason,
+                    metadata={
+                        "policy_action": policy_result.action.value,
+                        "matched_rule": policy_result.matched_rule,
+                    },
+                )
+                duration_ms = (perf_counter() - started_at) * 1000
+                await self._record_tool_result(tc, result, duration_ms)
+                return result
+
         try:
-            started_at = perf_counter()
             result = await self.tools.execute(tc.name, params)
         except KeyError:
-            result = ToolResult(success=False, output="", error=f"Unknown tool: {tc.name}")
+            result = ToolResult(
+                success=False,
+                output="",
+                error=f"Unknown tool: {tc.name}",
+                metadata={"error_type": RuntimeErrorType.TOOL_ERROR.value},
+            )
         except Exception as e:
-            result = ToolResult(success=False, output="", error=str(e))
+            result = ToolResult(
+                success=False,
+                output="",
+                error=str(e),
+                metadata={"error_type": RuntimeErrorType.TOOL_ERROR.value},
+            )
         duration_ms = (perf_counter() - started_at) * 1000
+        await self._record_tool_result(tc, result, duration_ms)
+        return result
+
+    async def _record_tool_result(
+        self, tc: ToolCallResult, result: ToolResult, duration_ms: float
+    ) -> None:
         if self.memory_service is not None and hasattr(self.memory_service, "record_tool_usage"):
             try:
                 self.memory_service.record_tool_usage(
@@ -597,6 +735,7 @@ class Agent:
                     success=result.success,
                     duration_ms=duration_ms,
                     error=result.error,
+                    run_id=self.run_id,
                 )
             except Exception:
                 logger.exception("记录工具使用统计失败")
@@ -627,12 +766,42 @@ class Agent:
             token_count=len(tool_output) // 4,
         )
         self._run_compression_pipeline()
-        return result
+        error_type = result.metadata.get("error_type") if result.metadata else None
+        if error_type is None and not result.success:
+            error_type = (
+                RuntimeErrorType.TOOL_TIMEOUT.value
+                if result.error and "timed out" in result.error.lower()
+                else RuntimeErrorType.TOOL_ERROR.value
+            )
+        self._record_trace(
+            TraceEventType.TOOL_RESULT,
+            {
+                "tool_name": tc.name,
+                "success": result.success,
+                "duration_ms": round(duration_ms, 2),
+                "output_length": len(result.output or ""),
+                "error_type": error_type,
+                "error": result.error,
+                "metadata": result.metadata,
+            },
+        )
 
     def _run_compression_pipeline(self) -> None:
         store = self.history_store if hasattr(self.history_store, "record_compression_event") else None
         try:
-            CompressionPipeline(self.context, store, self.config.memory).execute(self.conversation_id)
+            result = CompressionPipeline(self.context, store, self.config.memory).execute(
+                self.conversation_id,
+                run_id=self.run_id,
+            )
+            if result.get("phase") != "none":
+                self._record_trace(
+                    TraceEventType.CONTEXT_COMPRESSED,
+                    {
+                        **result,
+                        "used_tokens": self.context.used_tokens,
+                        "max_tokens": self.context.max_tokens,
+                    },
+                )
         except Exception:
             logger.exception("上下文压缩管道执行失败")
 
@@ -758,12 +927,97 @@ class Agent:
                         match.name,
                         activation_type="explicit" if match.name in explicit_names else "implicit",
                         success=None,
+                        run_id=self.run_id,
                     )
                 except Exception:
                     logger.exception("记录 Skill 使用统计失败")
+            self._record_trace(
+                TraceEventType.SKILL_MATCHED,
+                {
+                    "skill_name": match.name,
+                    "activation_type": "explicit" if match.name in explicit_names else "implicit",
+                },
+            )
+
+    def _evaluate_tool_policy(
+        self,
+        definition: ToolDefinition | None,
+        tool_name: str,
+        canonical_name: str,
+        params: dict[str, Any],
+    ):
+        if self.tool_policy_engine is None:
+            return None
+        try:
+            return self.tool_policy_engine.evaluate(
+                definition,
+                params,
+                ToolPolicyContext(
+                    conversation_id=self.conversation_id,
+                    run_id=self.run_id,
+                    source=self.source,
+                    tool_name=tool_name,
+                    canonical_name=canonical_name,
+                ),
+            )
+        except Exception:
+            logger.exception("工具策略判断失败，降级为拒绝执行")
+            from lifeops.runtime.policy import ToolPolicyResult
+
+            return ToolPolicyResult(
+                action=PolicyAction.DENY,
+                reason="工具策略判断失败，已拒绝执行。",
+                risk_level="high",
+                matched_rule="policy_error",
+            )
+
+    def _record_trace(
+        self, event_type: TraceEventType | str, payload: dict[str, Any] | None = None
+    ) -> None:
+        if self.trace_recorder is None or not self.run_id:
+            return
+        try:
+            self.trace_recorder.record(event_type, payload or {}, run_id=self.run_id)
+        except Exception:
+            logger.exception("写入 runtime trace 失败")
+
+    def _update_run_status(
+        self,
+        status: RunStatus,
+        *,
+        final_output: str | None = None,
+        error_type: str | None = None,
+        error_message: str | None = None,
+    ) -> None:
+        if self.trace_recorder is None or not self.run_id:
+            return
+        store = getattr(self.trace_recorder, "store", None)
+        if store is None or not hasattr(store, "update_run_status"):
+            return
+        try:
+            store.update_run_status(
+                self.run_id,
+                status,
+                final_output=final_output,
+                error_type=error_type,
+                error_message=error_message,
+            )
+        except Exception:
+            logger.exception("更新 runtime run 状态失败")
 
 
 def _should_skip_pytest_env_mcp(servers: str) -> bool:
     if "PYTEST_CURRENT_TEST" not in os.environ:
         return False
     return any(marker in servers for marker in ('"command":"docker"', '"command":"uvx"', "workspace-mcp"))
+
+
+def _call_accepts_keyword(callable_obj: Any, name: str) -> bool:
+    try:
+        signature = inspect.signature(callable_obj)
+    except (TypeError, ValueError):
+        return True
+    return name in signature.parameters or any(
+        parameter.kind == inspect.Parameter.VAR_KEYWORD
+        for parameter in signature.parameters.values()
+    )

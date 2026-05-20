@@ -35,9 +35,21 @@ class MemoryService:
         user_input: str,
         conversation_id: str,
         context: ContextManager,
+        run_id: str | None = None,
+        trace_recorder: Any | None = None,
     ) -> None:
         if not self.config.enabled:
             return
+        self._record_trace(
+            trace_recorder,
+            "memory_bootstrap_started",
+            {
+                "conversation_id": conversation_id,
+                "query_length": len(user_input),
+                "summary_top_k": self.config.summary_top_k,
+            },
+            run_id,
+        )
         try:
             summaries = [
                 item
@@ -69,12 +81,39 @@ class MemoryService:
                     ContextLayer.L2,
                     token_count=len(content) // 4,
                 )
+            self._record_trace(
+                trace_recorder,
+                "memory_bootstrap_finished",
+                {
+                    "summaries_count": len(summaries),
+                    "preferences_count": len(preferences),
+                    "entities_count": len(entities),
+                },
+                run_id,
+            )
         except Exception:
             logger.exception("长期记忆上下文注入失败")
+            self._record_trace(
+                trace_recorder,
+                "memory_bootstrap_failed",
+                {"error": "长期记忆上下文注入失败"},
+                run_id,
+            )
 
-    async def finalize_conversation(self, conversation_id: str) -> None:
+    async def finalize_conversation(
+        self,
+        conversation_id: str,
+        run_id: str | None = None,
+        trace_recorder: Any | None = None,
+    ) -> None:
         if not self.config.enabled:
             return
+        self._record_trace(
+            trace_recorder,
+            "memory_finalize_started",
+            {"conversation_id": conversation_id},
+            run_id,
+        )
         try:
             messages = self.store.get_messages(conversation_id)
             if not isinstance(messages, list) or not messages:
@@ -88,6 +127,12 @@ class MemoryService:
             if existing_summary is not None and existing_summary.get("message_count") == len(
                 visible_messages
             ):
+                self._record_trace(
+                    trace_recorder,
+                    "memory_finalize_skipped",
+                    {"reason": "message_count_unchanged"},
+                    run_id,
+                )
                 return
             payload = await self.summarizer.summarize(visible_messages)
             summary_text = str(payload.get("summary") or "").strip()
@@ -110,11 +155,30 @@ class MemoryService:
             preferences = self.extractor.normalize_preferences(payload)
             for item in preferences:
                 item.setdefault("source_conversation_id", conversation_id)
+            entities = self.extractor.normalize_entities(payload)
+            relations = self.extractor.normalize_relations(payload)
             self.store.upsert_user_preferences(preferences)
-            self.store.upsert_knowledge_entities(self.extractor.normalize_entities(payload))
-            self.store.upsert_knowledge_relations(self.extractor.normalize_relations(payload))
+            self.store.upsert_knowledge_entities(entities)
+            self.store.upsert_knowledge_relations(relations)
+            self._record_trace(
+                trace_recorder,
+                "memory_finalize_finished",
+                {
+                    "summary_updated": True,
+                    "preferences_count": len(preferences),
+                    "entities_count": len(entities),
+                    "relations_count": len(relations),
+                },
+                run_id,
+            )
         except Exception:
             logger.exception("长期记忆学习失败")
+            self._record_trace(
+                trace_recorder,
+                "memory_finalize_failed",
+                {"error": "长期记忆学习失败"},
+                run_id,
+            )
 
     def stats(self) -> dict[str, int]:
         return self.store.get_memory_stats()
@@ -169,23 +233,50 @@ class MemoryService:
         )
 
     def record_tool_usage(
-        self, tool_name: str, *, success: bool, duration_ms: float, error: str | None = None
+        self,
+        tool_name: str,
+        *,
+        success: bool,
+        duration_ms: float,
+        error: str | None = None,
+        run_id: str | None = None,
     ) -> None:
         self.store.record_tool_usage(
             tool_name,
             success=success,
             duration_ms=duration_ms,
             error=error,
+            run_id=run_id,
         )
 
     def record_skill_usage(
-        self, skill_name: str, *, activation_type: str, success: bool | None = None
+        self,
+        skill_name: str,
+        *,
+        activation_type: str,
+        success: bool | None = None,
+        run_id: str | None = None,
     ) -> None:
         self.store.record_skill_usage(
             skill_name,
             activation_type=activation_type,
             success=success,
+            run_id=run_id,
         )
+
+    def _record_trace(
+        self,
+        trace_recorder: Any | None,
+        event_type: str,
+        payload: dict[str, Any],
+        run_id: str | None,
+    ) -> None:
+        if trace_recorder is None:
+            return
+        try:
+            trace_recorder.record(event_type, payload, run_id=run_id)
+        except Exception:
+            logger.exception("记录长期记忆 trace 失败")
 
     def _format_summary(self, item: dict[str, Any]) -> str:
         topics = "、".join(item.get("topics") or [])

@@ -42,6 +42,8 @@ class MCPRegistryAdapter:
                 description=tool_info.description,
                 parameters_model=params_model,
                 category="mcp",
+                canonical_name=f"mcp.{tool_info.server_name}.{tool_info.original_name}",
+                requires_approval=True,
             )
 
             self._registry.register(definition, handler)

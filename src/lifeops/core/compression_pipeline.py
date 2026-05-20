@@ -22,29 +22,33 @@ class CompressionPipeline:
         self.store = store
         self.config = config
 
-    def execute(self, conversation_id: str | None = None) -> dict[str, int | str]:
+    def execute(
+        self, conversation_id: str | None = None, run_id: str | None = None
+    ) -> dict[str, int | str]:
         suggestion = self.context.suggest_compression()
         phase = str(suggestion["phase"])
         if phase == "none":
             return {"phase": "none", "freed_tokens": 0, "reason": "上下文压力正常"}
         if phase == "pressure":
-            return self._record(conversation_id, "pressure", 0, "上下文达到 70% 压力")
+            return self._record(conversation_id, "pressure", 0, "上下文达到 70% 压力", run_id)
         if phase == "offload":
-            return self._offload_large_l3(conversation_id)
+            return self._offload_large_l3(conversation_id, run_id)
         if phase == "trim":
-            return self._trim_old_l3(conversation_id)
+            return self._trim_old_l3(conversation_id, run_id)
         if phase == "summarize":
-            return self._dedupe_and_summarize(conversation_id)
-        return self._critical_cleanup(conversation_id)
+            return self._dedupe_and_summarize(conversation_id, run_id)
+        return self._critical_cleanup(conversation_id, run_id)
 
-    def _offload_large_l3(self, conversation_id: str | None) -> dict[str, int | str]:
+    def _offload_large_l3(
+        self, conversation_id: str | None, run_id: str | None
+    ) -> dict[str, int | str]:
         entries = sorted(
             self.context.get_l3_content(),
             key=lambda entry: entry.token_count,
             reverse=True,
         )
         if not entries:
-            return self._record(conversation_id, "offload", 0, "没有可卸载的 L3 内容")
+            return self._record(conversation_id, "offload", 0, "没有可卸载的 L3 内容", run_id)
 
         target = entries[0]
         offload_dir = self._offload_dir()
@@ -63,18 +67,22 @@ class CompressionPipeline:
                 target.token_count,
                 summary,
             )
-        return self._record(conversation_id, "offload", freed, "大型 L3 工具结果已卸载")
+        return self._record(conversation_id, "offload", freed, "大型 L3 工具结果已卸载", run_id)
 
-    def _trim_old_l3(self, conversation_id: str | None) -> dict[str, int | str]:
+    def _trim_old_l3(
+        self, conversation_id: str | None, run_id: str | None
+    ) -> dict[str, int | str]:
         entries = sorted(self.context.get_l3_content(), key=lambda entry: entry.key)
         removable = entries[:-2] if len(entries) > 2 else entries[:1]
         freed = 0
         for entry in removable:
             freed += entry.token_count
             self.context.remove_content(entry.key)
-        return self._record(conversation_id, "trim", freed, "修剪旧 L3 工具结果")
+        return self._record(conversation_id, "trim", freed, "修剪旧 L3 工具结果", run_id)
 
-    def _dedupe_and_summarize(self, conversation_id: str | None) -> dict[str, int | str]:
+    def _dedupe_and_summarize(
+        self, conversation_id: str | None, run_id: str | None
+    ) -> dict[str, int | str]:
         seen: dict[str, str] = {}
         freed = 0
         for entry in list(self.context.get_l3_content()):
@@ -90,9 +98,11 @@ class CompressionPipeline:
                 if new_tokens < entry.token_count:
                     self.context.add_content(entry.key, summary, ContextLayer.L3, new_tokens)
                     freed += entry.token_count - new_tokens
-        return self._record(conversation_id, "summarize", freed, "L3 去重和摘要压缩")
+        return self._record(conversation_id, "summarize", freed, "L3 去重和摘要压缩", run_id)
 
-    def _critical_cleanup(self, conversation_id: str | None) -> dict[str, int | str]:
+    def _critical_cleanup(
+        self, conversation_id: str | None, run_id: str | None
+    ) -> dict[str, int | str]:
         freed = 0
         for entry in sorted(
             self.context.get_l3_content(),
@@ -112,7 +122,7 @@ class CompressionPipeline:
                 break
             freed += entry.token_count
             self.context.remove_content(entry.key)
-        return self._record(conversation_id, "critical", freed, "critical 清理最旧 L2/L3")
+        return self._record(conversation_id, "critical", freed, "critical 清理最旧 L2/L3", run_id)
 
     def _record(
         self,
@@ -120,11 +130,14 @@ class CompressionPipeline:
         phase: str,
         freed_tokens: int,
         reason: str,
+        run_id: str | None,
     ) -> dict[str, int | str]:
         self.context.log_compression_event(phase, freed_tokens, reason, conversation_id)
         if self.store is not None:
             try:
-                self.store.record_compression_event(conversation_id, phase, freed_tokens, reason)
+                self.store.record_compression_event(
+                    conversation_id, phase, freed_tokens, reason, run_id=run_id
+                )
             except Exception:
                 logger.exception("记录压缩事件失败")
         return {"phase": phase, "freed_tokens": freed_tokens, "reason": reason}

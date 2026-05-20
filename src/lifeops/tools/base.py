@@ -21,6 +21,10 @@ class ToolDefinition:
     description: str
     parameters_model: type[ToolParams]
     category: str = "builtin"
+    canonical_name: str | None = None
+    read_only: bool = False
+    risk_level: str = "medium"
+    requires_approval: bool = False
 
 
 @dataclass

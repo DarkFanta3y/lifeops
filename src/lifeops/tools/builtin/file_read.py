@@ -60,5 +60,8 @@ def create_file_read_tool(registry: ToolRegistry) -> None:
         description="Read a file or list a directory",
         parameters_model=FileReadParams,
         category="builtin",
+        canonical_name="builtin.file_read",
+        read_only=True,
+        risk_level="low",
     )
     registry.register(definition, _file_read_handler)

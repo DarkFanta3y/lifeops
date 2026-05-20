@@ -1,6 +1,6 @@
 """SQLite 数据库 schema 定义：对话历史存储的 DDL 与版本常量。"""
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 # fmt: off
 CREATE_TABLES_SQL = """
@@ -204,11 +204,59 @@ CREATE TABLE IF NOT EXISTS message_offload_metadata (
 CREATE TABLE IF NOT EXISTS compression_events (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     conversation_id TEXT,
+    run_id          TEXT,
     phase           TEXT NOT NULL,
     freed_tokens    INTEGER NOT NULL DEFAULT 0,
     reason          TEXT NOT NULL,
     created_at      TEXT NOT NULL,
     FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id) ON DELETE CASCADE
+);
+
+-- agent_runs: 单次 Agent 请求运行记录
+CREATE TABLE IF NOT EXISTS agent_runs (
+    run_id          TEXT PRIMARY KEY,
+    conversation_id TEXT NOT NULL,
+    source          TEXT NOT NULL,
+    status          TEXT NOT NULL,
+    user_input      TEXT NOT NULL,
+    final_output    TEXT,
+    error_type      TEXT,
+    error_message   TEXT,
+    started_at      TEXT NOT NULL,
+    ended_at        TEXT,
+    FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id) ON DELETE CASCADE
+);
+
+-- agent_trace_events: 结构化运行轨迹
+CREATE TABLE IF NOT EXISTS agent_trace_events (
+    event_id        TEXT PRIMARY KEY,
+    run_id          TEXT NOT NULL,
+    event_type      TEXT NOT NULL,
+    sequence        INTEGER NOT NULL,
+    payload_json    TEXT NOT NULL,
+    created_at      TEXT NOT NULL,
+    FOREIGN KEY (run_id) REFERENCES agent_runs(run_id) ON DELETE CASCADE
+);
+
+-- tool_usage_events: 工具使用明细
+CREATE TABLE IF NOT EXISTS tool_usage_events (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id          TEXT,
+    tool_name       TEXT NOT NULL,
+    success         INTEGER NOT NULL,
+    duration_ms     REAL NOT NULL DEFAULT 0,
+    error           TEXT,
+    created_at      TEXT NOT NULL
+);
+
+-- skill_usage_events: Skill 使用明细
+CREATE TABLE IF NOT EXISTS skill_usage_events (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id          TEXT,
+    skill_name      TEXT NOT NULL,
+    activation_type TEXT NOT NULL,
+    success         INTEGER,
+    created_at      TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_conversation_summaries_updated
@@ -225,6 +273,18 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_relations_source
 
 CREATE INDEX IF NOT EXISTS idx_compression_events_conversation
     ON compression_events(conversation_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_agent_trace_events_run_sequence
+    ON agent_trace_events(run_id, sequence);
+
+CREATE INDEX IF NOT EXISTS idx_agent_runs_conversation_started
+    ON agent_runs(conversation_id, started_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_tool_usage_events_run
+    ON tool_usage_events(run_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_skill_usage_events_run
+    ON skill_usage_events(run_id, created_at DESC);
 
 -- FTS5 同步触发器：插入消息时自动更新全文索引
 CREATE TRIGGER IF NOT EXISTS messages_fts_ai AFTER INSERT ON messages BEGIN

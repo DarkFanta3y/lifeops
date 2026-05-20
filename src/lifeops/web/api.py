@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 import os
 from contextlib import asynccontextmanager
@@ -20,6 +21,10 @@ from lifeops.llm.types import Message, MessageRole
 from lifeops.memory import MemoryService
 from lifeops.rag.embeddings import SentenceTransformerEmbeddingProvider
 from lifeops.rag.indexer import RAGIndexer
+from lifeops.runtime.policy import ToolPolicyEngine
+from lifeops.runtime.policy_rules import default_policy_summary
+from lifeops.runtime.store import RuntimeStore
+from lifeops.runtime.types import RunStatus, TraceEventType, TraceRecorder
 from lifeops.storage import ConversationHistoryStoreSQLite, auto_migrate
 from lifeops.skills.loader import _parse_yaml_subset
 from lifeops.skills.manager import SkillManager
@@ -79,6 +84,11 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
 
     app.state.config = app_config
     app.state.history_store = ConversationHistoryStoreSQLite(app_config.db_path)
+    app.state.runtime_store = RuntimeStore(
+        app.state.history_store,
+        trace_max_payload_chars=app_config.runtime.trace_max_payload_chars,
+    )
+    app.state.tool_policy_engine = ToolPolicyEngine(app_config.tool_policy)
     app.state.web_agents = {}
     app.state.services = _create_agent_services(app_config)
     app.state.memory_service = MemoryService(
@@ -291,7 +301,15 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
         is_new_conversation = request.conversation_id is None
         conversation_id = request.conversation_id or _new_web_conversation_id()
         await _ensure_services_initialized(app, include_mcp=False)
-        agent = _get_or_create_web_agent(app, conversation_id)
+        run_id = uuid4().hex
+        if app.state.config.runtime.enabled:
+            app.state.runtime_store.create_run(
+                conversation_id=conversation_id,
+                source="web",
+                user_input=request.message,
+                run_id=run_id,
+            )
+        agent = _get_or_create_web_agent(app, conversation_id, run_id=run_id)
         title_task = None
         if is_new_conversation:
             logger.info(f"Web 新会话进入标题生成: conversation_id={conversation_id}")
@@ -309,10 +327,23 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
                 history_store=app.state.history_store,
                 first_user_message=request.message,
                 memory_service=app.state.memory_service,
+                runtime_store=app.state.runtime_store,
+                run_id=run_id,
                 resume_from=resume_from,
             ),
             media_type="text/event-stream",
         )
+
+    @app.get("/api/runs/{run_id}")
+    async def get_run(run_id: str) -> dict[str, Any]:
+        run = app.state.runtime_store.get_run(run_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail="run 不存在")
+        return {"run": run, "events": app.state.runtime_store.list_run_events(run_id)}
+
+    @app.get("/api/conversations/{conversation_id}/runs")
+    async def list_conversation_runs(conversation_id: str) -> dict[str, Any]:
+        return {"runs": app.state.runtime_store.list_conversation_runs(conversation_id)}
 
     @app.get("/api/skills")
     async def list_skills() -> dict[str, Any]:
@@ -350,6 +381,10 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
     async def get_rag_asset(asset_path: str) -> FileResponse:
         asset_file = _resolve_rag_asset(app.state.config, asset_path)
         return FileResponse(asset_file)
+
+    @app.get("/api/tools/policy")
+    async def tools_policy() -> dict[str, Any]:
+        return default_policy_summary(app.state.config.tool_policy.mode)
 
     @app.get("/api/tools")
     async def list_tools() -> dict[str, Any]:
@@ -497,10 +532,16 @@ def _should_skip_pytest_env_mcp(config: AppConfig) -> bool:
     return any(marker in servers for marker in ('"command":"docker"', '"command":"uvx"', "workspace-mcp"))
 
 
-def _get_or_create_web_agent(app: FastAPI, conversation_id: str) -> Agent:
+def _get_or_create_web_agent(
+    app: FastAPI, conversation_id: str, run_id: str | None = None
+) -> Agent:
     agents: dict[str, Agent] = app.state.web_agents
     if conversation_id in agents:
-        return agents[conversation_id]
+        agent = agents[conversation_id]
+        agent.run_id = run_id
+        agent.trace_recorder = TraceRecorder(app.state.runtime_store) if run_id else None
+        agent.tool_policy_engine = app.state.tool_policy_engine
+        return agent
 
     agent = Agent(
         app.state.config,
@@ -509,6 +550,9 @@ def _get_or_create_web_agent(app: FastAPI, conversation_id: str) -> Agent:
         conversation_id=conversation_id,
         services=app.state.services,
         memory_service=app.state.memory_service,
+        run_id=run_id,
+        trace_recorder=TraceRecorder(app.state.runtime_store) if run_id else None,
+        tool_policy_engine=app.state.tool_policy_engine,
     )
     agent.messages = _hydrate_messages(app.state.history_store.get_messages(conversation_id))
     agents[conversation_id] = agent
@@ -602,6 +646,8 @@ async def _generate_sse_messages(
     history_store: ConversationHistoryStoreSQLite,
     first_user_message: str,
     memory_service: MemoryService | None = None,
+    runtime_store: RuntimeStore | None = None,
+    run_id: str | None = None,
     resume_from: int | None = None,
 ):
     queue: asyncio.Queue[str] = asyncio.Queue()
@@ -681,6 +727,21 @@ async def _generate_sse_messages(
         try:
             await run_task
         except Exception as exc:
+            if runtime_store is not None and run_id is not None:
+                try:
+                    runtime_store.append_event(
+                        run_id,
+                        TraceEventType.RUN_FAILED,
+                        {"error_type": "llm_error", "message": str(exc)},
+                    )
+                    runtime_store.update_run_status(
+                        run_id,
+                        RunStatus.FAILED,
+                        error_type="llm_error",
+                        error_message=str(exc),
+                    )
+                except Exception:
+                    logger.exception("记录 Web run 失败状态失败")
             line = make_sse("error", str(exc))
             if line is not None:
                 yield line
@@ -704,13 +765,31 @@ async def _generate_sse_messages(
 
         if memory_service is not None:
             try:
-                await memory_service.finalize_conversation(conversation_id)
+                finalize = memory_service.finalize_conversation
+                if _call_accepts_keyword(finalize, "run_id"):
+                    await finalize(
+                        conversation_id,
+                        run_id=run_id,
+                        trace_recorder=agent.trace_recorder,
+                    )
+                else:
+                    await finalize(conversation_id)
             except Exception:
                 logger.exception("Web SSE 结束时更新长期记忆失败")
 
+        status_value = "completed"
+        if runtime_store is not None and run_id is not None:
+            run = runtime_store.get_run(run_id)
+            if run is not None:
+                status_value = run["status"]
         yield make_sse(
             "done",
-            {"conversation_id": conversation_id, "title": title},
+            {
+                "conversation_id": conversation_id,
+                "title": title,
+                "run_id": run_id,
+                "status": status_value,
+            },
             always_send=True,
         )
     finally:
@@ -726,6 +805,17 @@ def _sse_line(event_type: str, data: Any, event_id: int | None = None) -> str:
         "data": data,
     }
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
+def _call_accepts_keyword(callable_obj: Any, name: str) -> bool:
+    try:
+        signature = inspect.signature(callable_obj)
+    except (TypeError, ValueError):
+        return True
+    return name in signature.parameters or any(
+        parameter.kind == inspect.Parameter.VAR_KEYWORD
+        for parameter in signature.parameters.values()
+    )
 
 
 def _discover_skill_manager(config: AppConfig) -> SkillManager:

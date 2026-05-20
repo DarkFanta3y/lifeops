@@ -29,6 +29,9 @@ def create_web_search_tool(registry: ToolRegistry, config: AppConfig | None = No
         description="搜索互联网获取信息，返回相关网页标题、链接和摘要",
         parameters_model=WebSearchParams,
         category="builtin",
+        canonical_name="builtin.web_search",
+        read_only=True,
+        risk_level="low",
     )
 
     if not api_key:
