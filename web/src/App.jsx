@@ -43,6 +43,7 @@ import {
   fetchTools,
   sendChatMessage,
 } from "./api.js";
+import { isNearBottom } from "./scroll.js";
 
 const { Sider, Content } = Layout;
 const { Text, Title } = Typography;
@@ -576,11 +577,29 @@ function ChatWorkspace({
 }) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [loggingOpen, setLoggingOpen] = useState(false);
+  const messageStreamRef = useRef(null);
   const messagesEndRef = useRef(null);
+  const shouldAutoScrollRef = useRef(true);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (shouldAutoScrollRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
+
+  useEffect(() => {
+    shouldAutoScrollRef.current = true;
+    messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+  }, [selectedConversationId]);
+
+  function handleMessageStreamScroll(event) {
+    shouldAutoScrollRef.current = isNearBottom(event.currentTarget);
+  }
+
+  function handleSendFromComposer() {
+    shouldAutoScrollRef.current = true;
+    onSend();
+  }
 
   return (
     <section className="workspace chat-workspace">
@@ -603,7 +622,11 @@ function ChatWorkspace({
             </Button>
           </div>
         </div>
-        <div className={`message-stream${messages.length === 0 ? ' message-stream-empty' : ''}`}>
+        <div
+          ref={messageStreamRef}
+          className={`message-stream${messages.length === 0 ? ' message-stream-empty' : ''}`}
+          onScroll={handleMessageStreamScroll}
+        >
           {messages.length === 0 ? (
             <Empty description="从下方输入开始一次新对话" />
           ) : (
@@ -643,7 +666,7 @@ function ChatWorkspace({
               onPressEnter={(event) => {
                 if (!event.shiftKey) {
                   event.preventDefault();
-                  onSend();
+                  handleSendFromComposer();
                 }
               }}
               placeholder="输入消息，Enter 发送，Shift+Enter 换行"
@@ -658,7 +681,7 @@ function ChatWorkspace({
                 aria-label="发送消息"
                 loading={sending}
                 disabled={!chatInput.trim() || sending}
-                onClick={onSend}
+                onClick={handleSendFromComposer}
               />
             </Tooltip>
           </div>

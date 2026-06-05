@@ -17,6 +17,9 @@ DEFAULT_ALLOW_TOOLS = {
 
 DEFAULT_ASK_TOOLS = {
     "builtin.file_edit",
+    "builtin.file_create",
+    "builtin.file_replace",
+    "builtin.file_append",
 }
 
 BASH_ALLOW_PREFIXES = (

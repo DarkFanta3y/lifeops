@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import posixpath
 import pickle
 import re
+import threading
 from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import quote, urlsplit
@@ -91,18 +93,41 @@ class RAGRetriever:
         path_prefix: str | None = None,
         top_files: int | None = None,
     ) -> list[FileSearchResult]:
-        final_top_files = min(top_files or self.config.final_top_files, self.config.final_top_files, 3)
-        vector_matches = self._vector_search(
-            query,
-            domain=domain,
-            category=category,
-            path_prefix=path_prefix,
+        return _run_coroutine_sync(
+            self.retrieve_async(
+                query,
+                domain=domain,
+                category=category,
+                path_prefix=path_prefix,
+                top_files=top_files,
+            )
         )
-        bm25_matches = self._bm25_search(
-            query,
-            domain=domain,
-            category=category,
-            path_prefix=path_prefix,
+
+    async def retrieve_async(
+        self,
+        query: str,
+        *,
+        domain: str | None = None,
+        category: str | None = None,
+        path_prefix: str | None = None,
+        top_files: int | None = None,
+    ) -> list[FileSearchResult]:
+        final_top_files = min(top_files or self.config.final_top_files, self.config.final_top_files, 3)
+        vector_matches, bm25_matches = await asyncio.gather(
+            asyncio.to_thread(
+                self._vector_search,
+                query,
+                domain=domain,
+                category=category,
+                path_prefix=path_prefix,
+            ),
+            asyncio.to_thread(
+                self._bm25_search,
+                query,
+                domain=domain,
+                category=category,
+                path_prefix=path_prefix,
+            ),
         )
         fused = reciprocal_rank_fusion(
             [vector_matches, bm25_matches],
@@ -230,6 +255,28 @@ class RAGRetriever:
             logger.warning("RAG parent document index load failed: %s", exc)
             return {}
         return parents
+
+
+def _run_coroutine_sync(coroutine):
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coroutine)
+
+    result: dict[str, Any] = {}
+
+    def runner() -> None:
+        try:
+            result["value"] = asyncio.run(coroutine)
+        except BaseException as exc:
+            result["error"] = exc
+
+    thread = threading.Thread(target=runner)
+    thread.start()
+    thread.join()
+    if "error" in result:
+        raise result["error"]
+    return result["value"]
 
 
 def _where_filter(domain: str | None, category: str | None) -> dict[str, Any] | None:

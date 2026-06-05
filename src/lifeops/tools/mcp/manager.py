@@ -81,6 +81,20 @@ class MCPManager:
 
         return loaded
 
+    def load_presets(self, presets: str) -> list[str]:
+        """加载无需 API Key 的 MCP 预设，已有同名配置不覆盖。"""
+        from lifeops.tools.mcp.servers import create_no_key_mcp_preset_configs
+
+        loaded: list[str] = []
+        for name, config in create_no_key_mcp_preset_configs(presets).items():
+            if name in self._servers:
+                logger.info(f"MCP preset '{name}' 已存在，跳过预设加载")
+                continue
+            self._servers[name] = config
+            self._status[name] = MCPServerStatus.DISCONNECTED
+            loaded.append(name)
+        return loaded
+
     def get_server(self, name: str) -> MCPServerConfig | None:
         return self._servers.get(name)
 

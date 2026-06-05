@@ -15,10 +15,12 @@ logger = get_logger(__name__)
 
 
 class WebSearchParams(ToolParams):
-    query: str = Field(description="搜索查询关键词")
+    query: str = Field(min_length=1, description="搜索查询关键词")
     num_results: int = Field(default=10, ge=1, le=100, description="返回结果数量")
-    location: str | None = Field(default=None, description="搜索地理位置，如'Shanghai,China'")
-    language: str = Field(default="zh-cn", description="搜索语言，默认中文")
+    location: str | None = Field(
+        default=None, min_length=1, description="搜索地理位置，如'Shanghai,China'"
+    )
+    language: str = Field(default="zh-cn", min_length=2, description="搜索语言，默认中文")
 
 
 def create_web_search_tool(registry: ToolRegistry, config: AppConfig | None = None) -> None:
@@ -26,7 +28,10 @@ def create_web_search_tool(registry: ToolRegistry, config: AppConfig | None = No
 
     definition = ToolDefinition(
         name="web_search",
-        description="搜索互联网获取信息，返回相关网页标题、链接和摘要",
+        description=(
+            "何时调用：需要最新外部信息、网页事实、新闻、政策、价格、版本或公开网页来源时使用。"
+            "何时禁止：不要用于本地笔记、个人知识库、已在上下文中的资料或无需联网的常识问题。"
+        ),
         parameters_model=WebSearchParams,
         category="builtin",
         canonical_name="builtin.web_search",

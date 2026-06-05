@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import inspect
@@ -27,6 +28,7 @@ from lifeops.tools.builtin import register_all_builtin_tools
 from lifeops.tools.mcp.manager import MCPManager
 from lifeops.tools.mcp.types import MCPServerConfig
 from lifeops.tools.registry import ToolRegistry
+from lifeops.tools.schema import ToolSelectionContext, select_llm_tools
 from lifeops.utils.logging import get_logger
 from lifeops.utils.text import sanitize_unicode_text
 
@@ -138,6 +140,7 @@ class Agent:
         self.system_prompt = system_prompt or DEFAULT_SYSTEM_PROMPT
         self.messages: list[Message] = []
         self.max_iterations = 10
+        self.on_tool_prepare: Any | None = None
         self.on_tool_call: Any | None = None
         self.on_tool_result: Any | None = None
         self.on_token: Any | None = None
@@ -168,10 +171,12 @@ class Agent:
         if (
             services is None
             and config.mcp.enabled
-            and config.mcp.servers.strip()
-            and not _should_skip_pytest_env_mcp(config.mcp.servers)
+            and (config.mcp.servers.strip() or config.mcp.presets.strip())
         ):
-            self.mcp_manager.load_from_config(config.mcp.servers)
+            if config.mcp.servers.strip():
+                self.mcp_manager.load_from_config(config.mcp.servers)
+            if config.mcp.presets.strip() and not _should_skip_pytest_env_mcp(config.mcp.presets):
+                self.mcp_manager.load_presets(config.mcp.presets)
 
         self.context.add_content(
             "system_prompt",
@@ -187,6 +192,7 @@ class Agent:
                 self.skill_manager.inject_catalog()
             else:
                 self.skill_manager.discover()
+            self._register_activate_skill_tool()
 
     def _create_skill_manager(self) -> SkillManager:
         return SkillManager(
@@ -206,9 +212,14 @@ class Agent:
         from pydantic import Field
 
         class RetrieveKnowledgeParams(ToolParams):
-            query: str
-            data_type: str | None = None
-            top_files: int = Field(default=3, ge=1)
+            query: str = Field(min_length=1, description="要在本地知识库中检索的问题")
+            data_type: str | None = Field(
+                default=None,
+                min_length=1,
+                pattern=r".+",
+                description="可选数据类型范围，如 dishes、notes 或 recipes",
+            )
+            top_files: int = Field(default=3, ge=1, le=10, description="最多返回的文件数量")
 
         async def handler(params: dict[str, Any]) -> ToolResult:
             from lifeops.rag.router import discover_rag_data_types, route_rag_query
@@ -225,13 +236,24 @@ class Agent:
                 data_type=validated.data_type,
             )
             try:
-                results = self.rag_retriever.retrieve(
-                    validated.query,
-                    domain=route_plan.domain,
-                    category=route_plan.category,
-                    path_prefix=route_plan.path_prefix,
-                    top_files=top_files,
-                )
+                retrieve_async = getattr(self.rag_retriever, "retrieve_async", None)
+                if callable(retrieve_async):
+                    results = await retrieve_async(
+                        validated.query,
+                        domain=route_plan.domain,
+                        category=route_plan.category,
+                        path_prefix=route_plan.path_prefix,
+                        top_files=top_files,
+                    )
+                else:
+                    results = await asyncio.to_thread(
+                        self.rag_retriever.retrieve,
+                        validated.query,
+                        domain=route_plan.domain,
+                        category=route_plan.category,
+                        path_prefix=route_plan.path_prefix,
+                        top_files=top_files,
+                    )
             except Exception as exc:
                 logger.exception("本地知识库检索失败")
                 return ToolResult(
@@ -268,14 +290,49 @@ class Agent:
             ToolDefinition(
                 name="retrieve_knowledge",
                 description=(
-                    "知识库路由检索：从本地知识库自动选择合适的数据类型和检索范围，"
-                    "适合查询食谱、做法、食材、替代方案、已有笔记或个人知识库内容；"
-                    "最多返回 3 个文件级结果。可选 data_type 用于明确指定范围。\n"
+                    "知识库路由检索。何时调用：查询本地知识库、笔记、食谱、个人资料、已有文档或项目内沉淀内容。"
+                    "何时禁止：不要用于实时网络信息、新闻、政策、价格、公开网页事实或最新版本信息。"
+                    "会自动选择合适的数据类型和检索范围，最多返回文件级结果。"
+                    "可选 data_type 用于明确指定范围。\n"
                     f"{catalog}"
                 ),
                 parameters_model=RetrieveKnowledgeParams,
                 category="builtin",
                 canonical_name="builtin.retrieve_knowledge",
+                read_only=True,
+                risk_level="low",
+            ),
+            handler,
+        )
+
+    def _register_activate_skill_tool(self) -> None:
+        if self.skill_manager is None:
+            return
+
+        from pydantic import Field
+
+        class ActivateSkillParams(ToolParams):
+            name: str = Field(min_length=1, description="要激活的 Skill 名称")
+            reason: str | None = Field(default=None, description="激活原因")
+
+        async def handler(params: dict[str, Any]) -> ToolResult:
+            validated = ActivateSkillParams.model_validate(params)
+            return self._activate_skill_by_name(
+                validated.name,
+                activation_type="tool",
+                reason=validated.reason,
+            )
+
+        self.tools.register(
+            ToolDefinition(
+                name="activate_skill",
+                description=(
+                    "内部 Skill 激活工具。何时调用：用户需要使用某个可用 Skill 的完整工作流，"
+                    "或当前任务明显匹配 Skill 目录摘要。参数 name 必须来自可用 Skill 目录。"
+                ),
+                parameters_model=ActivateSkillParams,
+                category="internal",
+                canonical_name="internal.activate_skill",
                 read_only=True,
                 risk_level="low",
             ),
@@ -381,15 +438,27 @@ class Agent:
         )
 
         first_response = await self._orchestrate_retrieval_before_answer(user_input)
+        used_tool_names: list[str] = []
 
         for iteration in range(self.max_iterations):
             all_messages = self._build_messages()
             tool_defs = self.tools.list_definitions()
+            selection_context = self._build_tool_selection_context(user_input, used_tool_names)
+            exposed_tool_defs = select_llm_tools(tool_defs, context=selection_context)
+            dropped_mcp_count = sum(
+                1
+                for tool in tool_defs
+                if tool.category == "mcp"
+                and all(exposed_tool.name != tool.name for exposed_tool in exposed_tool_defs)
+            )
             self._record_trace(
                 TraceEventType.LLM_CALL_STARTED,
                 {
                     "message_count": len(all_messages),
-                    "tool_count": len(tool_defs),
+                    "tool_count": len(exposed_tool_defs),
+                    "registered_tool_count": len(tool_defs),
+                    "exposed_tool_count": len(exposed_tool_defs),
+                    "dropped_mcp_count": dropped_mcp_count,
                     "iteration": iteration,
                 },
             )
@@ -400,17 +469,37 @@ class Agent:
                 content_parts: list[str] = []
                 stream_tool_calls: list[dict[str, Any]] = []
                 emitted_from_stream = False
-                stream = self.llm.chat_stream(all_messages, tools=tool_defs if tool_defs else None)
+                stream = self.llm.chat_stream(
+                    all_messages,
+                    tools=exposed_tool_defs if exposed_tool_defs else None,
+                )
                 if not hasattr(stream, "__aiter__"):
                     if inspect.iscoroutine(stream):
                         stream.close()
-                    response = await self.llm.chat(all_messages, tools=tool_defs if tool_defs else None)
+                    response = await self.llm.chat(
+                        all_messages,
+                        tools=exposed_tool_defs if exposed_tool_defs else None,
+                    )
                 else:
                     async for event in stream:
                         if event["type"] == "token":
                             content_parts.append(event["data"])
                             emitted_from_stream = True
                             await self.on_token(event["data"])
+                        elif event["type"] == "tool_call_start":
+                            data = event["data"]
+                            await self._prepare_tool_call(
+                                data.get("name", ""),
+                                None,
+                                status="started",
+                            )
+                        elif event["type"] == "tool_call_ready":
+                            data = event["data"]
+                            await self._prepare_tool_call(
+                                data.get("name", ""),
+                                data.get("args") if isinstance(data.get("args"), dict) else None,
+                                status="ready",
+                            )
                         elif event["type"] == "tool_call":
                             stream_tool_calls.append(event["data"])
                         elif event["type"] == "error":
@@ -418,7 +507,7 @@ class Agent:
                     if stream_tool_calls:
                         tc_results = [
                             ToolCallResult(
-                                id=f"tc_{i}",
+                                id=tc.get("id") or f"tc_{i}",
                                 name=tc["name"],
                                 arguments=json.dumps(tc["args"], ensure_ascii=False),
                             )
@@ -441,7 +530,10 @@ class Agent:
                 ):
                     await self.on_token(response.content)
             else:
-                response = await self.llm.chat(all_messages, tools=tool_defs if tool_defs else None)
+                response = await self.llm.chat(
+                    all_messages,
+                    tools=exposed_tool_defs if exposed_tool_defs else None,
+                )
             self._record_trace(
                 TraceEventType.LLM_CALL_FINISHED,
                 {
@@ -486,6 +578,7 @@ class Agent:
 
                 for tc in response.tool_calls:
                     await self._execute_tool_call_result(tc)
+                    used_tool_names.append(tc.name)
 
             if not response.content and not response.tool_calls:
                 return "I couldn't generate a response. Please try again."
@@ -544,6 +637,35 @@ class Agent:
             )
 
         return None
+
+    def _build_tool_selection_context(
+        self, user_input: str, used_tool_names: list[str] | None = None
+    ) -> ToolSelectionContext:
+        if self.skill_manager is None:
+            return ToolSelectionContext(
+                user_input=user_input,
+                used_tool_names=tuple(used_tool_names or ()),
+            )
+
+        active_names = tuple(self.skill_manager.active_skill_names)
+        active_metadata = [
+            self.skill_manager.skills[name]
+            for name in active_names
+            if name in self.skill_manager.skills
+        ]
+        allowed_tools = tuple(
+            allowed_tool
+            for metadata in active_metadata
+            for allowed_tool in metadata.allowed_tools
+        )
+        descriptions = tuple(metadata.description for metadata in active_metadata)
+        return ToolSelectionContext(
+            user_input=user_input,
+            active_skill_names=active_names,
+            active_skill_descriptions=descriptions,
+            active_skill_allowed_tools=allowed_tools,
+            used_tool_names=tuple(used_tool_names or ()),
+        )
 
     async def _plan_retrieval_route(
         self, user_input: str
@@ -725,6 +847,52 @@ class Agent:
         await self._record_tool_result(tc, result, duration_ms)
         return result
 
+    async def _prepare_tool_call(
+        self,
+        tool_name: str,
+        params: dict[str, Any] | None,
+        *,
+        status: str = "ready",
+    ) -> None:
+        if not tool_name:
+            return
+
+        definition = self.tools.get_definition(tool_name)
+        canonical_name = self.tools.get_canonical_name(tool_name)
+        metadata: dict[str, Any] = {
+            "canonical_name": canonical_name,
+            "status": status,
+            "has_args": params is not None,
+            "read_only": definition.read_only if definition is not None else None,
+            "risk_level": definition.risk_level if definition is not None else "unknown",
+            "category": definition.category if definition is not None else "unknown",
+        }
+        if definition is None:
+            metadata["status"] = "unknown_tool"
+
+        if tool_name == "activate_skill":
+            metadata["kind"] = "skill"
+            skill_name = str((params or {}).get("name") or "").strip()
+            metadata["skill_name"] = skill_name
+            if self.skill_manager is None:
+                metadata["status"] = "disabled"
+            elif not skill_name:
+                metadata["status"] = "missing_args" if params is not None else status
+            elif params is not None:
+                skill_definition = self.skill_manager.prepare(skill_name)
+                if skill_definition is None:
+                    metadata["status"] = "unknown_skill"
+                else:
+                    metadata["status"] = "ready"
+                    metadata["prepared_context_length"] = len(
+                        self.skill_manager._format_skill_context(skill_definition)
+                    )
+        else:
+            metadata["kind"] = "tool"
+
+        if self.on_tool_prepare is not None:
+            await self.on_tool_prepare(tool_name, params, metadata)
+
     async def _record_tool_result(
         self, tc: ToolCallResult, result: ToolResult, duration_ms: float
     ) -> None:
@@ -900,6 +1068,7 @@ class Agent:
                 self.skill_manager.inject_catalog()
             else:
                 self.skill_manager.discover()
+            self._register_activate_skill_tool()
 
     async def _activate_skills_for_input(self, user_input: str) -> None:
         if self.skill_manager is None or self.skill_matcher is None:
@@ -918,26 +1087,58 @@ class Agent:
             matches = implicit_result.matches
 
         for match in matches[: self.config.skills.max_active]:
-            self.skill_manager.activate(match.name)
-            if self.memory_service is not None and hasattr(
-                self.memory_service, "record_skill_usage"
-            ):
-                try:
-                    self.memory_service.record_skill_usage(
-                        match.name,
-                        activation_type="explicit" if match.name in explicit_names else "implicit",
-                        success=None,
-                        run_id=self.run_id,
-                    )
-                except Exception:
-                    logger.exception("记录 Skill 使用统计失败")
-            self._record_trace(
-                TraceEventType.SKILL_MATCHED,
-                {
-                    "skill_name": match.name,
-                    "activation_type": "explicit" if match.name in explicit_names else "implicit",
-                },
+            self._activate_skill_by_name(
+                match.name,
+                activation_type="explicit" if match.name in explicit_names else "implicit",
+                reason=match.reason,
             )
+
+    def _activate_skill_by_name(
+        self,
+        name: str,
+        *,
+        activation_type: str,
+        reason: str | None = None,
+    ) -> ToolResult:
+        if self.skill_manager is None:
+            return ToolResult(
+                success=False,
+                output="",
+                error="Skill 系统未启用。",
+                metadata={"activation_type": activation_type},
+            )
+
+        definition = self.skill_manager.activate(name)
+        if definition is None:
+            return ToolResult(
+                success=False,
+                output="",
+                error=f"未知 Skill: {name}",
+                metadata={"activation_type": activation_type},
+            )
+
+        if self.memory_service is not None and hasattr(self.memory_service, "record_skill_usage"):
+            try:
+                self.memory_service.record_skill_usage(
+                    name,
+                    activation_type=activation_type,
+                    success=None,
+                    run_id=self.run_id,
+                )
+            except Exception:
+                logger.exception("记录 Skill 使用统计失败")
+        payload = {
+            "skill_name": name,
+            "activation_type": activation_type,
+        }
+        if reason:
+            payload["reason"] = reason
+        self._record_trace(TraceEventType.SKILL_MATCHED, payload)
+        return ToolResult(
+            success=True,
+            output=f"已激活 Skill: {name}",
+            metadata={"activation_type": activation_type, "skill_name": name},
+        )
 
     def _evaluate_tool_policy(
         self,
@@ -1006,10 +1207,10 @@ class Agent:
             logger.exception("更新 runtime run 状态失败")
 
 
-def _should_skip_pytest_env_mcp(servers: str) -> bool:
+def _should_skip_pytest_env_mcp(presets: str) -> bool:
     if "PYTEST_CURRENT_TEST" not in os.environ:
         return False
-    return any(marker in servers for marker in ('"command":"docker"', '"command":"uvx"', "workspace-mcp"))
+    return bool(presets.strip())
 
 
 def _call_accepts_keyword(callable_obj: Any, name: str) -> bool:

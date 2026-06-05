@@ -5,6 +5,7 @@ from openai import AsyncOpenAI
 
 from lifeops.llm.types import ChatResponse, Message
 from lifeops.tools.base import ToolDefinition
+from lifeops.tools.schema import openai_tool_schema, select_llm_tools
 from lifeops.utils.logging import get_logger
 from lifeops.utils.text import sanitize_unicode_data
 
@@ -32,25 +33,8 @@ class LLMClient:
         )
 
     def _build_tool_schemas(self, tools: list[ToolDefinition]) -> list[dict]:
-        schemas = []
-        for t in tools:
-            json_schema = t.parameters_model.model_json_schema()
-            parameters = {
-                "type": "object",
-                "properties": json_schema.get("properties", {}),
-                "required": json_schema.get("required", []),
-            }
-            schemas.append(
-                {
-                    "type": "function",
-                    "function": {
-                        "name": t.name,
-                        "description": t.description,
-                        "parameters": parameters,
-                    },
-                }
-            )
-        return schemas
+        selected_tools = select_llm_tools(tools)
+        return [openai_tool_schema(tool_def) for tool_def in selected_tools]
 
     async def chat(
         self,
@@ -115,6 +99,8 @@ class LLMClient:
             return
 
         buffers: dict[int, dict[str, str]] = {}
+        started_indexes: set[int] = set()
+        ready_indexes: set[int] = set()
         try:
             async for chunk in response:
                 if not chunk.choices:
@@ -133,16 +119,51 @@ class LLMClient:
                             buffers[idx]["id"] = tc.id
                         if tc.function.name:
                             buffers[idx]["name"] = tc.function.name
+                            if idx not in started_indexes:
+                                started_indexes.add(idx)
+                                yield {
+                                    "type": "tool_call_start",
+                                    "data": {
+                                        "id": buffers[idx].get("id"),
+                                        "index": idx,
+                                        "name": buffers[idx]["name"],
+                                    },
+                                }
                         if tc.function.arguments:
                             buffers[idx]["arguments"] += tc.function.arguments
 
+                        buf = buffers[idx]
+                        if (
+                            idx not in ready_indexes
+                            and buf.get("name")
+                            and buf.get("arguments")
+                        ):
+                            try:
+                                parsed_args = json.loads(buf["arguments"])
+                            except json.JSONDecodeError:
+                                parsed_args = None
+                            if isinstance(parsed_args, dict):
+                                ready_indexes.add(idx)
+                                yield {
+                                    "type": "tool_call_ready",
+                                    "data": {
+                                        "id": buf.get("id"),
+                                        "index": idx,
+                                        "name": buf["name"],
+                                        "args": parsed_args,
+                                    },
+                                }
+
             for idx in sorted(buffers):
                 buf = buffers[idx]
+                args = json.loads(buf["arguments"]) if buf["arguments"] else {}
                 yield {
                     "type": "tool_call",
                     "data": {
+                        "id": buf.get("id"),
+                        "index": idx,
                         "name": buf["name"],
-                        "args": json.loads(buf["arguments"]) if buf["arguments"] else {},
+                        "args": args,
                     },
                 }
         except Exception as e:

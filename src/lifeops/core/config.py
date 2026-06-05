@@ -80,6 +80,7 @@ class MCPConfig(BaseSettings):
     enabled: bool = True
     default_transport: str = "stdio"
     servers: str = ""
+    presets: str = ""
 
     model_config = {
         "env_prefix": "LIFEOPS_MCP_",

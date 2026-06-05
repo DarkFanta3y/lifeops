@@ -56,8 +56,9 @@ class SkillManager:
             logger.warning(f"尝试激活未知 Skill: {name}")
             return None
 
-        content = metadata.path.read_text(encoding="utf-8")
-        definition = SkillDefinition(metadata=metadata, content=content)
+        definition = self.prepare(name)
+        if definition is None:
+            return None
         if name in self.active_skill_names:
             self.active_skill_names = [
                 active_name for active_name in self.active_skill_names if active_name != name
@@ -71,6 +72,15 @@ class SkillManager:
             ContextLayer.L2,
         )
         return definition
+
+    def prepare(self, name: str) -> SkillDefinition | None:
+        metadata = self.catalog.skills.get(name)
+        if metadata is None:
+            logger.warning(f"尝试预热未知 Skill: {name}")
+            return None
+
+        content = metadata.path.read_text(encoding="utf-8")
+        return SkillDefinition(metadata=metadata, content=content)
 
     def clear_active(self) -> None:
         for name in list(self.active_skill_names):

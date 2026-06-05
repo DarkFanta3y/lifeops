@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from lifeops.tools.base import ToolDefinition, ToolHandler, ToolResult
+from lifeops.tools.schema import openai_tool_schema
 from lifeops.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -68,22 +69,4 @@ class ToolRegistry:
         definition.parameters_model.model_validate(params)
 
     def get_openai_tool_schemas(self) -> list[dict]:
-        schemas = []
-        for tool_def in self._definitions.values():
-            json_schema = tool_def.parameters_model.model_json_schema()
-            parameters = {
-                "type": "object",
-                "properties": json_schema.get("properties", {}),
-                "required": json_schema.get("required", []),
-            }
-            schemas.append(
-                {
-                    "type": "function",
-                    "function": {
-                        "name": tool_def.name,
-                        "description": tool_def.description,
-                        "parameters": parameters,
-                    },
-                }
-            )
-        return schemas
+        return [openai_tool_schema(tool_def) for tool_def in self._definitions.values()]

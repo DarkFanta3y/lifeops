@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from pydantic import Field
+
 from lifeops.tools.base import ToolDefinition, ToolParams, ToolResult
 from lifeops.tools.registry import ToolRegistry
 from lifeops.utils.logging import get_logger
@@ -11,10 +13,14 @@ logger = get_logger(__name__)
 
 
 class FileReadParams(ToolParams):
-    path: str
-    encoding: str = "utf-8"
-    offset: int = 1
-    limit: int = 2000
+    path: str = Field(
+        min_length=1,
+        pattern=r".+",
+        description="要读取的文件路径，或要列出的目录路径",
+    )
+    encoding: str = Field(default="utf-8", min_length=1, description="读取文件时使用的编码")
+    offset: int = Field(default=1, ge=1, description="从第几行开始读取，1 表示第一行")
+    limit: int = Field(default=2000, ge=1, le=5000, description="最多返回的行数")
 
 
 async def _file_read_handler(params: dict[str, Any]) -> ToolResult:
@@ -57,7 +63,7 @@ async def _file_read_handler(params: dict[str, Any]) -> ToolResult:
 def create_file_read_tool(registry: ToolRegistry) -> None:
     definition = ToolDefinition(
         name="file_read",
-        description="Read a file or list a directory",
+        description="何时调用：读取文件内容或列出目录。何时禁止：不要用于创建、替换、追加或删除文件。",
         parameters_model=FileReadParams,
         category="builtin",
         canonical_name="builtin.file_read",

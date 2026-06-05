@@ -33,6 +33,7 @@ from lifeops.tools.mcp.manager import MCPManager
 from lifeops.tools.mcp.types import MCPToolInfo
 from lifeops.tools.base import ToolResult
 from lifeops.tools.registry import ToolRegistry
+from lifeops.tools.schema import parameters_schema_from_model
 from lifeops.utils.logging import get_logger
 from lifeops.utils.logging import setup_logger
 from lifeops.web.title_summary import fallback_conversation_title, summarize_conversation_title
@@ -99,6 +100,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
     )
     app.state.tool_registry = app.state.services.base_tool_registry
     app.state.mcp_manager = app.state.services.mcp_manager
+    app.state.background_tasks = set()
     app.state.services_started = False
     app.state.mcp_started = False
 
@@ -330,6 +332,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
                 runtime_store=app.state.runtime_store,
                 run_id=run_id,
                 resume_from=resume_from,
+                background_tasks=app.state.background_tasks,
             ),
             media_type="text/event-stream",
         )
@@ -396,7 +399,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
                 "name": tool.name,
                 "description": tool.description,
                 "category": tool.category,
-                "parameters": _parameters_schema(tool.parameters_model.model_json_schema()),
+                "parameters": parameters_schema_from_model(tool.parameters_model),
             }
             for tool in registry.list_definitions()
         ]
@@ -423,8 +426,11 @@ def _create_agent_services(config: AppConfig) -> AgentServices:
     base_tool_registry = ToolRegistry()
     register_all_builtin_tools(base_tool_registry, config)
     mcp_manager = MCPManager()
-    if config.mcp.enabled and config.mcp.servers.strip():
-        mcp_manager.load_from_config(config.mcp.servers)
+    if config.mcp.enabled:
+        if config.mcp.servers.strip():
+            mcp_manager.load_from_config(config.mcp.servers)
+        if config.mcp.presets.strip() and "PYTEST_CURRENT_TEST" not in os.environ:
+            mcp_manager.load_presets(config.mcp.presets)
     llm = AgentLLMClient(
         api_key=config.llm.api_key,
         model=config.llm.model,
@@ -528,8 +534,7 @@ async def _ensure_mcp_initialized(app: FastAPI) -> None:
 def _should_skip_pytest_env_mcp(config: AppConfig) -> bool:
     if "PYTEST_CURRENT_TEST" not in os.environ:
         return False
-    servers = config.mcp.servers
-    return any(marker in servers for marker in ('"command":"docker"', '"command":"uvx"', "workspace-mcp"))
+    return bool(config.mcp.presets.strip())
 
 
 def _get_or_create_web_agent(
@@ -636,6 +641,64 @@ def _resolve_title_result(
     return fallback_conversation_title(first_user_message)
 
 
+def _schedule_background_task(
+    background_tasks: set[asyncio.Task],
+    coro: Any,
+    *,
+    name: str,
+) -> asyncio.Task:
+    task = asyncio.create_task(coro, name=name)
+    background_tasks.add(task)
+
+    def discard_and_log(completed_task: asyncio.Task) -> None:
+        background_tasks.discard(completed_task)
+        try:
+            completed_task.result()
+        except asyncio.CancelledError:
+            logger.warning("Web 后台任务已取消: %s", name)
+        except Exception:
+            logger.exception("Web 后台任务失败: %s", name)
+
+    task.add_done_callback(discard_and_log)
+    return task
+
+
+async def _persist_generated_title(
+    *,
+    title_task: asyncio.Task | None,
+    history_store: ConversationHistoryStoreSQLite,
+    conversation_id: str,
+    first_user_message: str,
+) -> None:
+    if title_task is None:
+        title = fallback_conversation_title(first_user_message)
+    else:
+        try:
+            title_result = await title_task
+        except Exception as exc:
+            title_result = exc
+        title = _resolve_title_result(first_user_message, title_result, conversation_id)
+    history_store.append_conversation_title(conversation_id, "web", title)
+
+
+async def _finalize_memory_in_background(
+    *,
+    memory_service: MemoryService,
+    conversation_id: str,
+    run_id: str | None,
+    trace_recorder: TraceRecorder | None,
+) -> None:
+    finalize = memory_service.finalize_conversation
+    if _call_accepts_keyword(finalize, "run_id"):
+        await finalize(
+            conversation_id,
+            run_id=run_id,
+            trace_recorder=trace_recorder,
+        )
+    else:
+        await finalize(conversation_id)
+
+
 async def _generate_sse_messages(
     *,
     agent: Agent,
@@ -649,9 +712,11 @@ async def _generate_sse_messages(
     runtime_store: RuntimeStore | None = None,
     run_id: str | None = None,
     resume_from: int | None = None,
+    background_tasks: set[asyncio.Task] | None = None,
 ):
     queue: asyncio.Queue[str] = asyncio.Queue()
     next_event_id = 0
+    previous_on_tool_prepare = getattr(agent, "on_tool_prepare", None)
     previous_on_tool_call = getattr(agent, "on_tool_call", None)
     previous_on_tool_result = getattr(agent, "on_tool_result", None)
     previous_on_token = getattr(agent, "on_token", None)
@@ -663,6 +728,29 @@ async def _generate_sse_messages(
         if not always_send and resume_from is not None and event_id <= resume_from:
             return None
         return _sse_line(event_type, data, event_id=event_id)
+
+    async def on_tool_prepare(
+        tool_name: str, params: dict[str, Any] | None, metadata: dict[str, Any]
+    ) -> None:
+        if metadata.get("kind") == "skill":
+            event_type = "skill_prepare"
+            payload = {
+                "skill_name": metadata.get("skill_name"),
+                "status": metadata.get("status"),
+            }
+        else:
+            event_type = "tool_prepare"
+            payload = {
+                "tool_name": tool_name,
+                "canonical_name": metadata.get("canonical_name"),
+                "status": metadata.get("status"),
+                "has_args": metadata.get("has_args", params is not None),
+            }
+        line = make_sse(event_type, payload)
+        if line is not None:
+            await queue.put(line)
+        if previous_on_tool_prepare is not None:
+            await previous_on_tool_prepare(tool_name, params, metadata)
 
     async def on_tool_call(tool_name: str, params: dict[str, Any]) -> None:
         line = make_sse(
@@ -708,11 +796,11 @@ async def _generate_sse_messages(
         if previous_on_token is not None:
             await previous_on_token(token)
 
+    agent.on_tool_prepare = on_tool_prepare
     agent.on_tool_call = on_tool_call
     agent.on_tool_result = on_tool_result
     agent.on_token = on_token
     run_task = asyncio.create_task(agent.run(user_message))
-    title: str | None = None
 
     try:
         while not run_task.done():
@@ -746,36 +834,49 @@ async def _generate_sse_messages(
             if line is not None:
                 yield line
 
+        if background_tasks is None:
+            background_tasks = set()
+
+        title: str | None = None
         if is_new_conversation:
-            if title_task is not None:
-                try:
-                    title_result = await title_task
-                except Exception as exc:
-                    title_result = exc
-                title = _resolve_title_result(first_user_message, title_result, conversation_id)
-            else:
-                title = fallback_conversation_title(first_user_message)
-            history_store.append_conversation_title(conversation_id, "web", title)
-        else:
-            title = await _backfill_conversation_title_if_missing(
-                history_store,
-                conversation_id,
-                agent.llm,
+            title = fallback_conversation_title(first_user_message)
+            _schedule_background_task(
+                background_tasks,
+                _persist_generated_title(
+                    title_task=title_task,
+                    history_store=history_store,
+                    conversation_id=conversation_id,
+                    first_user_message=first_user_message,
+                ),
+                name=f"web-title-{conversation_id}",
             )
+        else:
+            if not history_store.has_conversation_title(conversation_id):
+                existing_first_message = (
+                    history_store.get_first_user_message(conversation_id) or first_user_message
+                )
+                title = fallback_conversation_title(existing_first_message)
+                _schedule_background_task(
+                    background_tasks,
+                    _backfill_conversation_title_if_missing(
+                        history_store,
+                        conversation_id,
+                        agent.llm,
+                    ),
+                    name=f"web-title-backfill-{conversation_id}",
+                )
 
         if memory_service is not None:
-            try:
-                finalize = memory_service.finalize_conversation
-                if _call_accepts_keyword(finalize, "run_id"):
-                    await finalize(
-                        conversation_id,
-                        run_id=run_id,
-                        trace_recorder=agent.trace_recorder,
-                    )
-                else:
-                    await finalize(conversation_id)
-            except Exception:
-                logger.exception("Web SSE 结束时更新长期记忆失败")
+            _schedule_background_task(
+                background_tasks,
+                _finalize_memory_in_background(
+                    memory_service=memory_service,
+                    conversation_id=conversation_id,
+                    run_id=run_id,
+                    trace_recorder=agent.trace_recorder,
+                ),
+                name=f"web-memory-finalize-{conversation_id}",
+            )
 
         status_value = "completed"
         if runtime_store is not None and run_id is not None:
@@ -793,6 +894,7 @@ async def _generate_sse_messages(
             always_send=True,
         )
     finally:
+        agent.on_tool_prepare = previous_on_tool_prepare
         agent.on_tool_call = previous_on_tool_call
         agent.on_tool_result = previous_on_tool_result
         agent.on_token = previous_on_token
@@ -1037,11 +1139,14 @@ def _mcp_tool_payload(tool: MCPToolInfo) -> dict[str, Any]:
 
 
 def _parameters_schema(json_schema: dict[str, Any]) -> dict[str, Any]:
-    return {
+    parameters = {
         "type": "object",
         "properties": json_schema.get("properties", {}),
         "required": json_schema.get("required", []),
     }
+    if "additionalProperties" in json_schema:
+        parameters["additionalProperties"] = json_schema["additionalProperties"]
+    return parameters
 
 
 def _new_web_conversation_id() -> str:

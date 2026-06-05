@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+from pydantic import Field
+
 from lifeops.tools.base import ToolDefinition, ToolParams, ToolResult
 from lifeops.tools.registry import ToolRegistry
 from lifeops.utils.logging import get_logger
@@ -11,9 +13,17 @@ logger = get_logger(__name__)
 
 
 class BashParams(ToolParams):
-    command: str
-    timeout: int = 30
-    workdir: str | None = None
+    command: str = Field(
+        min_length=1,
+        description="只读诊断、测试或构建检查命令；不要传入联网、删除、重置、移动文件等危险命令。",
+    )
+    timeout: int = Field(default=30, ge=1, le=120, description="命令超时时间，单位秒")
+    workdir: str | None = Field(
+        default=None,
+        min_length=1,
+        pattern=r".+",
+        description="可选工作目录路径",
+    )
 
 
 async def _bash_handler(params: dict[str, Any]) -> ToolResult:
@@ -50,7 +60,10 @@ async def _bash_handler(params: dict[str, Any]) -> ToolResult:
 def create_bash_tool(registry: ToolRegistry) -> None:
     definition = ToolDefinition(
         name="bash",
-        description="Execute a bash command and return the output",
+        description=(
+            "何时调用：只读诊断、运行测试、构建或代码检查。何时禁止：不要用于联网下载、安装依赖、"
+            "删除/覆盖文件、git reset、推送、权限提升或任何破坏性命令。"
+        ),
         parameters_model=BashParams,
         category="builtin",
         canonical_name="builtin.bash",

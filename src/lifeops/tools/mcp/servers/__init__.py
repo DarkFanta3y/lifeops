@@ -12,12 +12,18 @@ from lifeops.tools.mcp.servers.mcp_12306 import (
     create_12306_mcp_config,
     get_12306_mcp_server_name,
 )
+from lifeops.tools.mcp.servers.presets import (
+    create_no_key_mcp_preset_configs,
+    get_no_key_mcp_preset_names,
+)
 
 __all__ = [
     "create_12306_mcp_config",
     "create_github_mcp_config",
     "create_google_workspace_mcp_config",
+    "create_no_key_mcp_preset_configs",
     "get_12306_mcp_server_name",
     "get_github_mcp_server_name",
     "get_google_workspace_mcp_server_name",
+    "get_no_key_mcp_preset_names",
 ]

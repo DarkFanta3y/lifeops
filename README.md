@@ -20,7 +20,7 @@ LifeOps 是一个本地优先的 AI 生活助手智能体。它把流式对话�
 
 ## 功能亮点
 
-- **流式 AI 对话**：后端通过 SSE 逐 token 返回，前端实时渲染回复，主消息流只保留用户输入和最终回答。
+- **流式 AI 对话**：后端通过 SSE 逐 token 返回，前端实时渲染回复；LLM 流式工具参数到齐前会先发送安全预热事件，主消息流只保留用户输入和最终回答。
 - **本地 Web 控制台**：React + Ant Design 控制台提供聊天、历史、Skill、工具、记忆和日志入口。
 - **会话历史管理**：本地保存会话消息和中文短标题，支持按标题搜索、查看详情和删除会话。
 - **工具调用 Logging**：工具调用、工具结果和中间信息进入独立 Logging 弹窗，不打断对话阅读。
@@ -40,11 +40,13 @@ LifeOps 是一个本地优先的 AI 生活助手智能体。它把流式对话�
 
 工具结果不会简单拼接到回答里，而是进入上下文管理器和历史记录。这样模型可以基于真实执行结果继续推理，前端也能完整展示调用轨迹。
 
+LLM 流式输出工具调用时，Agent 会监听工具名和参数增量：识别工具名后只做无副作用预热，参数可解析为 JSON 后补齐参数元数据；真正执行仍必须等完整 tool call 进入现有策略网关和工具执行流程。
+
 ### Runtime Trace 与工具策略
 
 Web API 会为每次 `/api/chat` 创建独立 `run_id`，并记录 `run_started`、LLM 调用、检索路由、工具请求、工具策略决策、上下文压缩、完成或失败等 trace event。可通过 `GET /api/runs/{run_id}` 查询一次运行的状态和事件，通过 `GET /api/conversations/{conversation_id}/runs` 查看会话下的运行历史。
 
-工具执行前会经过 `ToolPolicyEngine`。只读工具默认允许，高风险 `bash`、`file_edit` 和 MCP 工具默认保守处理；危险命令会被拒绝，`ask` 决策在首期不会自动执行工具。`GET /api/tools/policy` 可查看当前策略摘要。
+工具执行前会经过 `ToolPolicyEngine`。只读工具默认允许，高风险 `bash`、文件写入工具和 MCP 工具默认保守处理；危险命令会被拒绝，`ask` 决策在首期不会自动执行工具。`GET /api/tools/policy` 可查看当前策略摘要。
 
 Runtime 还把 LLM 解析失败、工具失败、策略拒绝、RAG 失败和迭代上限等情况分类写入 trace。离线 eval 覆盖普通问答、危险工具拒绝等核心路径，避免后续 prompt、policy 或 memory 改动破坏基础可靠性。
 
@@ -79,7 +81,7 @@ curl http://127.0.0.1:8081/api/tools/policy
 
 ![本地 Markdown RAG](assets/rag.png)
 
-RAG 系统会把本地 Markdown 知识库索引到 ChromaDB 与 BM25。回答前，Agent 会判断是否需要调用 `retrieve_knowledge`，并根据问题路由到合适的数据目录；本地资料不足时，仍可继续补充网页搜索。
+RAG 系统会把本地 Markdown 知识库索引到 ChromaDB 与 BM25。回答前，Agent 会判断是否需要调用 `retrieve_knowledge`，并根据问题路由到合适的数据目录；检索时会并行执行向量检索与 BM25，再进行 RRF 融合和 reranker 精排；本地资料不足时，仍可继续补充网页搜索。
 
 返回结果按父 Markdown 文件聚合，并保留证据片段。Markdown 中的本地图片会通过只读资源接口安全展示在前端消息里。
 
@@ -97,9 +99,11 @@ LifeOps 的主要入口是本地 Web 控制台。后端由 FastAPI 提供会话�
 
 ### 对话与历史
 
-聊天界面固定在视口内，侧边栏用于新建对话、搜索标题和切换历史会话。新会话完成后会自动生成中文短标题；已有会话如果缺少标题，也会在加载或继续对话时补齐。
+聊天界面固定在视口内，侧边栏用于新建对话、搜索标题和切换历史会话。新会话的 `done` 事件会先返回基于首条用户消息的即时标题，真实中文短标题在后台生成并写入历史；已有会话如果缺少标题，也会在继续对话后后台补齐。
 
 主消息流专注于最终对话内容。工具调用记录、检索预编排、执行结果和其他中间信息会归档到 Logging 弹窗里，便于需要排查时查看，也避免工具细节淹没最终回答。
+
+SSE 兼容原有 `token`、`tool_call`、`tool_result` 和 `done` 事件，并新增 `tool_prepare` 与 `skill_prepare` 事件用于调试面板观察预热状态；现有前端可以继续忽略这些新增事件。最终 token 发出后，`done` 会尽快关闭连接，短标题落库和长期记忆学习会通过后台任务继续完成。
 
 ![工具调用 Logging](assets/logging.png)
 
@@ -107,13 +111,19 @@ LifeOps 的主要入口是本地 Web 控制台。后端由 FastAPI 提供会话�
 
 `SKILLS` 页面展示当前发现的 Skill 名称、描述和来源。LifeOps 会扫描项目级 `.lifeops/skills/` 与用户级 `~/.lifeops/skills/`，并在对话中根据显式 `$skill-name` 或隐式语义匹配按需激活。
 
+Skill 系统启用时，Agent 会额外暴露只读低风险内部工具 `activate_skill`。模型可通过该伪工具请求激活目录中的 Skill；流式阶段只预读取并校验 Skill，最终工具执行成功后才把完整 Skill 正文注入 L2 上下文并写入 Skill 使用 trace。
+
 控制台也支持通过刷新按钮旁的加号新增项目级 Skill，保存为 `.lifeops/skills/<name>/SKILL.md`，适合把稳定的个人流程沉淀成可复用能力。
 
 ### Tools 与 MCP
 
-`TOOLS` 页面默认展示内置工具，包括命令执行、文件读取、文件编辑、网页搜索和本地知识库检索。切换到 `MCP` 后，可以按 Server 展开查看已连接 MCP 工具及参数。
+`TOOLS` 页面默认展示内置工具，包括命令执行、文件读取、简单文件创建/替换/追加、legacy 文件编辑、网页搜索和本地知识库检索。工具参数 schema 会保留 `minLength`、`minimum`、`maximum`、`enum`、`pattern`、`additionalProperties: false` 等约束，便于前端展示和模型调用校验。切换到 `MCP` 后，可以按 Server 展开查看已连接 MCP 工具及参数。
 
-Agent 运行时不需要区分工具来源。内置工具和 MCP 工具都会注册到统一工具表中，由模型按任务需要选择调用，执行结果再写入上下文和 Logging。
+Agent 运行时不需要区分工具来源。内置工具、MCP 工具和内部 Skill 伪工具都会注册到统一工具表中，执行层始终保留完整 registry，执行结果再写入上下文和 Logging。`/api/tools` 仍返回完整工具清单，便于管理和调试。
+
+发送给 LLM 的 `tools` 数组会在每轮请求前动态裁剪到最多 20 个：核心内置工具优先保留，MCP 工具会按用户输入、已激活 Skill、Skill `allowed-tools`、工具名/描述和常见 server 领域词做确定性匹配，只暴露本轮相关的 MCP 工具。这样可以在保留完整 MCP 能力的同时减少模型工具选择噪声。
+
+除了手写 `LIFEOPS_MCP_SERVERS` JSON，LifeOps 也支持 `LIFEOPS_MCP_PRESETS` 启用无需 API Key 的基础 MCP 能力。推荐基础组合是 `context7,playwright,memory,sequential_thinking,filesystem`，分别用于库文档查询、浏览器自动化、本地记忆、结构化推理和受限文件访问。已有同名手写 Server 会优先于预设，不会被覆盖。
 
 
 

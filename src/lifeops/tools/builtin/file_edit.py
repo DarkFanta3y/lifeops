@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Literal
 
+from pydantic import Field
+
 from lifeops.tools.base import ToolDefinition, ToolParams, ToolResult
 from lifeops.tools.registry import ToolRegistry
 from lifeops.utils.logging import get_logger
@@ -11,10 +13,10 @@ logger = get_logger(__name__)
 
 
 class FileEditParams(ToolParams):
-    path: str
+    path: str = Field(min_length=1, pattern=r".+")
     operation: Literal["create", "replace", "append"]
-    content: str | None = None
-    old_text: str | None = None
+    content: str | None = Field(default=None, min_length=1)
+    old_text: str | None = Field(default=None, min_length=1)
     new_text: str | None = None
 
 
@@ -68,7 +70,10 @@ async def _file_edit_handler(params: dict[str, Any]) -> ToolResult:
 def create_file_edit_tool(registry: ToolRegistry) -> None:
     definition = ToolDefinition(
         name="file_edit",
-        description="Create, replace text, or append to files",
+        description=(
+            "Legacy 复杂文件编辑工具。何时调用：仅在简单工具 file_create/file_replace/file_append "
+            "不能表达需求时使用。何时禁止：优先不要暴露给 LLM；能用简单文件工具时不要使用。"
+        ),
         parameters_model=FileEditParams,
         category="builtin",
         canonical_name="builtin.file_edit",
