@@ -24,5 +24,6 @@ PROJECT.md.ecc-hooks-disable
 .ecc-hooks-disable
 .codex
 .sisyphus/
+.understand-anything/
 models/
 conversations.db
