@@ -33,6 +33,17 @@ export function fetchConversation(conversationId, limit = null, offset = null) {
   return request(`/api/conversations/${conversationId}${qs ? `?${qs}` : ""}`);
 }
 
+export function fetchConversationCursor(conversationId, limit = 50, beforeId = null) {
+  const params = new URLSearchParams();
+  params.set("limit", limit);
+  if (beforeId === null) {
+    params.set("latest", "true");
+  } else {
+    params.set("before_id", beforeId);
+  }
+  return request(`/api/conversations/${conversationId}?${params.toString()}`);
+}
+
 export function searchMessages(query, limit = 20, offset = 0) {
   const params = new URLSearchParams();
   params.set("q", query);

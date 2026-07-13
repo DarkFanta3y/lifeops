@@ -1,0 +1,1769 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 10,
+  "filesSkipped": [],
+  "results": [
+    {
+      "path": "src/lifeops/tools/mcp/__init__.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 30,
+      "nonEmptyLines": 28,
+      "metrics": {
+        "importCount": 4,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/lifeops/tools/mcp/adapter.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 118,
+      "nonEmptyLines": 89,
+      "functions": [
+        {
+          "name": "_json_schema_type_to_python",
+          "startLine": 105,
+          "endLine": 118,
+          "params": [
+            "schema"
+          ]
+        }
+      ],
+      "classes": [
+        {
+          "name": "MCPRegistryAdapter",
+          "startLine": 16,
+          "endLine": 102,
+          "methods": [
+            "__init__",
+            "register_tools",
+            "unregister_tools",
+            "_build_handler",
+            "_build_params_model"
+          ],
+          "properties": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "MCPRegistryAdapter",
+          "line": 16,
+          "isDefault": false
+        },
+        {
+          "name": "_json_schema_type_to_python",
+          "line": 105,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "register_tools",
+          "callee": "is_conflicting_name",
+          "lineNumber": 33
+        },
+        {
+          "caller": "register_tools",
+          "callee": "logger.warning",
+          "lineNumber": 34
+        },
+        {
+          "caller": "register_tools",
+          "callee": "self._build_params_model",
+          "lineNumber": 37
+        },
+        {
+          "caller": "register_tools",
+          "callee": "self._build_handler",
+          "lineNumber": 38
+        },
+        {
+          "caller": "register_tools",
+          "callee": "ToolDefinition",
+          "lineNumber": 40
+        },
+        {
+          "caller": "register_tools",
+          "callee": "self._registry.register",
+          "lineNumber": 49
+        },
+        {
+          "caller": "register_tools",
+          "callee": "registered.append",
+          "lineNumber": 50
+        },
+        {
+          "caller": "unregister_tools",
+          "callee": "self._registry._handlers.pop",
+          "lineNumber": 60
+        },
+        {
+          "caller": "unregister_tools",
+          "callee": "logger.warning",
+          "lineNumber": 62
+        },
+        {
+          "caller": "handler",
+          "callee": "self._client.call_tool",
+          "lineNumber": 68
+        },
+        {
+          "caller": "_build_params_model",
+          "callee": "schema.get",
+          "lineNumber": 78
+        },
+        {
+          "caller": "_build_params_model",
+          "callee": "set",
+          "lineNumber": 79
+        },
+        {
+          "caller": "_build_params_model",
+          "callee": "schema.get",
+          "lineNumber": 79
+        },
+        {
+          "caller": "_build_params_model",
+          "callee": "type",
+          "lineNumber": 84
+        },
+        {
+          "caller": "_build_params_model",
+          "callee": "properties.items",
+          "lineNumber": 87
+        },
+        {
+          "caller": "_build_params_model",
+          "callee": "_json_schema_type_to_python",
+          "lineNumber": 88
+        },
+        {
+          "caller": "_build_params_model",
+          "callee": "create_model",
+          "lineNumber": 98
+        },
+        {
+          "caller": "_json_schema_type_to_python",
+          "callee": "schema.get",
+          "lineNumber": 107
+        },
+        {
+          "caller": "_json_schema_type_to_python",
+          "callee": "type_map.get",
+          "lineNumber": 118
+        }
+      ],
+      "metrics": {
+        "importCount": 5,
+        "exportCount": 2,
+        "functionCount": 1,
+        "classCount": 1
+      }
+    },
+    {
+      "path": "src/lifeops/tools/mcp/client.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 422,
+      "nonEmptyLines": 348,
+      "functions": [
+        {
+          "name": "_extract_text_from_content",
+          "startLine": 400,
+          "endLine": 409,
+          "params": [
+            "content"
+          ]
+        },
+        {
+          "name": "_get_default_environment",
+          "startLine": 415,
+          "endLine": 422,
+          "params": []
+        }
+      ],
+      "classes": [
+        {
+          "name": "MCPClient",
+          "startLine": 30,
+          "endLine": 397,
+          "methods": [
+            "__init__",
+            "connect",
+            "_setup_memory_streams",
+            "_start_process",
+            "_build_env",
+            "_start_io_tasks",
+            "_stdout_reader",
+            "_stdin_writer",
+            "close",
+            "_cleanup",
+            "_terminate_process",
+            "_cancel_io_tasks",
+            "_close_streams",
+            "__aenter__",
+            "__aexit__",
+            "list_tools",
+            "read_resource",
+            "get_prompt",
+            "list_resources",
+            "list_prompts",
+            "call_tool",
+            "_ensure_connected"
+          ],
+          "properties": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "MCPClient",
+          "line": 30,
+          "isDefault": false
+        },
+        {
+          "name": "_extract_text_from_content",
+          "line": 400,
+          "isDefault": false
+        },
+        {
+          "name": "_get_default_environment",
+          "line": 415,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "connect",
+          "callee": "self._setup_memory_streams",
+          "lineNumber": 64
+        },
+        {
+          "caller": "connect",
+          "callee": "self._start_process",
+          "lineNumber": 65
+        },
+        {
+          "caller": "connect",
+          "callee": "self._start_io_tasks",
+          "lineNumber": 66
+        },
+        {
+          "caller": "connect",
+          "callee": "ClientSession",
+          "lineNumber": 68
+        },
+        {
+          "caller": "connect",
+          "callee": "session.__aenter__",
+          "lineNumber": 69
+        },
+        {
+          "caller": "connect",
+          "callee": "self._session.initialize",
+          "lineNumber": 71
+        },
+        {
+          "caller": "connect",
+          "callee": "logger.exception",
+          "lineNumber": 77
+        },
+        {
+          "caller": "connect",
+          "callee": "self._cleanup",
+          "lineNumber": 78
+        },
+        {
+          "caller": "_setup_memory_streams",
+          "callee": "anyio.create_memory_object_stream",
+          "lineNumber": 83
+        },
+        {
+          "caller": "_setup_memory_streams",
+          "callee": "anyio.create_memory_object_stream",
+          "lineNumber": 84
+        },
+        {
+          "caller": "_start_process",
+          "callee": "self._build_env",
+          "lineNumber": 88
+        },
+        {
+          "caller": "_start_process",
+          "callee": "anyio.open_process",
+          "lineNumber": 89
+        },
+        {
+          "caller": "_build_env",
+          "callee": "_get_default_environment",
+          "lineNumber": 98
+        },
+        {
+          "caller": "_build_env",
+          "callee": "base.update",
+          "lineNumber": 100
+        },
+        {
+          "caller": "_start_io_tasks",
+          "callee": "asyncio.get_running_loop",
+          "lineNumber": 105
+        },
+        {
+          "caller": "_start_io_tasks",
+          "callee": "loop.create_task",
+          "lineNumber": 106
+        },
+        {
+          "caller": "_start_io_tasks",
+          "callee": "self._stdout_reader",
+          "lineNumber": 106
+        },
+        {
+          "caller": "_start_io_tasks",
+          "callee": "loop.create_task",
+          "lineNumber": 107
+        },
+        {
+          "caller": "_start_io_tasks",
+          "callee": "self._stdin_writer",
+          "lineNumber": 107
+        },
+        {
+          "caller": "_stdout_reader",
+          "callee": "TextReceiveStream",
+          "lineNumber": 118
+        },
+        {
+          "caller": "_stdout_reader",
+          "callee": "(buffer + chunk).split",
+          "lineNumber": 119
+        },
+        {
+          "caller": "_stdout_reader",
+          "callee": "lines.pop",
+          "lineNumber": 120
+        },
+        {
+          "caller": "_stdout_reader",
+          "callee": "mcp_types.JSONRPCMessage.model_validate_json",
+          "lineNumber": 124
+        },
+        {
+          "caller": "_stdout_reader",
+          "callee": "logger.exception",
+          "lineNumber": 126
+        },
+        {
+          "caller": "_stdout_reader",
+          "callee": "self._read_stream_writer.send",
+          "lineNumber": 127
+        },
+        {
+          "caller": "_stdout_reader",
+          "callee": "ValueError",
+          "lineNumber": 128
+        },
+        {
+          "caller": "_stdout_reader",
+          "callee": "SessionMessage",
+          "lineNumber": 132
+        },
+        {
+          "caller": "_stdout_reader",
+          "callee": "self._read_stream_writer.send",
+          "lineNumber": 133
+        },
+        {
+          "caller": "_stdout_reader",
+          "callee": "anyio.lowlevel.checkpoint",
+          "lineNumber": 135
+        },
+        {
+          "caller": "_stdin_writer",
+          "callee": "session_message.message.model_dump_json",
+          "lineNumber": 146
+        },
+        {
+          "caller": "_stdin_writer",
+          "callee": "self._process.stdin.send",
+          "lineNumber": 149
+        },
+        {
+          "caller": "_stdin_writer",
+          "callee": "(json_str + \"\\n\").encode",
+          "lineNumber": 149
+        },
+        {
+          "caller": "_stdin_writer",
+          "callee": "anyio.lowlevel.checkpoint",
+          "lineNumber": 151
+        },
+        {
+          "caller": "close",
+          "callee": "self._cleanup",
+          "lineNumber": 155
+        },
+        {
+          "caller": "_cleanup",
+          "callee": "self._session.__aexit__",
+          "lineNumber": 161
+        },
+        {
+          "caller": "_cleanup",
+          "callee": "logger.debug",
+          "lineNumber": 163
+        },
+        {
+          "caller": "_cleanup",
+          "callee": "self._tools.clear",
+          "lineNumber": 166
+        },
+        {
+          "caller": "_cleanup",
+          "callee": "self._resources.clear",
+          "lineNumber": 167
+        },
+        {
+          "caller": "_cleanup",
+          "callee": "self._prompts.clear",
+          "lineNumber": 168
+        },
+        {
+          "caller": "_cleanup",
+          "callee": "self._terminate_process",
+          "lineNumber": 170
+        },
+        {
+          "caller": "_cleanup",
+          "callee": "self._cancel_io_tasks",
+          "lineNumber": 171
+        },
+        {
+          "caller": "_cleanup",
+          "callee": "self._close_streams",
+          "lineNumber": 172
+        },
+        {
+          "caller": "_terminate_process",
+          "callee": "self._process.stdin.aclose",
+          "lineNumber": 183
+        },
+        {
+          "caller": "_terminate_process",
+          "callee": "anyio.fail_after",
+          "lineNumber": 188
+        },
+        {
+          "caller": "_terminate_process",
+          "callee": "self._process.wait",
+          "lineNumber": 189
+        },
+        {
+          "caller": "_terminate_process",
+          "callee": "self._process.kill",
+          "lineNumber": 191
+        },
+        {
+          "caller": "_terminate_process",
+          "callee": "self._process.wait",
+          "lineNumber": 192
+        },
+        {
+          "caller": "_cancel_io_tasks",
+          "callee": "task.done",
+          "lineNumber": 199
+        },
+        {
+          "caller": "_cancel_io_tasks",
+          "callee": "task.cancel",
+          "lineNumber": 200
+        },
+        {
+          "caller": "_close_streams",
+          "callee": "stream.aclose",
+          "lineNumber": 218
+        },
+        {
+          "caller": "__aenter__",
+          "callee": "self.connect",
+          "lineNumber": 228
+        },
+        {
+          "caller": "__aexit__",
+          "callee": "self.close",
+          "lineNumber": 232
+        },
+        {
+          "caller": "list_tools",
+          "callee": "self._ensure_connected",
+          "lineNumber": 235
+        },
+        {
+          "caller": "list_tools",
+          "callee": "self._session.list_tools",
+          "lineNumber": 238
+        },
+        {
+          "caller": "list_tools",
+          "callee": "MCPToolInfo",
+          "lineNumber": 241
+        },
+        {
+          "caller": "read_resource",
+          "callee": "self._ensure_connected",
+          "lineNumber": 258
+        },
+        {
+          "caller": "read_resource",
+          "callee": "self._session.read_resource",
+          "lineNumber": 261
+        },
+        {
+          "caller": "read_resource",
+          "callee": "mcp_types.AnyUrl",
+          "lineNumber": 262
+        },
+        {
+          "caller": "read_resource",
+          "callee": "isinstance",
+          "lineNumber": 267
+        },
+        {
+          "caller": "read_resource",
+          "callee": "texts.append",
+          "lineNumber": 268
+        },
+        {
+          "caller": "read_resource",
+          "callee": "isinstance",
+          "lineNumber": 269
+        },
+        {
+          "caller": "read_resource",
+          "callee": "texts.append",
+          "lineNumber": 270
+        },
+        {
+          "caller": "read_resource",
+          "callee": "texts.append",
+          "lineNumber": 272
+        },
+        {
+          "caller": "read_resource",
+          "callee": "content.model_dump_json",
+          "lineNumber": 272
+        },
+        {
+          "caller": "read_resource",
+          "callee": "\"\\n\".join",
+          "lineNumber": 274
+        },
+        {
+          "caller": "get_prompt",
+          "callee": "self._ensure_connected",
+          "lineNumber": 283
+        },
+        {
+          "caller": "get_prompt",
+          "callee": "self._session.get_prompt",
+          "lineNumber": 286
+        },
+        {
+          "caller": "get_prompt",
+          "callee": "parts.append",
+          "lineNumber": 293
+        },
+        {
+          "caller": "get_prompt",
+          "callee": "isinstance",
+          "lineNumber": 298
+        },
+        {
+          "caller": "get_prompt",
+          "callee": "parts.append",
+          "lineNumber": 299
+        },
+        {
+          "caller": "get_prompt",
+          "callee": "parts.append",
+          "lineNumber": 301
+        },
+        {
+          "caller": "get_prompt",
+          "callee": "content.model_dump_json",
+          "lineNumber": 301
+        },
+        {
+          "caller": "get_prompt",
+          "callee": "\"\\n\\n\".join",
+          "lineNumber": 303
+        },
+        {
+          "caller": "list_resources",
+          "callee": "self._ensure_connected",
+          "lineNumber": 306
+        },
+        {
+          "caller": "list_resources",
+          "callee": "self._session.list_resources",
+          "lineNumber": 309
+        },
+        {
+          "caller": "list_resources",
+          "callee": "MCPResourceInfo",
+          "lineNumber": 312
+        },
+        {
+          "caller": "list_resources",
+          "callee": "str",
+          "lineNumber": 314
+        },
+        {
+          "caller": "list_prompts",
+          "callee": "self._ensure_connected",
+          "lineNumber": 325
+        },
+        {
+          "caller": "list_prompts",
+          "callee": "self._session.list_prompts",
+          "lineNumber": 328
+        },
+        {
+          "caller": "list_prompts",
+          "callee": "MCPPromptInfo",
+          "lineNumber": 331
+        },
+        {
+          "caller": "call_tool",
+          "callee": "self._ensure_connected",
+          "lineNumber": 356
+        },
+        {
+          "caller": "call_tool",
+          "callee": "logger.info",
+          "lineNumber": 360
+        },
+        {
+          "caller": "call_tool",
+          "callee": "self._session.call_tool",
+          "lineNumber": 361
+        },
+        {
+          "caller": "call_tool",
+          "callee": "logger.warning",
+          "lineNumber": 366
+        },
+        {
+          "caller": "call_tool",
+          "callee": "self._cleanup",
+          "lineNumber": 367
+        },
+        {
+          "caller": "call_tool",
+          "callee": "self.connect",
+          "lineNumber": 368
+        },
+        {
+          "caller": "call_tool",
+          "callee": "self._manager.re_register_tools",
+          "lineNumber": 369
+        },
+        {
+          "caller": "call_tool",
+          "callee": "logger.info",
+          "lineNumber": 370
+        },
+        {
+          "caller": "call_tool",
+          "callee": "self._session.call_tool",
+          "lineNumber": 371
+        },
+        {
+          "caller": "call_tool",
+          "callee": "logger.exception",
+          "lineNumber": 376
+        },
+        {
+          "caller": "call_tool",
+          "callee": "ToolResult",
+          "lineNumber": 377
+        },
+        {
+          "caller": "call_tool",
+          "callee": "str",
+          "lineNumber": 377
+        },
+        {
+          "caller": "call_tool",
+          "callee": "_extract_text_from_content",
+          "lineNumber": 380
+        },
+        {
+          "caller": "call_tool",
+          "callee": "ToolResult",
+          "lineNumber": 381
+        },
+        {
+          "caller": "call_tool",
+          "callee": "_extract_text_from_content",
+          "lineNumber": 387
+        },
+        {
+          "caller": "call_tool",
+          "callee": "logger.info",
+          "lineNumber": 388
+        },
+        {
+          "caller": "call_tool",
+          "callee": "ToolResult",
+          "lineNumber": 389
+        },
+        {
+          "caller": "_ensure_connected",
+          "callee": "RuntimeError",
+          "lineNumber": 397
+        },
+        {
+          "caller": "_extract_text_from_content",
+          "callee": "isinstance",
+          "lineNumber": 404
+        },
+        {
+          "caller": "_extract_text_from_content",
+          "callee": "parts.append",
+          "lineNumber": 405
+        },
+        {
+          "caller": "_extract_text_from_content",
+          "callee": "parts.append",
+          "lineNumber": 407
+        },
+        {
+          "caller": "_extract_text_from_content",
+          "callee": "block.model_dump_json",
+          "lineNumber": 407
+        },
+        {
+          "caller": "_extract_text_from_content",
+          "callee": "sanitize_unicode_text",
+          "lineNumber": 409
+        },
+        {
+          "caller": "_extract_text_from_content",
+          "callee": "\"\\n\".join",
+          "lineNumber": 409
+        },
+        {
+          "caller": "_get_default_environment",
+          "callee": "os.environ.get",
+          "lineNumber": 419
+        },
+        {
+          "caller": "_get_default_environment",
+          "callee": "value.startswith",
+          "lineNumber": 420
+        }
+      ],
+      "metrics": {
+        "importCount": 5,
+        "exportCount": 3,
+        "functionCount": 2,
+        "classCount": 1
+      }
+    },
+    {
+      "path": "src/lifeops/tools/mcp/manager.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 235,
+      "nonEmptyLines": 191,
+      "classes": [
+        {
+          "name": "MCPServerStatus",
+          "startLine": 13,
+          "endLine": 18,
+          "methods": [],
+          "properties": []
+        },
+        {
+          "name": "MCPManager",
+          "startLine": 21,
+          "endLine": 235,
+          "methods": [
+            "__init__",
+            "add_server",
+            "remove_server",
+            "load_from_config",
+            "load_presets",
+            "get_server",
+            "get_status",
+            "list_servers",
+            "connect_and_register_all",
+            "connect_server",
+            "disconnect_server",
+            "disconnect_all",
+            "re_register_tools",
+            "get_client",
+            "list_mcp_resources",
+            "list_mcp_prompts",
+            "read_resource",
+            "get_prompt"
+          ],
+          "properties": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "MCPServerStatus",
+          "line": 13,
+          "isDefault": false
+        },
+        {
+          "name": "MCPManager",
+          "line": 21,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "add_server",
+          "callee": "logger.warning",
+          "lineNumber": 36
+        },
+        {
+          "caller": "remove_server",
+          "callee": "logger.warning",
+          "lineNumber": 46
+        },
+        {
+          "caller": "remove_server",
+          "callee": "self._status.pop",
+          "lineNumber": 49
+        },
+        {
+          "caller": "load_from_config",
+          "callee": "servers_raw.strip",
+          "lineNumber": 56
+        },
+        {
+          "caller": "load_from_config",
+          "callee": "json.loads",
+          "lineNumber": 60
+        },
+        {
+          "caller": "load_from_config",
+          "callee": "logger.error",
+          "lineNumber": 62
+        },
+        {
+          "caller": "load_from_config",
+          "callee": "isinstance",
+          "lineNumber": 65
+        },
+        {
+          "caller": "load_from_config",
+          "callee": "logger.error",
+          "lineNumber": 66
+        },
+        {
+          "caller": "load_from_config",
+          "callee": "raw_config.items",
+          "lineNumber": 70
+        },
+        {
+          "caller": "load_from_config",
+          "callee": "isinstance",
+          "lineNumber": 71
+        },
+        {
+          "caller": "load_from_config",
+          "callee": "logger.warning",
+          "lineNumber": 72
+        },
+        {
+          "caller": "load_from_config",
+          "callee": "MCPServerConfig",
+          "lineNumber": 75
+        },
+        {
+          "caller": "load_from_config",
+          "callee": "loaded.append",
+          "lineNumber": 78
+        },
+        {
+          "caller": "load_from_config",
+          "callee": "logger.error",
+          "lineNumber": 80
+        },
+        {
+          "caller": "load_presets",
+          "callee": "create_no_key_mcp_preset_configs(presets).items",
+          "lineNumber": 89
+        },
+        {
+          "caller": "load_presets",
+          "callee": "create_no_key_mcp_preset_configs",
+          "lineNumber": 89
+        },
+        {
+          "caller": "load_presets",
+          "callee": "logger.info",
+          "lineNumber": 91
+        },
+        {
+          "caller": "load_presets",
+          "callee": "loaded.append",
+          "lineNumber": 95
+        },
+        {
+          "caller": "get_server",
+          "callee": "self._servers.get",
+          "lineNumber": 99
+        },
+        {
+          "caller": "get_status",
+          "callee": "self._status.get",
+          "lineNumber": 103
+        },
+        {
+          "caller": "list_servers",
+          "callee": "list",
+          "lineNumber": 106
+        },
+        {
+          "caller": "list_servers",
+          "callee": "self._servers.keys",
+          "lineNumber": 106
+        },
+        {
+          "caller": "connect_and_register_all",
+          "callee": "self.list_servers",
+          "lineNumber": 118
+        },
+        {
+          "caller": "connect_and_register_all",
+          "callee": "self.connect_server",
+          "lineNumber": 120
+        },
+        {
+          "caller": "connect_and_register_all",
+          "callee": "self.get_client",
+          "lineNumber": 121
+        },
+        {
+          "caller": "connect_and_register_all",
+          "callee": "client.list_tools",
+          "lineNumber": 127
+        },
+        {
+          "caller": "connect_and_register_all",
+          "callee": "MCPRegistryAdapter",
+          "lineNumber": 129
+        },
+        {
+          "caller": "connect_and_register_all",
+          "callee": "adapter.register_tools",
+          "lineNumber": 130
+        },
+        {
+          "caller": "connect_and_register_all",
+          "callee": "len",
+          "lineNumber": 131
+        },
+        {
+          "caller": "connect_and_register_all",
+          "callee": "logger.exception",
+          "lineNumber": 133
+        },
+        {
+          "caller": "connect_and_register_all",
+          "callee": "logger.info",
+          "lineNumber": 135
+        },
+        {
+          "caller": "connect_server",
+          "callee": "logger.warning",
+          "lineNumber": 144
+        },
+        {
+          "caller": "connect_server",
+          "callee": "logger.warning",
+          "lineNumber": 147
+        },
+        {
+          "caller": "connect_server",
+          "callee": "MCPClient",
+          "lineNumber": 152
+        },
+        {
+          "caller": "connect_server",
+          "callee": "client.connect",
+          "lineNumber": 154
+        },
+        {
+          "caller": "connect_server",
+          "callee": "logger.exception",
+          "lineNumber": 157
+        },
+        {
+          "caller": "disconnect_server",
+          "callee": "self._clients.pop",
+          "lineNumber": 162
+        },
+        {
+          "caller": "disconnect_server",
+          "callee": "logger.warning",
+          "lineNumber": 164
+        },
+        {
+          "caller": "disconnect_server",
+          "callee": "client.close",
+          "lineNumber": 166
+        },
+        {
+          "caller": "disconnect_all",
+          "callee": "list",
+          "lineNumber": 170
+        },
+        {
+          "caller": "disconnect_all",
+          "callee": "self._clients.items",
+          "lineNumber": 170
+        },
+        {
+          "caller": "disconnect_all",
+          "callee": "client.close",
+          "lineNumber": 172
+        },
+        {
+          "caller": "disconnect_all",
+          "callee": "logger.exception",
+          "lineNumber": 174
+        },
+        {
+          "caller": "re_register_tools",
+          "callee": "logger.warning",
+          "lineNumber": 179
+        },
+        {
+          "caller": "re_register_tools",
+          "callee": "self._clients.get",
+          "lineNumber": 182
+        },
+        {
+          "caller": "re_register_tools",
+          "callee": "logger.warning",
+          "lineNumber": 184
+        },
+        {
+          "caller": "re_register_tools",
+          "callee": "MCPRegistryAdapter",
+          "lineNumber": 189
+        },
+        {
+          "caller": "re_register_tools",
+          "callee": "adapter.unregister_tools",
+          "lineNumber": 193
+        },
+        {
+          "caller": "re_register_tools",
+          "callee": "client.list_tools",
+          "lineNumber": 195
+        },
+        {
+          "caller": "re_register_tools",
+          "callee": "adapter.register_tools",
+          "lineNumber": 197
+        },
+        {
+          "caller": "get_client",
+          "callee": "self._clients.get",
+          "lineNumber": 201
+        },
+        {
+          "caller": "list_mcp_resources",
+          "callee": "self._clients.get",
+          "lineNumber": 205
+        },
+        {
+          "caller": "list_mcp_resources",
+          "callee": "logger.warning",
+          "lineNumber": 207
+        },
+        {
+          "caller": "list_mcp_resources",
+          "callee": "client.list_resources",
+          "lineNumber": 209
+        },
+        {
+          "caller": "list_mcp_prompts",
+          "callee": "self._clients.get",
+          "lineNumber": 213
+        },
+        {
+          "caller": "list_mcp_prompts",
+          "callee": "logger.warning",
+          "lineNumber": 215
+        },
+        {
+          "caller": "list_mcp_prompts",
+          "callee": "client.list_prompts",
+          "lineNumber": 217
+        },
+        {
+          "caller": "read_resource",
+          "callee": "self._clients.get",
+          "lineNumber": 221
+        },
+        {
+          "caller": "read_resource",
+          "callee": "RuntimeError",
+          "lineNumber": 224
+        },
+        {
+          "caller": "read_resource",
+          "callee": "client.read_resource",
+          "lineNumber": 225
+        },
+        {
+          "caller": "get_prompt",
+          "callee": "self._clients.get",
+          "lineNumber": 231
+        },
+        {
+          "caller": "get_prompt",
+          "callee": "RuntimeError",
+          "lineNumber": 234
+        },
+        {
+          "caller": "get_prompt",
+          "callee": "client.get_prompt",
+          "lineNumber": 235
+        }
+      ],
+      "metrics": {
+        "importCount": 2,
+        "exportCount": 2,
+        "functionCount": 0,
+        "classCount": 2
+      }
+    },
+    {
+      "path": "src/lifeops/tools/mcp/servers/__init__.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 29,
+      "nonEmptyLines": 27,
+      "metrics": {
+        "importCount": 4,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/lifeops/tools/mcp/servers/github.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 64,
+      "nonEmptyLines": 51,
+      "functions": [
+        {
+          "name": "create_github_mcp_config",
+          "startLine": 27,
+          "endLine": 60,
+          "params": []
+        },
+        {
+          "name": "get_github_mcp_server_name",
+          "startLine": 63,
+          "endLine": 64,
+          "params": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "create_github_mcp_config",
+          "line": 27,
+          "isDefault": false
+        },
+        {
+          "name": "get_github_mcp_server_name",
+          "line": 63,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "create_github_mcp_config",
+          "callee": "os.environ.get",
+          "lineNumber": 33
+        },
+        {
+          "caller": "create_github_mcp_config",
+          "callee": "ValueError",
+          "lineNumber": 35
+        },
+        {
+          "caller": "create_github_mcp_config",
+          "callee": "os.environ.get",
+          "lineNumber": 44
+        },
+        {
+          "caller": "create_github_mcp_config",
+          "callee": "MCPServerConfig",
+          "lineNumber": 48
+        }
+      ],
+      "metrics": {
+        "importCount": 2,
+        "exportCount": 2,
+        "functionCount": 2,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/lifeops/tools/mcp/servers/google_workspace.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 64,
+      "nonEmptyLines": 48,
+      "functions": [
+        {
+          "name": "create_google_workspace_mcp_config",
+          "startLine": 24,
+          "endLine": 60,
+          "params": []
+        },
+        {
+          "name": "get_google_workspace_mcp_server_name",
+          "startLine": 63,
+          "endLine": 64,
+          "params": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "create_google_workspace_mcp_config",
+          "line": 24,
+          "isDefault": false
+        },
+        {
+          "name": "get_google_workspace_mcp_server_name",
+          "line": 63,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "create_google_workspace_mcp_config",
+          "callee": "os.environ.get",
+          "lineNumber": 32
+        },
+        {
+          "caller": "create_google_workspace_mcp_config",
+          "callee": "ValueError",
+          "lineNumber": 34
+        },
+        {
+          "caller": "create_google_workspace_mcp_config",
+          "callee": "os.environ.get",
+          "lineNumber": 41
+        },
+        {
+          "caller": "create_google_workspace_mcp_config",
+          "callee": "os.environ.get",
+          "lineNumber": 45
+        },
+        {
+          "caller": "create_google_workspace_mcp_config",
+          "callee": "os.environ.get",
+          "lineNumber": 46
+        },
+        {
+          "caller": "create_google_workspace_mcp_config",
+          "callee": "MCPServerConfig",
+          "lineNumber": 48
+        }
+      ],
+      "metrics": {
+        "importCount": 1,
+        "exportCount": 2,
+        "functionCount": 2,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/lifeops/tools/mcp/servers/mcp_12306.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 30,
+      "nonEmptyLines": 23,
+      "functions": [
+        {
+          "name": "create_12306_mcp_config",
+          "startLine": 8,
+          "endLine": 26,
+          "params": []
+        },
+        {
+          "name": "get_12306_mcp_server_name",
+          "startLine": 29,
+          "endLine": 30,
+          "params": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "create_12306_mcp_config",
+          "line": 8,
+          "isDefault": false
+        },
+        {
+          "name": "get_12306_mcp_server_name",
+          "line": 29,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "create_12306_mcp_config",
+          "callee": "MCPServerConfig",
+          "lineNumber": 18
+        }
+      ],
+      "metrics": {
+        "importCount": 1,
+        "exportCount": 2,
+        "functionCount": 2,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/lifeops/tools/mcp/servers/presets.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 92,
+      "nonEmptyLines": 67,
+      "functions": [
+        {
+          "name": "get_no_key_mcp_preset_names",
+          "startLine": 19,
+          "endLine": 20,
+          "params": []
+        },
+        {
+          "name": "create_no_key_mcp_preset_configs",
+          "startLine": 23,
+          "endLine": 30,
+          "params": [
+            "presets"
+          ]
+        },
+        {
+          "name": "_parse_preset_names",
+          "startLine": 33,
+          "endLine": 42,
+          "params": [
+            "presets"
+          ]
+        },
+        {
+          "name": "_npx_config",
+          "startLine": 45,
+          "endLine": 51,
+          "params": [
+            "package"
+          ]
+        },
+        {
+          "name": "_create_context7_config",
+          "startLine": 54,
+          "endLine": 55,
+          "params": []
+        },
+        {
+          "name": "_create_playwright_config",
+          "startLine": 58,
+          "endLine": 59,
+          "params": []
+        },
+        {
+          "name": "_create_memory_config",
+          "startLine": 62,
+          "endLine": 63,
+          "params": []
+        },
+        {
+          "name": "_create_sequential_thinking_config",
+          "startLine": 66,
+          "endLine": 67,
+          "params": []
+        },
+        {
+          "name": "_create_filesystem_config",
+          "startLine": 70,
+          "endLine": 72,
+          "params": []
+        },
+        {
+          "name": "_filesystem_roots",
+          "startLine": 75,
+          "endLine": 83,
+          "params": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "get_no_key_mcp_preset_names",
+          "line": 19,
+          "isDefault": false
+        },
+        {
+          "name": "create_no_key_mcp_preset_configs",
+          "line": 23,
+          "isDefault": false
+        },
+        {
+          "name": "_parse_preset_names",
+          "line": 33,
+          "isDefault": false
+        },
+        {
+          "name": "_npx_config",
+          "line": 45,
+          "isDefault": false
+        },
+        {
+          "name": "_create_context7_config",
+          "line": 54,
+          "isDefault": false
+        },
+        {
+          "name": "_create_playwright_config",
+          "line": 58,
+          "isDefault": false
+        },
+        {
+          "name": "_create_memory_config",
+          "line": 62,
+          "isDefault": false
+        },
+        {
+          "name": "_create_sequential_thinking_config",
+          "line": 66,
+          "isDefault": false
+        },
+        {
+          "name": "_create_filesystem_config",
+          "line": 70,
+          "isDefault": false
+        },
+        {
+          "name": "_filesystem_roots",
+          "line": 75,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "get_no_key_mcp_preset_names",
+          "callee": "list",
+          "lineNumber": 20
+        },
+        {
+          "caller": "create_no_key_mcp_preset_configs",
+          "callee": "_parse_preset_names",
+          "lineNumber": 25
+        },
+        {
+          "caller": "create_no_key_mcp_preset_configs",
+          "callee": "_PRESET_FACTORIES.get",
+          "lineNumber": 26
+        },
+        {
+          "caller": "create_no_key_mcp_preset_configs",
+          "callee": "factory",
+          "lineNumber": 29
+        },
+        {
+          "caller": "_parse_preset_names",
+          "callee": "set",
+          "lineNumber": 34
+        },
+        {
+          "caller": "_parse_preset_names",
+          "callee": "presets.split",
+          "lineNumber": 36
+        },
+        {
+          "caller": "_parse_preset_names",
+          "callee": "raw_name.strip().replace",
+          "lineNumber": 37
+        },
+        {
+          "caller": "_parse_preset_names",
+          "callee": "raw_name.strip",
+          "lineNumber": 37
+        },
+        {
+          "caller": "_parse_preset_names",
+          "callee": "seen.add",
+          "lineNumber": 40
+        },
+        {
+          "caller": "_parse_preset_names",
+          "callee": "names.append",
+          "lineNumber": 41
+        },
+        {
+          "caller": "_npx_config",
+          "callee": "MCPServerConfig",
+          "lineNumber": 46
+        },
+        {
+          "caller": "_create_context7_config",
+          "callee": "_npx_config",
+          "lineNumber": 55
+        },
+        {
+          "caller": "_create_playwright_config",
+          "callee": "_npx_config",
+          "lineNumber": 59
+        },
+        {
+          "caller": "_create_memory_config",
+          "callee": "_npx_config",
+          "lineNumber": 63
+        },
+        {
+          "caller": "_create_sequential_thinking_config",
+          "callee": "_npx_config",
+          "lineNumber": 67
+        },
+        {
+          "caller": "_create_filesystem_config",
+          "callee": "_filesystem_roots",
+          "lineNumber": 71
+        },
+        {
+          "caller": "_create_filesystem_config",
+          "callee": "_npx_config",
+          "lineNumber": 72
+        },
+        {
+          "caller": "_filesystem_roots",
+          "callee": "os.environ.get(\"LIFEOPS_FILESYSTEM_MCP_ROOTS\", \"\").strip",
+          "lineNumber": 76
+        },
+        {
+          "caller": "_filesystem_roots",
+          "callee": "os.environ.get",
+          "lineNumber": 76
+        },
+        {
+          "caller": "_filesystem_roots",
+          "callee": "str",
+          "lineNumber": 78
+        },
+        {
+          "caller": "_filesystem_roots",
+          "callee": "str",
+          "lineNumber": 80
+        },
+        {
+          "caller": "_filesystem_roots",
+          "callee": "Path(root.strip()).expanduser",
+          "lineNumber": 80
+        },
+        {
+          "caller": "_filesystem_roots",
+          "callee": "Path",
+          "lineNumber": 80
+        },
+        {
+          "caller": "_filesystem_roots",
+          "callee": "root.strip",
+          "lineNumber": 80
+        },
+        {
+          "caller": "_filesystem_roots",
+          "callee": "raw_roots.split",
+          "lineNumber": 81
+        },
+        {
+          "caller": "_filesystem_roots",
+          "callee": "root.strip",
+          "lineNumber": 82
+        }
+      ],
+      "metrics": {
+        "importCount": 2,
+        "exportCount": 10,
+        "functionCount": 10,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/lifeops/tools/mcp/types.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 70,
+      "nonEmptyLines": 46,
+      "functions": [
+        {
+          "name": "make_mcp_tool_name",
+          "startLine": 53,
+          "endLine": 55,
+          "params": [
+            "server_name",
+            "tool_name"
+          ]
+        },
+        {
+          "name": "make_mcp_resource_uri",
+          "startLine": 58,
+          "endLine": 60,
+          "params": [
+            "server_name",
+            "path"
+          ]
+        },
+        {
+          "name": "make_mcp_prompt_name",
+          "startLine": 63,
+          "endLine": 65,
+          "params": [
+            "server_name",
+            "prompt_name"
+          ]
+        },
+        {
+          "name": "is_conflicting_name",
+          "startLine": 68,
+          "endLine": 70,
+          "params": [
+            "name",
+            "registry"
+          ]
+        }
+      ],
+      "classes": [
+        {
+          "name": "MCPServerConfig",
+          "startLine": 10,
+          "endLine": 17,
+          "methods": [],
+          "properties": [
+            "transport",
+            "command",
+            "args",
+            "env",
+            "url"
+          ]
+        },
+        {
+          "name": "MCPToolInfo",
+          "startLine": 20,
+          "endLine": 31,
+          "methods": [
+            "full_name"
+          ],
+          "properties": [
+            "server_name",
+            "original_name",
+            "description",
+            "input_schema"
+          ]
+        },
+        {
+          "name": "MCPResourceInfo",
+          "startLine": 34,
+          "endLine": 41,
+          "methods": [],
+          "properties": [
+            "server_name",
+            "uri",
+            "name",
+            "description",
+            "mime_type"
+          ]
+        },
+        {
+          "name": "MCPPromptInfo",
+          "startLine": 44,
+          "endLine": 50,
+          "methods": [],
+          "properties": [
+            "server_name",
+            "name",
+            "description",
+            "arguments"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "MCPServerConfig",
+          "line": 10,
+          "isDefault": false
+        },
+        {
+          "name": "MCPToolInfo",
+          "line": 20,
+          "isDefault": false
+        },
+        {
+          "name": "MCPResourceInfo",
+          "line": 34,
+          "isDefault": false
+        },
+        {
+          "name": "MCPPromptInfo",
+          "line": 44,
+          "isDefault": false
+        },
+        {
+          "name": "make_mcp_tool_name",
+          "line": 53,
+          "isDefault": false
+        },
+        {
+          "name": "make_mcp_resource_uri",
+          "line": 58,
+          "isDefault": false
+        },
+        {
+          "name": "make_mcp_prompt_name",
+          "line": 63,
+          "isDefault": false
+        },
+        {
+          "name": "is_conflicting_name",
+          "line": 68,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "full_name",
+          "callee": "make_mcp_tool_name",
+          "lineNumber": 31
+        },
+        {
+          "caller": "is_conflicting_name",
+          "callee": "registry.get_definition",
+          "lineNumber": 70
+        }
+      ],
+      "metrics": {
+        "importCount": 1,
+        "exportCount": 8,
+        "functionCount": 4,
+        "classCount": 4
+      }
+    }
+  ]
+}

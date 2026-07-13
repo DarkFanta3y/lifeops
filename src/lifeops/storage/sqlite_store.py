@@ -220,6 +220,7 @@ class ConversationHistoryStoreSQLite:
 
     def _row_to_record(self, row: sqlite3.Row, tool_calls: list[dict] | None = None) -> dict[str, Any]:
         record: dict[str, Any] = {
+            "message_id": row["id"],
             "conversation_id": row["conversation_id"],
             "source": row["source"],
             "role": row["role"],
@@ -302,6 +303,7 @@ class ConversationHistoryStoreSQLite:
         self._conn.commit()
 
         record: dict[str, Any] = {
+            "message_id": message_id,
             "conversation_id": conversation_id,
             "source": source,
             "role": role,
@@ -419,50 +421,115 @@ class ConversationHistoryStoreSQLite:
         offset: int | None = None,
     ) -> list[dict[str, Any]] | dict[str, Any]:
         cursor = self._conn.cursor()
-        cursor.execute(
-            "SELECT conversation_id, source, message_count, title, "
-            "last_message, created_at, updated_at "
-            "FROM conversations "
-            "ORDER BY updated_at DESC"
+        conversation_rows = (
+            "WITH conversation_rows AS ("
+            "SELECT c.conversation_id, c.source, c.message_count, "
+            "COALESCE(c.title, ("
+            "  SELECT m.content FROM messages m "
+            "  WHERE m.conversation_id = c.conversation_id AND m.role = 'user' "
+            "    AND (m.record_type IS NULL OR m.record_type != ?) "
+            "  ORDER BY m.created_at ASC, m.id ASC LIMIT 1"
+            "), '未命名对话') AS effective_title, "
+            "c.last_message, c.created_at, c.updated_at "
+            "FROM conversations c) "
         )
-        rows = cursor.fetchall()
-        summaries: list[dict[str, Any]] = []
-        for row in rows:
-            conv_id = row["conversation_id"]
-            title = row["title"]
+        params: list[Any] = [TITLE_RECORD_TYPE]
+        where_sql = ""
+        if query and query.strip():
+            where_sql = "WHERE instr(lower(effective_title), ?) > 0 "
+            params.append(query.strip().casefold())
 
-            if not title:
-                title = self._get_first_user_content(cursor, conv_id) or "未命名对话"
+        count_sql = conversation_rows + "SELECT COUNT(*) FROM conversation_rows " + where_sql
+        cursor.execute(count_sql, params)
+        total = int(cursor.fetchone()[0])
 
-            if query and query.strip():
-                normalized_query = query.strip().casefold()
-                if not self._title_matches_query(cursor, conv_id, normalized_query):
-                    continue
+        select_sql = (
+            conversation_rows
+            + "SELECT conversation_id, source, message_count, effective_title, "
+            "last_message, created_at, updated_at FROM conversation_rows "
+            + where_sql
+            + "ORDER BY updated_at DESC, conversation_id DESC "
+        )
+        select_params = list(params)
+        effective_offset = offset or 0
+        if limit is not None or offset is not None:
+            select_sql += "LIMIT ? OFFSET ?"
+            select_params.extend([limit if limit is not None else -1, effective_offset])
+        cursor.execute(select_sql, select_params)
 
-            summaries.append({
-                "conversation_id": conv_id,
+        summaries = [
+            {
+                "conversation_id": row["conversation_id"],
                 "source": row["source"],
                 "message_count": row["message_count"],
-                "title": title[:80] if title else "未命名对话",
+                "title": (row["effective_title"] or "未命名对话")[:80],
                 "last_message": row["last_message"] or "",
                 "created_at": row["created_at"],
                 "updated_at": row["updated_at"],
-            })
+            }
+            for row in cursor.fetchall()
+        ]
 
         if limit is None and offset is None:
             return summaries
 
-        total = len(summaries)
-        effective_offset = offset or 0
-        if limit is not None:
-            items = summaries[effective_offset:effective_offset + limit]
-        else:
-            items = summaries[effective_offset:]
         return {
-            "items": items,
+            "items": summaries,
             "total": total,
             "limit": limit,
             "offset": effective_offset,
+        }
+
+    def get_messages_cursor(
+        self,
+        conversation_id: str,
+        *,
+        limit: int = 50,
+        before_id: int | None = None,
+    ) -> dict[str, Any]:
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "SELECT COUNT(*) FROM messages WHERE conversation_id = ? "
+            "AND (record_type IS NULL OR record_type != ?)",
+            (conversation_id, TITLE_RECORD_TYPE),
+        )
+        total = int(cursor.fetchone()[0])
+
+        sql = (
+            "SELECT m.id, m.conversation_id, c.source, m.role, m.content, "
+            "m.created_at, m.tool_name, m.tool_call_id, m.intermediate, m.record_type "
+            "FROM messages m "
+            "JOIN conversations c ON m.conversation_id = c.conversation_id "
+            "WHERE m.conversation_id = ? "
+            "AND (m.record_type IS NULL OR m.record_type != ?) "
+        )
+        params: list[Any] = [conversation_id, TITLE_RECORD_TYPE]
+        if before_id is not None:
+            sql += "AND m.id < ? "
+            params.append(before_id)
+        sql += "ORDER BY m.id DESC LIMIT ?"
+        params.append(limit + 1)
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+
+        has_more = len(rows) > limit
+        page_rows = rows[:limit]
+        page_rows.sort(key=lambda row: (row["created_at"], row["id"]))
+        messages: list[dict[str, Any]] = []
+        for row in page_rows:
+            tool_calls = self._fetch_tool_calls(cursor, row["id"])
+            messages.append(
+                self._row_to_record(row, tool_calls=tool_calls if tool_calls else None)
+            )
+
+        next_before_id = min(row["id"] for row in page_rows) if has_more and page_rows else None
+        return {
+            "items": messages,
+            "total": total,
+            "limit": limit,
+            "offset": None,
+            "has_more": has_more,
+            "next_before_id": next_before_id,
         }
 
     def get_messages(

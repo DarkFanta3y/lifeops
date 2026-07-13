@@ -1,0 +1,1892 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 11,
+  "filesSkipped": [],
+  "results": [
+    {
+      "path": "src/lifeops/tools/__init__.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 4,
+      "nonEmptyLines": 3,
+      "metrics": {
+        "importCount": 2,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/lifeops/tools/base.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 35,
+      "nonEmptyLines": 24,
+      "classes": [
+        {
+          "name": "ToolParams",
+          "startLine": 9,
+          "endLine": 12,
+          "methods": [],
+          "properties": []
+        },
+        {
+          "name": "ToolDefinition",
+          "startLine": 19,
+          "endLine": 27,
+          "methods": [],
+          "properties": [
+            "name",
+            "description",
+            "parameters_model",
+            "category",
+            "canonical_name",
+            "read_only",
+            "risk_level",
+            "requires_approval"
+          ]
+        },
+        {
+          "name": "ToolResult",
+          "startLine": 31,
+          "endLine": 35,
+          "methods": [],
+          "properties": [
+            "success",
+            "output",
+            "error",
+            "metadata"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "ToolParams",
+          "line": 9,
+          "isDefault": false
+        },
+        {
+          "name": "ToolDefinition",
+          "line": 18,
+          "isDefault": false
+        },
+        {
+          "name": "ToolResult",
+          "line": 30,
+          "isDefault": false
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 3,
+        "functionCount": 0,
+        "classCount": 3
+      }
+    },
+    {
+      "path": "src/lifeops/tools/builtin/__init__.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 17,
+      "nonEmptyLines": 14,
+      "functions": [
+        {
+          "name": "register_all_builtin_tools",
+          "startLine": 12,
+          "endLine": 17,
+          "params": [
+            "registry",
+            "config"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "register_all_builtin_tools",
+          "line": 12,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "register_all_builtin_tools",
+          "callee": "create_bash_tool",
+          "lineNumber": 13
+        },
+        {
+          "caller": "register_all_builtin_tools",
+          "callee": "create_file_read_tool",
+          "lineNumber": 14
+        },
+        {
+          "caller": "register_all_builtin_tools",
+          "callee": "create_simple_file_tools",
+          "lineNumber": 15
+        },
+        {
+          "caller": "register_all_builtin_tools",
+          "callee": "create_file_edit_tool",
+          "lineNumber": 16
+        },
+        {
+          "caller": "register_all_builtin_tools",
+          "callee": "create_web_search_tool",
+          "lineNumber": 17
+        }
+      ],
+      "metrics": {
+        "importCount": 7,
+        "exportCount": 1,
+        "functionCount": 1,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/lifeops/tools/builtin/bash.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 73,
+      "nonEmptyLines": 61,
+      "functions": [
+        {
+          "name": "_bash_handler",
+          "startLine": 29,
+          "endLine": 57,
+          "params": [
+            "params"
+          ]
+        },
+        {
+          "name": "create_bash_tool",
+          "startLine": 60,
+          "endLine": 73,
+          "params": [
+            "registry"
+          ]
+        }
+      ],
+      "classes": [
+        {
+          "name": "BashParams",
+          "startLine": 15,
+          "endLine": 26,
+          "methods": [],
+          "properties": [
+            "command",
+            "timeout",
+            "workdir"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "BashParams",
+          "line": 15,
+          "isDefault": false
+        },
+        {
+          "name": "_bash_handler",
+          "line": 29,
+          "isDefault": false
+        },
+        {
+          "name": "create_bash_tool",
+          "line": 60,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "_bash_handler",
+          "callee": "BashParams.model_validate",
+          "lineNumber": 30
+        },
+        {
+          "caller": "_bash_handler",
+          "callee": "asyncio.create_subprocess_shell",
+          "lineNumber": 36
+        },
+        {
+          "caller": "_bash_handler",
+          "callee": "asyncio.wait_for",
+          "lineNumber": 42
+        },
+        {
+          "caller": "_bash_handler",
+          "callee": "process.communicate",
+          "lineNumber": 42
+        },
+        {
+          "caller": "_bash_handler",
+          "callee": "stdout.decode",
+          "lineNumber": 43
+        },
+        {
+          "caller": "_bash_handler",
+          "callee": "stderr.decode",
+          "lineNumber": 44
+        },
+        {
+          "caller": "_bash_handler",
+          "callee": "ToolResult",
+          "lineNumber": 47
+        },
+        {
+          "caller": "_bash_handler",
+          "callee": "ToolResult",
+          "lineNumber": 49
+        },
+        {
+          "caller": "_bash_handler",
+          "callee": "ToolResult",
+          "lineNumber": 55
+        },
+        {
+          "caller": "_bash_handler",
+          "callee": "ToolResult",
+          "lineNumber": 57
+        },
+        {
+          "caller": "_bash_handler",
+          "callee": "str",
+          "lineNumber": 57
+        },
+        {
+          "caller": "create_bash_tool",
+          "callee": "ToolDefinition",
+          "lineNumber": 61
+        },
+        {
+          "caller": "create_bash_tool",
+          "callee": "registry.register",
+          "lineNumber": 73
+        }
+      ],
+      "metrics": {
+        "importCount": 3,
+        "exportCount": 3,
+        "functionCount": 2,
+        "classCount": 1
+      }
+    },
+    {
+      "path": "src/lifeops/tools/builtin/file_edit.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 83,
+      "nonEmptyLines": 68,
+      "functions": [
+        {
+          "name": "_file_edit_handler",
+          "startLine": 23,
+          "endLine": 67,
+          "params": [
+            "params"
+          ]
+        },
+        {
+          "name": "create_file_edit_tool",
+          "startLine": 70,
+          "endLine": 83,
+          "params": [
+            "registry"
+          ]
+        }
+      ],
+      "classes": [
+        {
+          "name": "FileEditParams",
+          "startLine": 15,
+          "endLine": 20,
+          "methods": [],
+          "properties": [
+            "path",
+            "operation",
+            "content",
+            "old_text",
+            "new_text"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "FileEditParams",
+          "line": 15,
+          "isDefault": false
+        },
+        {
+          "name": "_file_edit_handler",
+          "line": 23,
+          "isDefault": false
+        },
+        {
+          "name": "create_file_edit_tool",
+          "line": 70,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "_file_edit_handler",
+          "callee": "FileEditParams.model_validate",
+          "lineNumber": 24
+        },
+        {
+          "caller": "_file_edit_handler",
+          "callee": "Path",
+          "lineNumber": 29
+        },
+        {
+          "caller": "_file_edit_handler",
+          "callee": "path.parent.mkdir",
+          "lineNumber": 32
+        },
+        {
+          "caller": "_file_edit_handler",
+          "callee": "path.write_text",
+          "lineNumber": 34
+        },
+        {
+          "caller": "_file_edit_handler",
+          "callee": "ToolResult",
+          "lineNumber": 35
+        },
+        {
+          "caller": "_file_edit_handler",
+          "callee": "path.exists",
+          "lineNumber": 38
+        },
+        {
+          "caller": "_file_edit_handler",
+          "callee": "ToolResult",
+          "lineNumber": 39
+        },
+        {
+          "caller": "_file_edit_handler",
+          "callee": "ToolResult",
+          "lineNumber": 41
+        },
+        {
+          "caller": "_file_edit_handler",
+          "callee": "path.read_text",
+          "lineNumber": 46
+        },
+        {
+          "caller": "_file_edit_handler",
+          "callee": "ToolResult",
+          "lineNumber": 48
+        },
+        {
+          "caller": "_file_edit_handler",
+          "callee": "content.replace",
+          "lineNumber": 49
+        },
+        {
+          "caller": "_file_edit_handler",
+          "callee": "path.write_text",
+          "lineNumber": 50
+        },
+        {
+          "caller": "_file_edit_handler",
+          "callee": "ToolResult",
+          "lineNumber": 51
+        },
+        {
+          "caller": "_file_edit_handler",
+          "callee": "path.exists",
+          "lineNumber": 55
+        },
+        {
+          "caller": "_file_edit_handler",
+          "callee": "path.read_text",
+          "lineNumber": 56
+        },
+        {
+          "caller": "_file_edit_handler",
+          "callee": "existing.endswith",
+          "lineNumber": 57
+        },
+        {
+          "caller": "_file_edit_handler",
+          "callee": "path.parent.mkdir",
+          "lineNumber": 59
+        },
+        {
+          "caller": "_file_edit_handler",
+          "callee": "open",
+          "lineNumber": 60
+        },
+        {
+          "caller": "_file_edit_handler",
+          "callee": "f.write",
+          "lineNumber": 61
+        },
+        {
+          "caller": "_file_edit_handler",
+          "callee": "ToolResult",
+          "lineNumber": 62
+        },
+        {
+          "caller": "_file_edit_handler",
+          "callee": "ToolResult",
+          "lineNumber": 65
+        },
+        {
+          "caller": "_file_edit_handler",
+          "callee": "ToolResult",
+          "lineNumber": 67
+        },
+        {
+          "caller": "_file_edit_handler",
+          "callee": "str",
+          "lineNumber": 67
+        },
+        {
+          "caller": "create_file_edit_tool",
+          "callee": "ToolDefinition",
+          "lineNumber": 71
+        },
+        {
+          "caller": "create_file_edit_tool",
+          "callee": "registry.register",
+          "lineNumber": 83
+        }
+      ],
+      "metrics": {
+        "importCount": 3,
+        "exportCount": 3,
+        "functionCount": 2,
+        "classCount": 1
+      }
+    },
+    {
+      "path": "src/lifeops/tools/builtin/file_read.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 73,
+      "nonEmptyLines": 58,
+      "functions": [
+        {
+          "name": "_file_read_handler",
+          "startLine": 26,
+          "endLine": 60,
+          "params": [
+            "params"
+          ]
+        },
+        {
+          "name": "create_file_read_tool",
+          "startLine": 63,
+          "endLine": 73,
+          "params": [
+            "registry"
+          ]
+        }
+      ],
+      "classes": [
+        {
+          "name": "FileReadParams",
+          "startLine": 15,
+          "endLine": 23,
+          "methods": [],
+          "properties": [
+            "path",
+            "encoding",
+            "offset",
+            "limit"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "FileReadParams",
+          "line": 15,
+          "isDefault": false
+        },
+        {
+          "name": "_file_read_handler",
+          "line": 26,
+          "isDefault": false
+        },
+        {
+          "name": "create_file_read_tool",
+          "line": 63,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "_file_read_handler",
+          "callee": "FileReadParams.model_validate",
+          "lineNumber": 27
+        },
+        {
+          "caller": "_file_read_handler",
+          "callee": "Path",
+          "lineNumber": 34
+        },
+        {
+          "caller": "_file_read_handler",
+          "callee": "path.exists",
+          "lineNumber": 35
+        },
+        {
+          "caller": "_file_read_handler",
+          "callee": "ToolResult",
+          "lineNumber": 36
+        },
+        {
+          "caller": "_file_read_handler",
+          "callee": "path.is_dir",
+          "lineNumber": 37
+        },
+        {
+          "caller": "_file_read_handler",
+          "callee": "sorted",
+          "lineNumber": 38
+        },
+        {
+          "caller": "_file_read_handler",
+          "callee": "path.iterdir",
+          "lineNumber": 38
+        },
+        {
+          "caller": "_file_read_handler",
+          "callee": "e.is_dir",
+          "lineNumber": 39
+        },
+        {
+          "caller": "_file_read_handler",
+          "callee": "ToolResult",
+          "lineNumber": 40
+        },
+        {
+          "caller": "_file_read_handler",
+          "callee": "\"\\n\".join",
+          "lineNumber": 40
+        },
+        {
+          "caller": "_file_read_handler",
+          "callee": "path.read_text",
+          "lineNumber": 42
+        },
+        {
+          "caller": "_file_read_handler",
+          "callee": "text.splitlines",
+          "lineNumber": 43
+        },
+        {
+          "caller": "_file_read_handler",
+          "callee": "max",
+          "lineNumber": 44
+        },
+        {
+          "caller": "_file_read_handler",
+          "callee": "min",
+          "lineNumber": 45
+        },
+        {
+          "caller": "_file_read_handler",
+          "callee": "len",
+          "lineNumber": 45
+        },
+        {
+          "caller": "_file_read_handler",
+          "callee": "enumerate",
+          "lineNumber": 48
+        },
+        {
+          "caller": "_file_read_handler",
+          "callee": "\"\\n\".join",
+          "lineNumber": 49
+        },
+        {
+          "caller": "_file_read_handler",
+          "callee": "len",
+          "lineNumber": 51
+        },
+        {
+          "caller": "_file_read_handler",
+          "callee": "len",
+          "lineNumber": 52
+        },
+        {
+          "caller": "_file_read_handler",
+          "callee": "ToolResult",
+          "lineNumber": 54
+        },
+        {
+          "caller": "_file_read_handler",
+          "callee": "len",
+          "lineNumber": 57
+        },
+        {
+          "caller": "_file_read_handler",
+          "callee": "ToolResult",
+          "lineNumber": 60
+        },
+        {
+          "caller": "_file_read_handler",
+          "callee": "str",
+          "lineNumber": 60
+        },
+        {
+          "caller": "create_file_read_tool",
+          "callee": "ToolDefinition",
+          "lineNumber": 64
+        },
+        {
+          "caller": "create_file_read_tool",
+          "callee": "registry.register",
+          "lineNumber": 73
+        }
+      ],
+      "metrics": {
+        "importCount": 3,
+        "exportCount": 3,
+        "functionCount": 2,
+        "classCount": 1
+      }
+    },
+    {
+      "path": "src/lifeops/tools/builtin/file_write.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 120,
+      "nonEmptyLines": 98,
+      "functions": [
+        {
+          "name": "_file_create_handler",
+          "startLine": 33,
+          "endLine": 44,
+          "params": [
+            "params"
+          ]
+        },
+        {
+          "name": "_file_replace_handler",
+          "startLine": 47,
+          "endLine": 60,
+          "params": [
+            "params"
+          ]
+        },
+        {
+          "name": "_file_append_handler",
+          "startLine": 63,
+          "endLine": 77,
+          "params": [
+            "params"
+          ]
+        },
+        {
+          "name": "create_simple_file_tools",
+          "startLine": 80,
+          "endLine": 120,
+          "params": [
+            "registry"
+          ]
+        }
+      ],
+      "classes": [
+        {
+          "name": "FileCreateParams",
+          "startLine": 17,
+          "endLine": 19,
+          "methods": [],
+          "properties": [
+            "path",
+            "content"
+          ]
+        },
+        {
+          "name": "FileReplaceParams",
+          "startLine": 22,
+          "endLine": 25,
+          "methods": [],
+          "properties": [
+            "path",
+            "old_text",
+            "new_text"
+          ]
+        },
+        {
+          "name": "FileAppendParams",
+          "startLine": 28,
+          "endLine": 30,
+          "methods": [],
+          "properties": [
+            "path",
+            "content"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "FileCreateParams",
+          "line": 17,
+          "isDefault": false
+        },
+        {
+          "name": "FileReplaceParams",
+          "line": 22,
+          "isDefault": false
+        },
+        {
+          "name": "FileAppendParams",
+          "line": 28,
+          "isDefault": false
+        },
+        {
+          "name": "_file_create_handler",
+          "line": 33,
+          "isDefault": false
+        },
+        {
+          "name": "_file_replace_handler",
+          "line": 47,
+          "isDefault": false
+        },
+        {
+          "name": "_file_append_handler",
+          "line": 63,
+          "isDefault": false
+        },
+        {
+          "name": "create_simple_file_tools",
+          "line": 80,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "_file_create_handler",
+          "callee": "FileCreateParams.model_validate",
+          "lineNumber": 34
+        },
+        {
+          "caller": "_file_create_handler",
+          "callee": "Path",
+          "lineNumber": 35
+        },
+        {
+          "caller": "_file_create_handler",
+          "callee": "path.exists",
+          "lineNumber": 36
+        },
+        {
+          "caller": "_file_create_handler",
+          "callee": "ToolResult",
+          "lineNumber": 37
+        },
+        {
+          "caller": "_file_create_handler",
+          "callee": "path.parent.mkdir",
+          "lineNumber": 40
+        },
+        {
+          "caller": "_file_create_handler",
+          "callee": "path.write_text",
+          "lineNumber": 41
+        },
+        {
+          "caller": "_file_create_handler",
+          "callee": "ToolResult",
+          "lineNumber": 42
+        },
+        {
+          "caller": "_file_create_handler",
+          "callee": "ToolResult",
+          "lineNumber": 44
+        },
+        {
+          "caller": "_file_create_handler",
+          "callee": "str",
+          "lineNumber": 44
+        },
+        {
+          "caller": "_file_replace_handler",
+          "callee": "FileReplaceParams.model_validate",
+          "lineNumber": 48
+        },
+        {
+          "caller": "_file_replace_handler",
+          "callee": "Path",
+          "lineNumber": 49
+        },
+        {
+          "caller": "_file_replace_handler",
+          "callee": "path.exists",
+          "lineNumber": 50
+        },
+        {
+          "caller": "_file_replace_handler",
+          "callee": "ToolResult",
+          "lineNumber": 51
+        },
+        {
+          "caller": "_file_replace_handler",
+          "callee": "path.read_text",
+          "lineNumber": 54
+        },
+        {
+          "caller": "_file_replace_handler",
+          "callee": "ToolResult",
+          "lineNumber": 56
+        },
+        {
+          "caller": "_file_replace_handler",
+          "callee": "path.write_text",
+          "lineNumber": 57
+        },
+        {
+          "caller": "_file_replace_handler",
+          "callee": "content.replace",
+          "lineNumber": 57
+        },
+        {
+          "caller": "_file_replace_handler",
+          "callee": "ToolResult",
+          "lineNumber": 58
+        },
+        {
+          "caller": "_file_replace_handler",
+          "callee": "ToolResult",
+          "lineNumber": 60
+        },
+        {
+          "caller": "_file_replace_handler",
+          "callee": "str",
+          "lineNumber": 60
+        },
+        {
+          "caller": "_file_append_handler",
+          "callee": "FileAppendParams.model_validate",
+          "lineNumber": 64
+        },
+        {
+          "caller": "_file_append_handler",
+          "callee": "Path",
+          "lineNumber": 65
+        },
+        {
+          "caller": "_file_append_handler",
+          "callee": "path.read_text",
+          "lineNumber": 69
+        },
+        {
+          "caller": "_file_append_handler",
+          "callee": "path.exists",
+          "lineNumber": 69
+        },
+        {
+          "caller": "_file_append_handler",
+          "callee": "existing.endswith",
+          "lineNumber": 70
+        },
+        {
+          "caller": "_file_append_handler",
+          "callee": "path.parent.mkdir",
+          "lineNumber": 72
+        },
+        {
+          "caller": "_file_append_handler",
+          "callee": "path.open",
+          "lineNumber": 73
+        },
+        {
+          "caller": "_file_append_handler",
+          "callee": "f.write",
+          "lineNumber": 74
+        },
+        {
+          "caller": "_file_append_handler",
+          "callee": "ToolResult",
+          "lineNumber": 75
+        },
+        {
+          "caller": "_file_append_handler",
+          "callee": "ToolResult",
+          "lineNumber": 77
+        },
+        {
+          "caller": "_file_append_handler",
+          "callee": "str",
+          "lineNumber": 77
+        },
+        {
+          "caller": "create_simple_file_tools",
+          "callee": "registry.register",
+          "lineNumber": 81
+        },
+        {
+          "caller": "create_simple_file_tools",
+          "callee": "ToolDefinition",
+          "lineNumber": 82
+        },
+        {
+          "caller": "create_simple_file_tools",
+          "callee": "registry.register",
+          "lineNumber": 95
+        },
+        {
+          "caller": "create_simple_file_tools",
+          "callee": "ToolDefinition",
+          "lineNumber": 96
+        },
+        {
+          "caller": "create_simple_file_tools",
+          "callee": "registry.register",
+          "lineNumber": 109
+        },
+        {
+          "caller": "create_simple_file_tools",
+          "callee": "ToolDefinition",
+          "lineNumber": 110
+        }
+      ],
+      "metrics": {
+        "importCount": 3,
+        "exportCount": 7,
+        "functionCount": 4,
+        "classCount": 3
+      }
+    },
+    {
+      "path": "src/lifeops/tools/builtin/web_search.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 111,
+      "nonEmptyLines": 93,
+      "functions": [
+        {
+          "name": "create_web_search_tool",
+          "startLine": 26,
+          "endLine": 111,
+          "params": [
+            "registry",
+            "config"
+          ]
+        }
+      ],
+      "classes": [
+        {
+          "name": "WebSearchParams",
+          "startLine": 17,
+          "endLine": 23,
+          "methods": [],
+          "properties": [
+            "query",
+            "num_results",
+            "location",
+            "language"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "WebSearchParams",
+          "line": 17,
+          "isDefault": false
+        },
+        {
+          "name": "create_web_search_tool",
+          "line": 26,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "create_web_search_tool",
+          "callee": "ToolDefinition",
+          "lineNumber": 29
+        },
+        {
+          "caller": "_handler",
+          "callee": "ToolResult",
+          "lineNumber": 45
+        },
+        {
+          "caller": "create_web_search_tool",
+          "callee": "serpapi.Client",
+          "lineNumber": 51
+        },
+        {
+          "caller": "_handler",
+          "callee": "WebSearchParams.model_validate",
+          "lineNumber": 54
+        },
+        {
+          "caller": "_handler",
+          "callee": "logger.info",
+          "lineNumber": 55
+        },
+        {
+          "caller": "_handler",
+          "callee": "asyncio.to_thread",
+          "lineNumber": 66
+        },
+        {
+          "caller": "_handler",
+          "callee": "ToolResult",
+          "lineNumber": 68
+        },
+        {
+          "caller": "_handler",
+          "callee": "ToolResult",
+          "lineNumber": 74
+        },
+        {
+          "caller": "_handler",
+          "callee": "ToolResult",
+          "lineNumber": 80
+        },
+        {
+          "caller": "_handler",
+          "callee": "ToolResult",
+          "lineNumber": 86
+        },
+        {
+          "caller": "_handler",
+          "callee": "results.get",
+          "lineNumber": 92
+        },
+        {
+          "caller": "_handler",
+          "callee": "ToolResult",
+          "lineNumber": 94
+        },
+        {
+          "caller": "_handler",
+          "callee": "len",
+          "lineNumber": 99
+        },
+        {
+          "caller": "_handler",
+          "callee": "enumerate",
+          "lineNumber": 100
+        },
+        {
+          "caller": "_handler",
+          "callee": "item.get",
+          "lineNumber": 101
+        },
+        {
+          "caller": "_handler",
+          "callee": "item.get",
+          "lineNumber": 102
+        },
+        {
+          "caller": "_handler",
+          "callee": "item.get",
+          "lineNumber": 103
+        },
+        {
+          "caller": "_handler",
+          "callee": "lines.append",
+          "lineNumber": 104
+        },
+        {
+          "caller": "_handler",
+          "callee": "lines.append",
+          "lineNumber": 106
+        },
+        {
+          "caller": "_handler",
+          "callee": "lines.append",
+          "lineNumber": 107
+        },
+        {
+          "caller": "_handler",
+          "callee": "ToolResult",
+          "lineNumber": 109
+        },
+        {
+          "caller": "_handler",
+          "callee": "\"\\n\".join",
+          "lineNumber": 109
+        },
+        {
+          "caller": "create_web_search_tool",
+          "callee": "registry.register",
+          "lineNumber": 111
+        }
+      ],
+      "metrics": {
+        "importCount": 4,
+        "exportCount": 2,
+        "functionCount": 1,
+        "classCount": 1
+      }
+    },
+    {
+      "path": "src/lifeops/tools/registry.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 72,
+      "nonEmptyLines": 54,
+      "classes": [
+        {
+          "name": "ToolRegistry",
+          "startLine": 12,
+          "endLine": 72,
+          "methods": [
+            "__init__",
+            "clone",
+            "copy_from",
+            "register",
+            "get_definition",
+            "get_handler",
+            "get_canonical_name",
+            "list_definitions",
+            "execute",
+            "_validate_params",
+            "get_openai_tool_schemas"
+          ],
+          "properties": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "ToolRegistry",
+          "line": 12,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "clone",
+          "callee": "ToolRegistry",
+          "lineNumber": 18
+        },
+        {
+          "caller": "clone",
+          "callee": "registry.copy_from",
+          "lineNumber": 19
+        },
+        {
+          "caller": "copy_from",
+          "callee": "dict",
+          "lineNumber": 23
+        },
+        {
+          "caller": "copy_from",
+          "callee": "dict",
+          "lineNumber": 24
+        },
+        {
+          "caller": "register",
+          "callee": "logger.warning",
+          "lineNumber": 29
+        },
+        {
+          "caller": "get_definition",
+          "callee": "self._definitions.get",
+          "lineNumber": 34
+        },
+        {
+          "caller": "get_handler",
+          "callee": "self._handlers.get",
+          "lineNumber": 37
+        },
+        {
+          "caller": "get_canonical_name",
+          "callee": "self._definitions.get",
+          "lineNumber": 40
+        },
+        {
+          "caller": "list_definitions",
+          "callee": "list",
+          "lineNumber": 48
+        },
+        {
+          "caller": "list_definitions",
+          "callee": "self._definitions.values",
+          "lineNumber": 48
+        },
+        {
+          "caller": "execute",
+          "callee": "self._handlers.get",
+          "lineNumber": 51
+        },
+        {
+          "caller": "execute",
+          "callee": "KeyError",
+          "lineNumber": 53
+        },
+        {
+          "caller": "execute",
+          "callee": "logger.info",
+          "lineNumber": 56
+        },
+        {
+          "caller": "execute",
+          "callee": "self._validate_params",
+          "lineNumber": 58
+        },
+        {
+          "caller": "execute",
+          "callee": "handler",
+          "lineNumber": 61
+        },
+        {
+          "caller": "execute",
+          "callee": "logger.info",
+          "lineNumber": 62
+        },
+        {
+          "caller": "execute",
+          "callee": "logger.error",
+          "lineNumber": 65
+        },
+        {
+          "caller": "execute",
+          "callee": "ToolResult",
+          "lineNumber": 66
+        },
+        {
+          "caller": "execute",
+          "callee": "str",
+          "lineNumber": 66
+        },
+        {
+          "caller": "_validate_params",
+          "callee": "definition.parameters_model.model_validate",
+          "lineNumber": 69
+        },
+        {
+          "caller": "get_openai_tool_schemas",
+          "callee": "openai_tool_schema",
+          "lineNumber": 72
+        },
+        {
+          "caller": "get_openai_tool_schemas",
+          "callee": "self._definitions.values",
+          "lineNumber": 72
+        }
+      ],
+      "metrics": {
+        "importCount": 3,
+        "exportCount": 1,
+        "functionCount": 0,
+        "classCount": 1
+      }
+    },
+    {
+      "path": "src/lifeops/tools/schema.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 231,
+      "nonEmptyLines": 194,
+      "functions": [
+        {
+          "name": "parameters_schema_from_model",
+          "startLine": 65,
+          "endLine": 75,
+          "params": [
+            "parameters_model"
+          ]
+        },
+        {
+          "name": "openai_tool_schema",
+          "startLine": 78,
+          "endLine": 86,
+          "params": [
+            "tool_def"
+          ]
+        },
+        {
+          "name": "tool_exposure_priority",
+          "startLine": 89,
+          "endLine": 105,
+          "params": [
+            "tool_def"
+          ]
+        },
+        {
+          "name": "select_llm_tools",
+          "startLine": 108,
+          "endLine": 135,
+          "params": [
+            "tools",
+            "max_tools",
+            "context"
+          ]
+        },
+        {
+          "name": "_filter_contextual_tools",
+          "startLine": 138,
+          "endLine": 148,
+          "params": [
+            "tools",
+            "context"
+          ]
+        },
+        {
+          "name": "_is_mcp_tool",
+          "startLine": 151,
+          "endLine": 152,
+          "params": [
+            "tool"
+          ]
+        },
+        {
+          "name": "_mcp_relevance_score",
+          "startLine": 155,
+          "endLine": 179,
+          "params": [
+            "tool",
+            "context"
+          ]
+        },
+        {
+          "name": "_matches_allowed_tool",
+          "startLine": 182,
+          "endLine": 194,
+          "params": [
+            "tool",
+            "allowed_tools"
+          ]
+        },
+        {
+          "name": "_mcp_server_name",
+          "startLine": 197,
+          "endLine": 204,
+          "params": [
+            "tool"
+          ]
+        },
+        {
+          "name": "_text_mentions_server",
+          "startLine": 207,
+          "endLine": 211,
+          "params": [
+            "text",
+            "server"
+          ]
+        },
+        {
+          "name": "_shares_meaningful_text",
+          "startLine": 214,
+          "endLine": 219,
+          "params": [
+            "left",
+            "right"
+          ]
+        },
+        {
+          "name": "_meaningful_tokens",
+          "startLine": 222,
+          "endLine": 227,
+          "params": [
+            "text"
+          ]
+        },
+        {
+          "name": "_normalize_match_text",
+          "startLine": 230,
+          "endLine": 231,
+          "params": [
+            "text"
+          ]
+        }
+      ],
+      "classes": [
+        {
+          "name": "ToolSelectionContext",
+          "startLine": 57,
+          "endLine": 62,
+          "methods": [],
+          "properties": [
+            "user_input",
+            "active_skill_names",
+            "active_skill_descriptions",
+            "active_skill_allowed_tools",
+            "used_tool_names"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "ToolSelectionContext",
+          "line": 56,
+          "isDefault": false
+        },
+        {
+          "name": "parameters_schema_from_model",
+          "line": 65,
+          "isDefault": false
+        },
+        {
+          "name": "openai_tool_schema",
+          "line": 78,
+          "isDefault": false
+        },
+        {
+          "name": "tool_exposure_priority",
+          "line": 89,
+          "isDefault": false
+        },
+        {
+          "name": "select_llm_tools",
+          "line": 108,
+          "isDefault": false
+        },
+        {
+          "name": "_filter_contextual_tools",
+          "line": 138,
+          "isDefault": false
+        },
+        {
+          "name": "_is_mcp_tool",
+          "line": 151,
+          "isDefault": false
+        },
+        {
+          "name": "_mcp_relevance_score",
+          "line": 155,
+          "isDefault": false
+        },
+        {
+          "name": "_matches_allowed_tool",
+          "line": 182,
+          "isDefault": false
+        },
+        {
+          "name": "_mcp_server_name",
+          "line": 197,
+          "isDefault": false
+        },
+        {
+          "name": "_text_mentions_server",
+          "line": 207,
+          "isDefault": false
+        },
+        {
+          "name": "_shares_meaningful_text",
+          "line": 214,
+          "isDefault": false
+        },
+        {
+          "name": "_meaningful_tokens",
+          "line": 222,
+          "isDefault": false
+        },
+        {
+          "name": "_normalize_match_text",
+          "line": 230,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "parameters_schema_from_model",
+          "callee": "parameters_model.model_json_schema",
+          "lineNumber": 66
+        },
+        {
+          "caller": "parameters_schema_from_model",
+          "callee": "json_schema.get",
+          "lineNumber": 69
+        },
+        {
+          "caller": "parameters_schema_from_model",
+          "callee": "json_schema.get",
+          "lineNumber": 70
+        },
+        {
+          "caller": "parameters_schema_from_model",
+          "callee": "json_schema.get",
+          "lineNumber": 71
+        },
+        {
+          "caller": "openai_tool_schema",
+          "callee": "parameters_schema_from_model",
+          "lineNumber": 84
+        },
+        {
+          "caller": "select_llm_tools",
+          "callee": "_filter_contextual_tools",
+          "lineNumber": 113
+        },
+        {
+          "caller": "select_llm_tools",
+          "callee": "len",
+          "lineNumber": 114
+        },
+        {
+          "caller": "select_llm_tools",
+          "callee": "len",
+          "lineNumber": 115
+        },
+        {
+          "caller": "select_llm_tools",
+          "callee": "len",
+          "lineNumber": 115
+        },
+        {
+          "caller": "select_llm_tools",
+          "callee": "logger.info",
+          "lineNumber": 116
+        },
+        {
+          "caller": "select_llm_tools",
+          "callee": "len",
+          "lineNumber": 118
+        },
+        {
+          "caller": "select_llm_tools",
+          "callee": "len",
+          "lineNumber": 119
+        },
+        {
+          "caller": "select_llm_tools",
+          "callee": "len",
+          "lineNumber": 120
+        },
+        {
+          "caller": "select_llm_tools",
+          "callee": "len",
+          "lineNumber": 120
+        },
+        {
+          "caller": "select_llm_tools",
+          "callee": "list",
+          "lineNumber": 122
+        },
+        {
+          "caller": "select_llm_tools",
+          "callee": "sorted",
+          "lineNumber": 124
+        },
+        {
+          "caller": "select_llm_tools",
+          "callee": "enumerate",
+          "lineNumber": 125
+        },
+        {
+          "caller": "select_llm_tools",
+          "callee": "tool_exposure_priority",
+          "lineNumber": 126
+        },
+        {
+          "caller": "select_llm_tools",
+          "callee": "logger.info",
+          "lineNumber": 129
+        },
+        {
+          "caller": "select_llm_tools",
+          "callee": "len",
+          "lineNumber": 131
+        },
+        {
+          "caller": "select_llm_tools",
+          "callee": "len",
+          "lineNumber": 132
+        },
+        {
+          "caller": "select_llm_tools",
+          "callee": "len",
+          "lineNumber": 133
+        },
+        {
+          "caller": "select_llm_tools",
+          "callee": "len",
+          "lineNumber": 133
+        },
+        {
+          "caller": "_filter_contextual_tools",
+          "callee": "_is_mcp_tool",
+          "lineNumber": 143
+        },
+        {
+          "caller": "_filter_contextual_tools",
+          "callee": "selected.append",
+          "lineNumber": 144
+        },
+        {
+          "caller": "_filter_contextual_tools",
+          "callee": "_mcp_relevance_score",
+          "lineNumber": 146
+        },
+        {
+          "caller": "_filter_contextual_tools",
+          "callee": "selected.append",
+          "lineNumber": 147
+        },
+        {
+          "caller": "_is_mcp_tool",
+          "callee": "(tool.canonical_name or \"\").startswith",
+          "lineNumber": 152
+        },
+        {
+          "caller": "_mcp_relevance_score",
+          "callee": "_matches_allowed_tool",
+          "lineNumber": 157
+        },
+        {
+          "caller": "_mcp_relevance_score",
+          "callee": "_mcp_server_name",
+          "lineNumber": 162
+        },
+        {
+          "caller": "_mcp_relevance_score",
+          "callee": "_normalize_match_text",
+          "lineNumber": 163
+        },
+        {
+          "caller": "_mcp_relevance_score",
+          "callee": "_normalize_match_text",
+          "lineNumber": 164
+        },
+        {
+          "caller": "_mcp_relevance_score",
+          "callee": "\" \".join",
+          "lineNumber": 165
+        },
+        {
+          "caller": "_mcp_relevance_score",
+          "callee": "_normalize_match_text",
+          "lineNumber": 167
+        },
+        {
+          "caller": "_mcp_relevance_score",
+          "callee": "\" \".join",
+          "lineNumber": 168
+        },
+        {
+          "caller": "_mcp_relevance_score",
+          "callee": "_text_mentions_server",
+          "lineNumber": 171
+        },
+        {
+          "caller": "_mcp_relevance_score",
+          "callee": "_text_mentions_server",
+          "lineNumber": 173
+        },
+        {
+          "caller": "_mcp_relevance_score",
+          "callee": "_shares_meaningful_text",
+          "lineNumber": 175
+        },
+        {
+          "caller": "_mcp_relevance_score",
+          "callee": "_shares_meaningful_text",
+          "lineNumber": 177
+        },
+        {
+          "caller": "_matches_allowed_tool",
+          "callee": "allowed.strip",
+          "lineNumber": 185
+        },
+        {
+          "caller": "_matches_allowed_tool",
+          "callee": "allowed.startswith",
+          "lineNumber": 190
+        },
+        {
+          "caller": "_matches_allowed_tool",
+          "callee": "allowed.endswith",
+          "lineNumber": 190
+        },
+        {
+          "caller": "_matches_allowed_tool",
+          "callee": "canonical_name.startswith",
+          "lineNumber": 192
+        },
+        {
+          "caller": "_mcp_server_name",
+          "callee": "canonical_name.startswith",
+          "lineNumber": 199
+        },
+        {
+          "caller": "_mcp_server_name",
+          "callee": "canonical_name.split",
+          "lineNumber": 200
+        },
+        {
+          "caller": "_mcp_server_name",
+          "callee": "len",
+          "lineNumber": 201
+        },
+        {
+          "caller": "_mcp_server_name",
+          "callee": "parts[1].lower",
+          "lineNumber": 202
+        },
+        {
+          "caller": "_mcp_server_name",
+          "callee": "tool.name.split",
+          "lineNumber": 203
+        },
+        {
+          "caller": "_mcp_server_name",
+          "callee": "name_parts[0].lower",
+          "lineNumber": 204
+        },
+        {
+          "caller": "_text_mentions_server",
+          "callee": "INTENT_SERVER_KEYWORDS.get",
+          "lineNumber": 208
+        },
+        {
+          "caller": "_text_mentions_server",
+          "callee": "any",
+          "lineNumber": 209
+        },
+        {
+          "caller": "_text_mentions_server",
+          "callee": "server.replace",
+          "lineNumber": 211
+        },
+        {
+          "caller": "_text_mentions_server",
+          "callee": "server.replace",
+          "lineNumber": 211
+        },
+        {
+          "caller": "_shares_meaningful_text",
+          "callee": "_meaningful_tokens",
+          "lineNumber": 217
+        },
+        {
+          "caller": "_shares_meaningful_text",
+          "callee": "_meaningful_tokens",
+          "lineNumber": 218
+        },
+        {
+          "caller": "_shares_meaningful_text",
+          "callee": "bool",
+          "lineNumber": 219
+        },
+        {
+          "caller": "_meaningful_tokens",
+          "callee": "text.replace(\".\", \" \").replace(\"_\", \" \").replace(\"-\", \" \").split",
+          "lineNumber": 225
+        },
+        {
+          "caller": "_meaningful_tokens",
+          "callee": "text.replace(\".\", \" \").replace(\"_\", \" \").replace",
+          "lineNumber": 225
+        },
+        {
+          "caller": "_meaningful_tokens",
+          "callee": "text.replace(\".\", \" \").replace",
+          "lineNumber": 225
+        },
+        {
+          "caller": "_meaningful_tokens",
+          "callee": "text.replace",
+          "lineNumber": 225
+        },
+        {
+          "caller": "_meaningful_tokens",
+          "callee": "len",
+          "lineNumber": 226
+        },
+        {
+          "caller": "_normalize_match_text",
+          "callee": "text.lower",
+          "lineNumber": 231
+        }
+      ],
+      "metrics": {
+        "importCount": 2,
+        "exportCount": 14,
+        "functionCount": 13,
+        "classCount": 1
+      }
+    },
+    {
+      "path": "src/lifeops/utils/logging.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 19,
+      "nonEmptyLines": 13,
+      "functions": [
+        {
+          "name": "setup_logger",
+          "startLine": 8,
+          "endLine": 15,
+          "params": [
+            "name",
+            "level"
+          ]
+        },
+        {
+          "name": "get_logger",
+          "startLine": 18,
+          "endLine": 19,
+          "params": [
+            "name"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "setup_logger",
+          "line": 8,
+          "isDefault": false
+        },
+        {
+          "name": "get_logger",
+          "line": 18,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "setup_logger",
+          "callee": "logging.getLogger",
+          "lineNumber": 9
+        },
+        {
+          "caller": "setup_logger",
+          "callee": "logger.setLevel",
+          "lineNumber": 10
+        },
+        {
+          "caller": "setup_logger",
+          "callee": "getattr",
+          "lineNumber": 10
+        },
+        {
+          "caller": "setup_logger",
+          "callee": "level.upper",
+          "lineNumber": 10
+        },
+        {
+          "caller": "setup_logger",
+          "callee": "RichHandler",
+          "lineNumber": 12
+        },
+        {
+          "caller": "setup_logger",
+          "callee": "handler.setFormatter",
+          "lineNumber": 13
+        },
+        {
+          "caller": "setup_logger",
+          "callee": "logging.Formatter",
+          "lineNumber": 13
+        },
+        {
+          "caller": "setup_logger",
+          "callee": "logger.addHandler",
+          "lineNumber": 14
+        },
+        {
+          "caller": "get_logger",
+          "callee": "logging.getLogger",
+          "lineNumber": 19
+        }
+      ],
+      "metrics": {
+        "importCount": 1,
+        "exportCount": 2,
+        "functionCount": 2,
+        "classCount": 0
+      }
+    }
+  ]
+}

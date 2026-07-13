@@ -1,0 +1,31 @@
+{
+  "projectRoot": "/Users/xin/Desktop/assests/lifeops",
+  "batchFiles": [
+    {"path": "src/lifeops/core/config.py", "language": "python", "sizeLines": 209, "fileCategory": "code"},
+    {"path": "src/lifeops/rag/bm25.py", "language": "python", "sizeLines": 72, "fileCategory": "code"},
+    {"path": "src/lifeops/rag/embeddings.py", "language": "python", "sizeLines": 48, "fileCategory": "code"},
+    {"path": "src/lifeops/rag/fusion.py", "language": "python", "sizeLines": 113, "fileCategory": "code"},
+    {"path": "src/lifeops/rag/index.py", "language": "python", "sizeLines": 23, "fileCategory": "code"},
+    {"path": "src/lifeops/rag/indexer.py", "language": "python", "sizeLines": 220, "fileCategory": "code"},
+    {"path": "src/lifeops/rag/loader.py", "language": "python", "sizeLines": 99, "fileCategory": "code"},
+    {"path": "src/lifeops/rag/retriever.py", "language": "python", "sizeLines": 368, "fileCategory": "code"},
+    {"path": "src/lifeops/rag/router.py", "language": "python", "sizeLines": 127, "fileCategory": "code"},
+    {"path": "src/lifeops/rag/splitter.py", "language": "python", "sizeLines": 145, "fileCategory": "code"},
+    {"path": "src/lifeops/rag/tokenizer.py", "language": "python", "sizeLines": 29, "fileCategory": "code"},
+    {"path": "src/lifeops/rag/types.py", "language": "python", "sizeLines": 73, "fileCategory": "code"}
+  ],
+  "batchImportData": {
+    "src/lifeops/core/config.py": [],
+    "src/lifeops/rag/bm25.py": ["src/lifeops/rag/tokenizer.py", "src/lifeops/rag/types.py"],
+    "src/lifeops/rag/embeddings.py": [],
+    "src/lifeops/rag/fusion.py": ["src/lifeops/rag/types.py"],
+    "src/lifeops/rag/index.py": ["src/lifeops/core/config.py"],
+    "src/lifeops/rag/indexer.py": ["src/lifeops/core/config.py", "src/lifeops/rag/bm25.py", "src/lifeops/rag/embeddings.py", "src/lifeops/rag/loader.py", "src/lifeops/rag/splitter.py", "src/lifeops/rag/types.py"],
+    "src/lifeops/rag/loader.py": ["src/lifeops/rag/types.py"],
+    "src/lifeops/rag/retriever.py": ["src/lifeops/core/config.py", "src/lifeops/rag/bm25.py", "src/lifeops/rag/embeddings.py", "src/lifeops/rag/fusion.py", "src/lifeops/rag/types.py"],
+    "src/lifeops/rag/router.py": ["src/lifeops/core/config.py", "src/lifeops/rag/loader.py", "src/lifeops/rag/types.py"],
+    "src/lifeops/rag/splitter.py": ["src/lifeops/rag/types.py"],
+    "src/lifeops/rag/tokenizer.py": [],
+    "src/lifeops/rag/types.py": []
+  }
+}

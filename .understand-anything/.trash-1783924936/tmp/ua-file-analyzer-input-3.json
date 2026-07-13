@@ -1,0 +1,57 @@
+{
+  "projectRoot": "/Users/xin/Desktop/assests/lifeops",
+  "batchFiles": [
+    {"path": "src/lifeops/core/compression_pipeline.py", "language": "python", "sizeLines": 160, "fileCategory": "code"},
+    {"path": "src/lifeops/core/context_manager.py", "language": "python", "sizeLines": 211, "fileCategory": "code"},
+    {"path": "src/lifeops/memory/confidence.py", "language": "python", "sizeLines": 34, "fileCategory": "code"},
+    {"path": "src/lifeops/memory/extractor.py", "language": "python", "sizeLines": 14, "fileCategory": "code"},
+    {"path": "src/lifeops/memory/retriever.py", "language": "python", "sizeLines": 96, "fileCategory": "code"},
+    {"path": "src/lifeops/memory/service.py", "language": "python", "sizeLines": 331, "fileCategory": "code"},
+    {"path": "src/lifeops/memory/summarizer.py", "language": "python", "sizeLines": 44, "fileCategory": "code"},
+    {"path": "src/lifeops/storage/__init__.py", "language": "python", "sizeLines": 14, "fileCategory": "code"},
+    {"path": "src/lifeops/storage/migration.py", "language": "python", "sizeLines": 184, "fileCategory": "code"},
+    {"path": "src/lifeops/storage/schema.py", "language": "python", "sizeLines": 299, "fileCategory": "code"},
+    {"path": "src/lifeops/storage/sqlite_store.py", "language": "python", "sizeLines": 1378, "fileCategory": "code"}
+  ],
+  "batchImportData": {
+    "src/lifeops/core/compression_pipeline.py": [
+      "src/lifeops/core/config.py",
+      "src/lifeops/core/context_manager.py",
+      "src/lifeops/storage/sqlite_store.py",
+      "src/lifeops/utils/logging.py"
+    ],
+    "src/lifeops/core/context_manager.py": [
+      "src/lifeops/utils/logging.py"
+    ],
+    "src/lifeops/memory/confidence.py": [],
+    "src/lifeops/memory/extractor.py": [],
+    "src/lifeops/memory/retriever.py": [],
+    "src/lifeops/memory/service.py": [
+      "src/lifeops/core/config.py",
+      "src/lifeops/core/context_manager.py",
+      "src/lifeops/memory/confidence.py",
+      "src/lifeops/memory/extractor.py",
+      "src/lifeops/memory/retriever.py",
+      "src/lifeops/memory/summarizer.py",
+      "src/lifeops/storage/sqlite_store.py",
+      "src/lifeops/utils/logging.py"
+    ],
+    "src/lifeops/memory/summarizer.py": [
+      "src/lifeops/llm/types.py"
+    ],
+    "src/lifeops/storage/__init__.py": [
+      "src/lifeops/storage/migration.py",
+      "src/lifeops/storage/schema.py",
+      "src/lifeops/storage/sqlite_store.py"
+    ],
+    "src/lifeops/storage/migration.py": [
+      "src/lifeops/storage/sqlite_store.py"
+    ],
+    "src/lifeops/storage/schema.py": [],
+    "src/lifeops/storage/sqlite_store.py": [
+      "src/lifeops/memory/confidence.py",
+      "src/lifeops/storage/schema.py",
+      "src/lifeops/utils/text.py"
+    ]
+  }
+}

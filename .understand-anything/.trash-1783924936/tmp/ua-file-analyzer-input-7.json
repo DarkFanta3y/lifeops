@@ -1,0 +1,50 @@
+{
+  "projectRoot": "/Users/xin/Desktop/assests/lifeops",
+  "batchFiles": [
+    {
+      "path": "web/src/App.jsx",
+      "language": "javascript",
+      "sizeLines": 1164,
+      "fileCategory": "code"
+    },
+    {
+      "path": "web/src/api.js",
+      "language": "javascript",
+      "sizeLines": 133,
+      "fileCategory": "code"
+    },
+    {
+      "path": "web/src/main.jsx",
+      "language": "javascript",
+      "sizeLines": 45,
+      "fileCategory": "code"
+    },
+    {
+      "path": "web/src/scroll.js",
+      "language": "javascript",
+      "sizeLines": 5,
+      "fileCategory": "code"
+    },
+    {
+      "path": "web/src/scroll.test.mjs",
+      "language": "javascript",
+      "sizeLines": 40,
+      "fileCategory": "code"
+    }
+  ],
+  "batchImportData": {
+    "web/src/App.jsx": [
+      "web/src/api.js",
+      "web/src/scroll.js"
+    ],
+    "web/src/api.js": [],
+    "web/src/main.jsx": [
+      "web/src/App.jsx",
+      "web/src/styles.css"
+    ],
+    "web/src/scroll.js": [],
+    "web/src/scroll.test.mjs": [
+      "web/src/scroll.js"
+    ]
+  }
+}

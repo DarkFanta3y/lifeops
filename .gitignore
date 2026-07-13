@@ -18,7 +18,6 @@ build/
 web/node_modules/
 web/dist/
 docs/
-tests/
 AGENTS.md
 PROJECT.md
 PROJECT.md.ecc-hooks-disable

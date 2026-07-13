@@ -1,0 +1,1598 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 5,
+  "filesSkipped": [],
+  "results": [
+    {
+      "path": "web/src/App.jsx",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 1164,
+      "nonEmptyLines": 1096,
+      "functions": [
+        {
+          "name": "App",
+          "startLine": 53,
+          "endLine": 467,
+          "params": []
+        },
+        {
+          "name": "ConversationList",
+          "startLine": 469,
+          "endLine": 520,
+          "params": []
+        },
+        {
+          "name": "SearchModal",
+          "startLine": 522,
+          "endLine": 566,
+          "params": []
+        },
+        {
+          "name": "ChatWorkspace",
+          "startLine": 568,
+          "endLine": 697,
+          "params": []
+        },
+        {
+          "name": "SkillsWorkspace",
+          "startLine": 699,
+          "endLine": 756,
+          "params": []
+        },
+        {
+          "name": "ToolsWorkspace",
+          "startLine": 758,
+          "endLine": 859,
+          "params": []
+        },
+        {
+          "name": "Toolbar",
+          "startLine": 861,
+          "endLine": 876,
+          "params": []
+        },
+        {
+          "name": "McpToolList",
+          "startLine": 878,
+          "endLine": 892,
+          "params": []
+        },
+        {
+          "name": "SkillModal",
+          "startLine": 894,
+          "endLine": 960,
+          "params": []
+        },
+        {
+          "name": "LoggingModal",
+          "startLine": 962,
+          "endLine": 1093,
+          "params": []
+        },
+        {
+          "name": "ToolCallDetails",
+          "startLine": 1095,
+          "endLine": 1111,
+          "params": []
+        },
+        {
+          "name": "loggingEntryType",
+          "startLine": 1113,
+          "endLine": 1121,
+          "params": [
+            "msg"
+          ]
+        },
+        {
+          "name": "loggingEntrySummary",
+          "startLine": 1123,
+          "endLine": 1131,
+          "params": [
+            "msg"
+          ]
+        },
+        {
+          "name": "MarkdownRenderer",
+          "startLine": 1133,
+          "endLine": 1147,
+          "params": []
+        },
+        {
+          "name": "MarkdownImage",
+          "startLine": 1149,
+          "endLine": 1152,
+          "params": []
+        },
+        {
+          "name": "roleLabel",
+          "startLine": 1154,
+          "endLine": 1162,
+          "params": [
+            "role"
+          ]
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "App",
+          "callee": "AntApp.useApp",
+          "lineNumber": 54
+        },
+        {
+          "caller": "App",
+          "callee": "useState",
+          "lineNumber": 55
+        },
+        {
+          "caller": "App",
+          "callee": "useState",
+          "lineNumber": 56
+        },
+        {
+          "caller": "App",
+          "callee": "useState",
+          "lineNumber": 57
+        },
+        {
+          "caller": "App",
+          "callee": "useState",
+          "lineNumber": 58
+        },
+        {
+          "caller": "App",
+          "callee": "useState",
+          "lineNumber": 59
+        },
+        {
+          "caller": "App",
+          "callee": "useState",
+          "lineNumber": 60
+        },
+        {
+          "caller": "App",
+          "callee": "useState",
+          "lineNumber": 61
+        },
+        {
+          "caller": "App",
+          "callee": "useState",
+          "lineNumber": 62
+        },
+        {
+          "caller": "App",
+          "callee": "useState",
+          "lineNumber": 63
+        },
+        {
+          "caller": "App",
+          "callee": "useState",
+          "lineNumber": 64
+        },
+        {
+          "caller": "App",
+          "callee": "useState",
+          "lineNumber": 65
+        },
+        {
+          "caller": "App",
+          "callee": "useState",
+          "lineNumber": 66
+        },
+        {
+          "caller": "App",
+          "callee": "useState",
+          "lineNumber": 67
+        },
+        {
+          "caller": "App",
+          "callee": "useState",
+          "lineNumber": 68
+        },
+        {
+          "caller": "App",
+          "callee": "useState",
+          "lineNumber": 69
+        },
+        {
+          "caller": "App",
+          "callee": "useState",
+          "lineNumber": 70
+        },
+        {
+          "caller": "App",
+          "callee": "useState",
+          "lineNumber": 71
+        },
+        {
+          "caller": "App",
+          "callee": "useState",
+          "lineNumber": 72
+        },
+        {
+          "caller": "App",
+          "callee": "useState",
+          "lineNumber": 73
+        },
+        {
+          "caller": "App",
+          "callee": "useState",
+          "lineNumber": 74
+        },
+        {
+          "caller": "App",
+          "callee": "useRef",
+          "lineNumber": 75
+        },
+        {
+          "caller": "App",
+          "callee": "useState",
+          "lineNumber": 76
+        },
+        {
+          "caller": "App",
+          "callee": "useMemo",
+          "lineNumber": 83
+        },
+        {
+          "caller": "App",
+          "callee": "conversations.find",
+          "lineNumber": 85
+        },
+        {
+          "caller": "App",
+          "callee": "useEffect",
+          "lineNumber": 91
+        },
+        {
+          "caller": "App",
+          "callee": "loadConversations",
+          "lineNumber": 92
+        },
+        {
+          "caller": "App",
+          "callee": "useEffect",
+          "lineNumber": 95
+        },
+        {
+          "caller": "App",
+          "callee": "loadSkills",
+          "lineNumber": 97
+        },
+        {
+          "caller": "App",
+          "callee": "loadTools",
+          "lineNumber": 100
+        },
+        {
+          "caller": "App",
+          "callee": "useEffect",
+          "lineNumber": 104
+        },
+        {
+          "caller": "App",
+          "callee": "searchQuery.trim",
+          "lineNumber": 109
+        },
+        {
+          "caller": "App",
+          "callee": "setSearchResults",
+          "lineNumber": 111
+        },
+        {
+          "caller": "App",
+          "callee": "setSearchError",
+          "lineNumber": 112
+        },
+        {
+          "caller": "App",
+          "callee": "setSearchLoading",
+          "lineNumber": 113
+        },
+        {
+          "caller": "App",
+          "callee": "setTimeout",
+          "lineNumber": 117
+        },
+        {
+          "caller": "App",
+          "callee": "handleSearch",
+          "lineNumber": 118
+        },
+        {
+          "caller": "App",
+          "callee": "clearTimeout",
+          "lineNumber": 122
+        },
+        {
+          "caller": "loadConversations",
+          "callee": "Object.prototype.hasOwnProperty.call",
+          "lineNumber": 127
+        },
+        {
+          "caller": "loadConversations",
+          "callee": "setLoading",
+          "lineNumber": 133
+        },
+        {
+          "caller": "loadConversations",
+          "callee": "setError",
+          "lineNumber": 134
+        },
+        {
+          "caller": "loadConversations",
+          "callee": "fetchConversations",
+          "lineNumber": 136
+        },
+        {
+          "caller": "loadConversations",
+          "callee": "nextConversations.some",
+          "lineNumber": 140
+        },
+        {
+          "caller": "loadConversations",
+          "callee": "setConversations",
+          "lineNumber": 149
+        },
+        {
+          "caller": "loadConversations",
+          "callee": "setSelectedConversationId",
+          "lineNumber": 150
+        },
+        {
+          "caller": "loadConversations",
+          "callee": "loadConversation",
+          "lineNumber": 152
+        },
+        {
+          "caller": "loadConversations",
+          "callee": "setConversationMessages",
+          "lineNumber": 154
+        },
+        {
+          "caller": "loadConversations",
+          "callee": "setIntermediateMessages",
+          "lineNumber": 155
+        },
+        {
+          "caller": "loadConversations",
+          "callee": "setError",
+          "lineNumber": 158
+        },
+        {
+          "caller": "loadConversations",
+          "callee": "setLoading",
+          "lineNumber": 160
+        },
+        {
+          "caller": "loadConversation",
+          "callee": "setActiveView",
+          "lineNumber": 165
+        },
+        {
+          "caller": "loadConversation",
+          "callee": "setError",
+          "lineNumber": 166
+        },
+        {
+          "caller": "loadConversation",
+          "callee": "fetchConversation",
+          "lineNumber": 168
+        },
+        {
+          "caller": "loadConversation",
+          "callee": "setSelectedConversationId",
+          "lineNumber": 169
+        },
+        {
+          "caller": "loadConversation",
+          "callee": "setConversationMessages",
+          "lineNumber": 170
+        },
+        {
+          "caller": "loadConversation",
+          "callee": "setIntermediateMessages",
+          "lineNumber": 171
+        },
+        {
+          "caller": "loadConversation",
+          "callee": "setError",
+          "lineNumber": 173
+        },
+        {
+          "caller": "loadSkills",
+          "callee": "setLoading",
+          "lineNumber": 178
+        },
+        {
+          "caller": "loadSkills",
+          "callee": "setError",
+          "lineNumber": 179
+        },
+        {
+          "caller": "loadSkills",
+          "callee": "fetchSkills",
+          "lineNumber": 181
+        },
+        {
+          "caller": "loadSkills",
+          "callee": "setSkills",
+          "lineNumber": 182
+        },
+        {
+          "caller": "loadSkills",
+          "callee": "setError",
+          "lineNumber": 184
+        },
+        {
+          "caller": "loadSkills",
+          "callee": "setLoading",
+          "lineNumber": 186
+        },
+        {
+          "caller": "loadTools",
+          "callee": "setLoading",
+          "lineNumber": 191
+        },
+        {
+          "caller": "loadTools",
+          "callee": "setError",
+          "lineNumber": 192
+        },
+        {
+          "caller": "loadTools",
+          "callee": "fetchTools",
+          "lineNumber": 194
+        },
+        {
+          "caller": "loadTools",
+          "callee": "setTools",
+          "lineNumber": 195
+        },
+        {
+          "caller": "loadTools",
+          "callee": "setMcpServers",
+          "lineNumber": 196
+        },
+        {
+          "caller": "loadTools",
+          "callee": "setError",
+          "lineNumber": 198
+        },
+        {
+          "caller": "loadTools",
+          "callee": "setLoading",
+          "lineNumber": 200
+        },
+        {
+          "caller": "handleCreateSkill",
+          "callee": "setSavingSkill",
+          "lineNumber": 205
+        },
+        {
+          "caller": "handleCreateSkill",
+          "callee": "setError",
+          "lineNumber": 206
+        },
+        {
+          "caller": "handleCreateSkill",
+          "callee": "createSkill",
+          "lineNumber": 208
+        },
+        {
+          "caller": "handleCreateSkill",
+          "callee": "message.success",
+          "lineNumber": 209
+        },
+        {
+          "caller": "handleCreateSkill",
+          "callee": "setSkillModalOpen",
+          "lineNumber": 210
+        },
+        {
+          "caller": "handleCreateSkill",
+          "callee": "setSkillForm",
+          "lineNumber": 211
+        },
+        {
+          "caller": "handleCreateSkill",
+          "callee": "loadSkills",
+          "lineNumber": 212
+        },
+        {
+          "caller": "handleCreateSkill",
+          "callee": "setError",
+          "lineNumber": 214
+        },
+        {
+          "caller": "handleCreateSkill",
+          "callee": "setSavingSkill",
+          "lineNumber": 216
+        },
+        {
+          "caller": "handleNewChat",
+          "callee": "setActiveView",
+          "lineNumber": 221
+        },
+        {
+          "caller": "handleNewChat",
+          "callee": "setSelectedConversationId",
+          "lineNumber": 222
+        },
+        {
+          "caller": "handleNewChat",
+          "callee": "setConversationMessages",
+          "lineNumber": 223
+        },
+        {
+          "caller": "handleNewChat",
+          "callee": "setIntermediateMessages",
+          "lineNumber": 224
+        },
+        {
+          "caller": "handleNewChat",
+          "callee": "setChatInput",
+          "lineNumber": 225
+        },
+        {
+          "caller": "handleNewChat",
+          "callee": "setError",
+          "lineNumber": 226
+        },
+        {
+          "caller": "handleSearch",
+          "callee": "rawQuery.trim",
+          "lineNumber": 230
+        },
+        {
+          "caller": "handleSearch",
+          "callee": "setSearchQuery",
+          "lineNumber": 231
+        },
+        {
+          "caller": "handleSearch",
+          "callee": "setSearchResults",
+          "lineNumber": 235
+        },
+        {
+          "caller": "handleSearch",
+          "callee": "setSearchError",
+          "lineNumber": 236
+        },
+        {
+          "caller": "handleSearch",
+          "callee": "setSearchLoading",
+          "lineNumber": 237
+        },
+        {
+          "caller": "handleSearch",
+          "callee": "setSearchLoading",
+          "lineNumber": 241
+        },
+        {
+          "caller": "handleSearch",
+          "callee": "setSearchError",
+          "lineNumber": 242
+        },
+        {
+          "caller": "handleSearch",
+          "callee": "fetchConversations",
+          "lineNumber": 244
+        },
+        {
+          "caller": "handleSearch",
+          "callee": "setSearchResults",
+          "lineNumber": 248
+        },
+        {
+          "caller": "handleSearch",
+          "callee": "setSearchError",
+          "lineNumber": 253
+        },
+        {
+          "caller": "handleSearch",
+          "callee": "setSearchLoading",
+          "lineNumber": 256
+        },
+        {
+          "caller": "handleSelectSearchResult",
+          "callee": "setSearchOpen",
+          "lineNumber": 262
+        },
+        {
+          "caller": "handleSelectSearchResult",
+          "callee": "loadConversation",
+          "lineNumber": 263
+        },
+        {
+          "caller": "handleDeleteConversation",
+          "callee": "setError",
+          "lineNumber": 267
+        },
+        {
+          "caller": "handleDeleteConversation",
+          "callee": "deleteConversation",
+          "lineNumber": 269
+        },
+        {
+          "caller": "handleDeleteConversation",
+          "callee": "message.success",
+          "lineNumber": 270
+        },
+        {
+          "caller": "handleDeleteConversation",
+          "callee": "loadConversations",
+          "lineNumber": 271
+        },
+        {
+          "caller": "handleDeleteConversation",
+          "callee": "setSearchResults",
+          "lineNumber": 276
+        },
+        {
+          "caller": "handleDeleteConversation",
+          "callee": "current.filter",
+          "lineNumber": 277
+        },
+        {
+          "caller": "handleDeleteConversation",
+          "callee": "setError",
+          "lineNumber": 280
+        },
+        {
+          "caller": "handleSend",
+          "callee": "chatInput.trim",
+          "lineNumber": 285
+        },
+        {
+          "caller": "handleSend",
+          "callee": "setActiveView",
+          "lineNumber": 290
+        },
+        {
+          "caller": "handleSend",
+          "callee": "setSending",
+          "lineNumber": 291
+        },
+        {
+          "caller": "handleSend",
+          "callee": "setError",
+          "lineNumber": 292
+        },
+        {
+          "caller": "handleSend",
+          "callee": "new Date().toISOString",
+          "lineNumber": 296
+        },
+        {
+          "caller": "handleSend",
+          "callee": "setConversationMessages",
+          "lineNumber": 298
+        },
+        {
+          "caller": "handleSend",
+          "callee": "setChatInput",
+          "lineNumber": 299
+        },
+        {
+          "caller": "handleSend",
+          "callee": "sendChatMessage",
+          "lineNumber": 304
+        },
+        {
+          "caller": "handleSend",
+          "callee": "setConversationMessages",
+          "lineNumber": 309
+        },
+        {
+          "caller": "handleSend",
+          "callee": "msgs.push",
+          "lineNumber": 315
+        },
+        {
+          "caller": "handleSend",
+          "callee": "new Date().toISOString",
+          "lineNumber": 318
+        },
+        {
+          "caller": "handleSend",
+          "callee": "loadConversations",
+          "lineNumber": 326
+        },
+        {
+          "caller": "handleSend",
+          "callee": "setError",
+          "lineNumber": 331
+        },
+        {
+          "caller": "handleSend",
+          "callee": "setConversationMessages",
+          "lineNumber": 332
+        },
+        {
+          "caller": "handleSend",
+          "callee": "current.filter",
+          "lineNumber": 333
+        },
+        {
+          "caller": "handleSend",
+          "callee": "setSending",
+          "lineNumber": 336
+        },
+        {
+          "caller": "renderContent",
+          "callee": "setSkillModalOpen",
+          "lineNumber": 362
+        },
+        {
+          "caller": "App",
+          "callee": "setSearchOpen",
+          "lineNumber": 391
+        },
+        {
+          "caller": "App",
+          "callee": "setSearchQuery",
+          "lineNumber": 392
+        },
+        {
+          "caller": "App",
+          "callee": "setSearchResults",
+          "lineNumber": 393
+        },
+        {
+          "caller": "App",
+          "callee": "setSearchError",
+          "lineNumber": 394
+        },
+        {
+          "caller": "App",
+          "callee": "setActiveView",
+          "lineNumber": 404
+        },
+        {
+          "caller": "App",
+          "callee": "setActiveView",
+          "lineNumber": 412
+        },
+        {
+          "caller": "App",
+          "callee": "setConversationsOpen",
+          "lineNumber": 422
+        },
+        {
+          "caller": "App",
+          "callee": "renderContent",
+          "lineNumber": 443
+        },
+        {
+          "caller": "App",
+          "callee": "setSearchOpen",
+          "lineNumber": 455
+        },
+        {
+          "caller": "App",
+          "callee": "setSkillModalOpen",
+          "lineNumber": 463
+        },
+        {
+          "caller": "ConversationList",
+          "callee": "conversations.map",
+          "lineNumber": 480
+        },
+        {
+          "caller": "ConversationList",
+          "callee": "onSelect",
+          "lineNumber": 492
+        },
+        {
+          "caller": "ConversationList",
+          "callee": "onDelete",
+          "lineNumber": 503
+        },
+        {
+          "caller": "SearchModal",
+          "callee": "onQueryChange",
+          "lineNumber": 537
+        },
+        {
+          "caller": "SearchModal",
+          "callee": "query.trim",
+          "lineNumber": 548
+        },
+        {
+          "caller": "SearchModal",
+          "callee": "results.map",
+          "lineNumber": 550
+        },
+        {
+          "caller": "SearchModal",
+          "callee": "onSelect",
+          "lineNumber": 555
+        },
+        {
+          "caller": "ChatWorkspace",
+          "callee": "useState",
+          "lineNumber": 578
+        },
+        {
+          "caller": "ChatWorkspace",
+          "callee": "useState",
+          "lineNumber": 579
+        },
+        {
+          "caller": "ChatWorkspace",
+          "callee": "useRef",
+          "lineNumber": 580
+        },
+        {
+          "caller": "ChatWorkspace",
+          "callee": "useRef",
+          "lineNumber": 581
+        },
+        {
+          "caller": "ChatWorkspace",
+          "callee": "useRef",
+          "lineNumber": 582
+        },
+        {
+          "caller": "ChatWorkspace",
+          "callee": "useEffect",
+          "lineNumber": 584
+        },
+        {
+          "caller": "ChatWorkspace",
+          "callee": "messagesEndRef.current?.scrollIntoView",
+          "lineNumber": 586
+        },
+        {
+          "caller": "ChatWorkspace",
+          "callee": "useEffect",
+          "lineNumber": 590
+        },
+        {
+          "caller": "ChatWorkspace",
+          "callee": "messagesEndRef.current?.scrollIntoView",
+          "lineNumber": 592
+        },
+        {
+          "caller": "handleMessageStreamScroll",
+          "callee": "isNearBottom",
+          "lineNumber": 596
+        },
+        {
+          "caller": "handleSendFromComposer",
+          "callee": "onSend",
+          "lineNumber": 601
+        },
+        {
+          "caller": "ChatWorkspace",
+          "callee": "setLoggingOpen",
+          "lineNumber": 619
+        },
+        {
+          "caller": "ChatWorkspace",
+          "callee": "messages.map",
+          "lineNumber": 633
+        },
+        {
+          "caller": "ChatWorkspace",
+          "callee": "roleLabel",
+          "lineNumber": 636
+        },
+        {
+          "caller": "ChatWorkspace",
+          "callee": "setPreviewOpen",
+          "lineNumber": 652
+        },
+        {
+          "caller": "ChatWorkspace",
+          "callee": "onInputChange",
+          "lineNumber": 665
+        },
+        {
+          "caller": "ChatWorkspace",
+          "callee": "event.preventDefault",
+          "lineNumber": 668
+        },
+        {
+          "caller": "ChatWorkspace",
+          "callee": "handleSendFromComposer",
+          "lineNumber": 669
+        },
+        {
+          "caller": "ChatWorkspace",
+          "callee": "chatInput.trim",
+          "lineNumber": 683
+        },
+        {
+          "caller": "ChatWorkspace",
+          "callee": "setLoggingOpen",
+          "lineNumber": 693
+        },
+        {
+          "caller": "SkillsWorkspace",
+          "callee": "useState",
+          "lineNumber": 700
+        },
+        {
+          "caller": "SkillsWorkspace",
+          "callee": "Math.max",
+          "lineNumber": 701
+        },
+        {
+          "caller": "SkillsWorkspace",
+          "callee": "Math.ceil",
+          "lineNumber": 701
+        },
+        {
+          "caller": "SkillsWorkspace",
+          "callee": "skills.slice",
+          "lineNumber": 703
+        },
+        {
+          "caller": "SkillsWorkspace",
+          "callee": "useEffect",
+          "lineNumber": 716
+        },
+        {
+          "caller": "SkillsWorkspace",
+          "callee": "setPage",
+          "lineNumber": 717
+        },
+        {
+          "caller": "SkillsWorkspace",
+          "callee": "Math.min",
+          "lineNumber": 717
+        },
+        {
+          "caller": "ToolsWorkspace",
+          "callee": "useState",
+          "lineNumber": 759
+        },
+        {
+          "caller": "ToolsWorkspace",
+          "callee": "useState",
+          "lineNumber": 760
+        },
+        {
+          "caller": "ToolsWorkspace",
+          "callee": "useMemo",
+          "lineNumber": 761
+        },
+        {
+          "caller": "ToolsWorkspace",
+          "callee": "tools\n        .filter((tool) => tool.category !== \"mcp\")\n        .map",
+          "lineNumber": 763
+        },
+        {
+          "caller": "ToolsWorkspace",
+          "callee": "tools\n        .filter",
+          "lineNumber": 763
+        },
+        {
+          "caller": "ToolsWorkspace",
+          "callee": "useMemo",
+          "lineNumber": 772
+        },
+        {
+          "caller": "ToolsWorkspace",
+          "callee": "mcpServers.map",
+          "lineNumber": 774
+        },
+        {
+          "caller": "ToolsWorkspace",
+          "callee": "Math.max",
+          "lineNumber": 786
+        },
+        {
+          "caller": "ToolsWorkspace",
+          "callee": "Math.ceil",
+          "lineNumber": 786
+        },
+        {
+          "caller": "ToolsWorkspace",
+          "callee": "rows.slice",
+          "lineNumber": 788
+        },
+        {
+          "caller": "ToolsWorkspace",
+          "callee": "Object.keys(item.parameters?.properties || {}).join",
+          "lineNumber": 802
+        },
+        {
+          "caller": "ToolsWorkspace",
+          "callee": "Object.keys",
+          "lineNumber": 802
+        },
+        {
+          "caller": "ToolsWorkspace",
+          "callee": "useEffect",
+          "lineNumber": 806
+        },
+        {
+          "caller": "ToolsWorkspace",
+          "callee": "setPage",
+          "lineNumber": 807
+        },
+        {
+          "caller": "ToolsWorkspace",
+          "callee": "useEffect",
+          "lineNumber": 810
+        },
+        {
+          "caller": "ToolsWorkspace",
+          "callee": "setPage",
+          "lineNumber": 811
+        },
+        {
+          "caller": "ToolsWorkspace",
+          "callee": "Math.min",
+          "lineNumber": 811
+        },
+        {
+          "caller": "McpToolList",
+          "callee": "tools.map",
+          "lineNumber": 881
+        },
+        {
+          "caller": "McpToolList",
+          "callee": "Object.keys(tool.parameters?.properties || {}).join",
+          "lineNumber": 886
+        },
+        {
+          "caller": "McpToolList",
+          "callee": "Object.keys",
+          "lineNumber": 886
+        },
+        {
+          "caller": "updateField",
+          "callee": "onChange",
+          "lineNumber": 896
+        },
+        {
+          "caller": "SkillModal",
+          "callee": "/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test",
+          "lineNumber": 899
+        },
+        {
+          "caller": "SkillModal",
+          "callee": "value.description.trim",
+          "lineNumber": 900
+        },
+        {
+          "caller": "SkillModal",
+          "callee": "value.content.trim",
+          "lineNumber": 901
+        },
+        {
+          "caller": "SkillModal",
+          "callee": "updateField",
+          "lineNumber": 921
+        },
+        {
+          "caller": "SkillModal",
+          "callee": "updateField",
+          "lineNumber": 931
+        },
+        {
+          "caller": "SkillModal",
+          "callee": "updateField",
+          "lineNumber": 943
+        },
+        {
+          "caller": "SkillModal",
+          "callee": "updateField",
+          "lineNumber": 952
+        },
+        {
+          "caller": "LoggingModal",
+          "callee": "useState",
+          "lineNumber": 963
+        },
+        {
+          "caller": "LoggingModal",
+          "callee": "useMemo",
+          "lineNumber": 965
+        },
+        {
+          "caller": "LoggingModal",
+          "callee": "intermediateMessages.forEach",
+          "lineNumber": 969
+        },
+        {
+          "caller": "LoggingModal",
+          "callee": "msg.tool_calls.forEach",
+          "lineNumber": 971
+        },
+        {
+          "caller": "LoggingModal",
+          "callee": "processedToolCallIds.has",
+          "lineNumber": 972
+        },
+        {
+          "caller": "LoggingModal",
+          "callee": "processedToolCallIds.add",
+          "lineNumber": 973
+        },
+        {
+          "caller": "LoggingModal",
+          "callee": "intermediateMessages.filter",
+          "lineNumber": 975
+        },
+        {
+          "caller": "LoggingModal",
+          "callee": "items.push",
+          "lineNumber": 979
+        },
+        {
+          "caller": "LoggingModal",
+          "callee": "items.push",
+          "lineNumber": 989
+        },
+        {
+          "caller": "LoggingModal",
+          "callee": "loggingEntryType",
+          "lineNumber": 992
+        },
+        {
+          "caller": "LoggingModal",
+          "callee": "loggingEntrySummary",
+          "lineNumber": 993
+        },
+        {
+          "caller": "LoggingModal",
+          "callee": "useMemo",
+          "lineNumber": 1002
+        },
+        {
+          "caller": "LoggingModal",
+          "callee": "items.find",
+          "lineNumber": 1003
+        },
+        {
+          "caller": "LoggingModal",
+          "callee": "items.map",
+          "lineNumber": 1036
+        },
+        {
+          "caller": "LoggingModal",
+          "callee": "setSelectedKey",
+          "lineNumber": 1040
+        },
+        {
+          "caller": "LoggingModal",
+          "callee": "selectedItem.toolResults.map",
+          "lineNumber": 1069
+        },
+        {
+          "caller": "ToolCallDetails",
+          "callee": "toolCalls.map",
+          "lineNumber": 1102
+        },
+        {
+          "caller": "loggingEntrySummary",
+          "callee": "msg.tool_calls\n      .map((toolCall) => toolCall.function?.name || \"未知工具\")\n      .join",
+          "lineNumber": 1125
+        },
+        {
+          "caller": "loggingEntrySummary",
+          "callee": "msg.tool_calls\n      .map",
+          "lineNumber": 1125
+        },
+        {
+          "caller": "loggingEntrySummary",
+          "callee": "content.slice",
+          "lineNumber": 1130
+        },
+        {
+          "caller": "MarkdownRenderer",
+          "callee": "content?.trim",
+          "lineNumber": 1134
+        },
+        {
+          "caller": "MarkdownImage",
+          "callee": "src.startsWith",
+          "lineNumber": 1150
+        }
+      ],
+      "metrics": {
+        "importCount": 2,
+        "exportCount": 0,
+        "functionCount": 16,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "web/src/api.js",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 133,
+      "nonEmptyLines": 111,
+      "functions": [
+        {
+          "name": "request",
+          "startLine": 3,
+          "endLine": 17,
+          "params": [
+            "path"
+          ]
+        },
+        {
+          "name": "fetchConversations",
+          "startLine": 19,
+          "endLine": 26,
+          "params": []
+        },
+        {
+          "name": "fetchConversation",
+          "startLine": 28,
+          "endLine": 34,
+          "params": [
+            "conversationId"
+          ]
+        },
+        {
+          "name": "searchMessages",
+          "startLine": 36,
+          "endLine": 42,
+          "params": [
+            "query"
+          ]
+        },
+        {
+          "name": "sendChatMessage",
+          "startLine": 44,
+          "endLine": 90,
+          "params": []
+        },
+        {
+          "name": "deleteConversation",
+          "startLine": 92,
+          "endLine": 96,
+          "params": [
+            "conversationId"
+          ]
+        },
+        {
+          "name": "fetchSkills",
+          "startLine": 98,
+          "endLine": 100,
+          "params": []
+        },
+        {
+          "name": "createSkill",
+          "startLine": 102,
+          "endLine": 107,
+          "params": [
+            "skill"
+          ]
+        },
+        {
+          "name": "fetchTools",
+          "startLine": 109,
+          "endLine": 111,
+          "params": []
+        },
+        {
+          "name": "parseSSEMessages",
+          "startLine": 113,
+          "endLine": 133,
+          "params": [
+            "rawText"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "API_BASE",
+          "line": 1,
+          "isDefault": false
+        },
+        {
+          "name": "fetchConversations",
+          "line": 19,
+          "isDefault": false
+        },
+        {
+          "name": "fetchConversation",
+          "line": 28,
+          "isDefault": false
+        },
+        {
+          "name": "searchMessages",
+          "line": 36,
+          "isDefault": false
+        },
+        {
+          "name": "sendChatMessage",
+          "line": 44,
+          "isDefault": false
+        },
+        {
+          "name": "deleteConversation",
+          "line": 92,
+          "isDefault": false
+        },
+        {
+          "name": "fetchSkills",
+          "line": 98,
+          "isDefault": false
+        },
+        {
+          "name": "createSkill",
+          "line": 102,
+          "isDefault": false
+        },
+        {
+          "name": "fetchTools",
+          "line": 109,
+          "isDefault": false
+        },
+        {
+          "name": "parseSSEMessages",
+          "line": 113,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "request",
+          "callee": "fetch",
+          "lineNumber": 4
+        },
+        {
+          "caller": "request",
+          "callee": "response.json().catch",
+          "lineNumber": 12
+        },
+        {
+          "caller": "request",
+          "callee": "response.json",
+          "lineNumber": 12
+        },
+        {
+          "caller": "fetchConversations",
+          "callee": "params.set",
+          "lineNumber": 21
+        },
+        {
+          "caller": "fetchConversations",
+          "callee": "params.set",
+          "lineNumber": 22
+        },
+        {
+          "caller": "fetchConversations",
+          "callee": "params.set",
+          "lineNumber": 23
+        },
+        {
+          "caller": "fetchConversations",
+          "callee": "params.toString",
+          "lineNumber": 24
+        },
+        {
+          "caller": "fetchConversations",
+          "callee": "request",
+          "lineNumber": 25
+        },
+        {
+          "caller": "fetchConversation",
+          "callee": "params.set",
+          "lineNumber": 30
+        },
+        {
+          "caller": "fetchConversation",
+          "callee": "params.set",
+          "lineNumber": 31
+        },
+        {
+          "caller": "fetchConversation",
+          "callee": "params.toString",
+          "lineNumber": 32
+        },
+        {
+          "caller": "fetchConversation",
+          "callee": "request",
+          "lineNumber": 33
+        },
+        {
+          "caller": "searchMessages",
+          "callee": "params.set",
+          "lineNumber": 38
+        },
+        {
+          "caller": "searchMessages",
+          "callee": "params.set",
+          "lineNumber": 39
+        },
+        {
+          "caller": "searchMessages",
+          "callee": "params.set",
+          "lineNumber": 40
+        },
+        {
+          "caller": "searchMessages",
+          "callee": "request",
+          "lineNumber": 41
+        },
+        {
+          "caller": "searchMessages",
+          "callee": "params.toString",
+          "lineNumber": 41
+        },
+        {
+          "caller": "sendChatMessage",
+          "callee": "fetch",
+          "lineNumber": 45
+        },
+        {
+          "caller": "sendChatMessage",
+          "callee": "JSON.stringify",
+          "lineNumber": 48
+        },
+        {
+          "caller": "sendChatMessage",
+          "callee": "response.json",
+          "lineNumber": 56
+        },
+        {
+          "caller": "sendChatMessage",
+          "callee": "response.body.getReader",
+          "lineNumber": 59
+        },
+        {
+          "caller": "sendChatMessage",
+          "callee": "reader.read",
+          "lineNumber": 65
+        },
+        {
+          "caller": "sendChatMessage",
+          "callee": "decoder.decode",
+          "lineNumber": 68
+        },
+        {
+          "caller": "sendChatMessage",
+          "callee": "buffer.split",
+          "lineNumber": 70
+        },
+        {
+          "caller": "sendChatMessage",
+          "callee": "parts.pop",
+          "lineNumber": 71
+        },
+        {
+          "caller": "sendChatMessage",
+          "callee": "parseSSEMessages",
+          "lineNumber": 74
+        },
+        {
+          "caller": "sendChatMessage",
+          "callee": "onToken",
+          "lineNumber": 78
+        },
+        {
+          "caller": "sendChatMessage",
+          "callee": "Array.isArray",
+          "lineNumber": 81
+        },
+        {
+          "caller": "deleteConversation",
+          "callee": "request",
+          "lineNumber": 93
+        },
+        {
+          "caller": "fetchSkills",
+          "callee": "request",
+          "lineNumber": 99
+        },
+        {
+          "caller": "createSkill",
+          "callee": "request",
+          "lineNumber": 103
+        },
+        {
+          "caller": "createSkill",
+          "callee": "JSON.stringify",
+          "lineNumber": 105
+        },
+        {
+          "caller": "fetchTools",
+          "callee": "request",
+          "lineNumber": 110
+        },
+        {
+          "caller": "parseSSEMessages",
+          "callee": "rawText.split",
+          "lineNumber": 117
+        },
+        {
+          "caller": "parseSSEMessages",
+          "callee": "msg.split",
+          "lineNumber": 120
+        },
+        {
+          "caller": "parseSSEMessages",
+          "callee": "line.startsWith",
+          "lineNumber": 122
+        },
+        {
+          "caller": "parseSSEMessages",
+          "callee": "results.push",
+          "lineNumber": 124
+        },
+        {
+          "caller": "parseSSEMessages",
+          "callee": "JSON.parse",
+          "lineNumber": 124
+        },
+        {
+          "caller": "parseSSEMessages",
+          "callee": "line.slice",
+          "lineNumber": 124
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 10,
+        "functionCount": 10,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "web/src/main.jsx",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 45,
+      "nonEmptyLines": 44,
+      "metrics": {
+        "importCount": 2,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "web/src/scroll.js",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 5,
+      "nonEmptyLines": 4,
+      "functions": [
+        {
+          "name": "isNearBottom",
+          "startLine": 3,
+          "endLine": 5,
+          "params": [
+            "element"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "isNearBottom",
+          "line": 3,
+          "isDefault": false
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 1,
+        "functionCount": 1,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "web/src/scroll.test.mjs",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 40,
+      "nonEmptyLines": 36,
+      "metrics": {
+        "importCount": 1,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0
+      }
+    }
+  ]
+}

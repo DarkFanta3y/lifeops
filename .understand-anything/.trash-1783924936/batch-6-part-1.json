@@ -1,0 +1,341 @@
+{
+  "nodes": [
+    {
+      "id": "file:src/lifeops/memory/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "src/lifeops/memory/__init__.py",
+      "summary": "长期记忆包的公开入口，通过模块级延迟加载暴露 MemoryService，避免包导入时立即加载完整记忆实现。",
+      "tags": [
+        "包入口",
+        "长期记忆",
+        "延迟加载",
+        "公开接口"
+      ],
+      "complexity": "simple",
+      "languageNotes": "使用 Python 模块级 __getattr__ 实现惰性导入。"
+    },
+    {
+      "id": "function:src/lifeops/memory/__init__.py:__getattr__",
+      "type": "function",
+      "name": "__getattr__",
+      "filePath": "src/lifeops/memory/__init__.py",
+      "lineRange": [
+        8,
+        13
+      ],
+      "summary": "按需导入并返回 MemoryService，其他属性名则抛出标准 AttributeError。",
+      "tags": [
+        "延迟加载",
+        "包接口",
+        "属性钩子"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/lifeops/runtime/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "src/lifeops/runtime/__init__.py",
+      "summary": "运行时子系统的聚合入口，统一导出错误类型、工具策略、运行存储与追踪数据模型。",
+      "tags": [
+        "包入口",
+        "运行时",
+        "barrel",
+        "公开接口"
+      ],
+      "complexity": "simple",
+      "languageNotes": "通过 __all__ 明确限定 Python 包的公共 API。"
+    },
+    {
+      "id": "file:src/lifeops/runtime/errors.py",
+      "type": "file",
+      "name": "errors.py",
+      "filePath": "src/lifeops/runtime/errors.py",
+      "summary": "定义 Agent 运行时错误分类、结构化异常对象及追踪载荷转换，统一失败事件的序列化格式。",
+      "tags": [
+        "错误处理",
+        "运行时",
+        "数据模型",
+        "序列化"
+      ],
+      "complexity": "simple",
+      "languageNotes": "使用冻结 dataclass 保持错误上下文不可变。"
+    },
+    {
+      "id": "function:src/lifeops/runtime/errors.py:to_trace_payload",
+      "type": "function",
+      "name": "to_trace_payload",
+      "filePath": "src/lifeops/runtime/errors.py",
+      "lineRange": [
+        32,
+        45
+      ],
+      "summary": "将结构化运行时异常或普通异常转换为统一的追踪事件载荷。",
+      "tags": [
+        "序列化",
+        "错误处理",
+        "运行追踪"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:src/lifeops/runtime/errors.py:RuntimeErrorType",
+      "type": "class",
+      "name": "RuntimeErrorType",
+      "filePath": "src/lifeops/runtime/errors.py",
+      "lineRange": [
+        8,
+        18
+      ],
+      "summary": "枚举运行期可能出现的 LLM、工具、MCP、RAG、上下文和迭代错误类别。",
+      "tags": [
+        "错误枚举",
+        "运行时",
+        "类型定义"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:src/lifeops/runtime/errors.py:AgentRuntimeError",
+      "type": "class",
+      "name": "AgentRuntimeError",
+      "filePath": "src/lifeops/runtime/errors.py",
+      "lineRange": [
+        22,
+        29
+      ],
+      "summary": "封装错误类别、可恢复性与结构化详情的不可变 Agent 运行时异常。",
+      "tags": [
+        "异常模型",
+        "错误处理",
+        "dataclass"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:src/lifeops/runtime/policy.py",
+      "type": "file",
+      "name": "policy.py",
+      "filePath": "src/lifeops/runtime/policy.py",
+      "summary": "实现工具执行策略引擎，结合策略模式、工具风险与 Bash 规则决定允许、询问或拒绝。",
+      "tags": [
+        "工具策略",
+        "安全",
+        "决策引擎",
+        "风险控制"
+      ],
+      "complexity": "moderate",
+      "languageNotes": "以冻结 dataclass 表达策略上下文与结果，并通过有序规则完成短路决策。"
+    },
+    {
+      "id": "class:src/lifeops/runtime/policy.py:ToolPolicyContext",
+      "type": "class",
+      "name": "ToolPolicyContext",
+      "filePath": "src/lifeops/runtime/policy.py",
+      "lineRange": [
+        18,
+        23
+      ],
+      "summary": "承载一次工具策略评估所需的会话、运行、来源和规范化工具名称。",
+      "tags": [
+        "策略上下文",
+        "数据模型",
+        "工具调用"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:src/lifeops/runtime/policy.py:ToolPolicyResult",
+      "type": "class",
+      "name": "ToolPolicyResult",
+      "filePath": "src/lifeops/runtime/policy.py",
+      "lineRange": [
+        27,
+        31
+      ],
+      "summary": "描述工具策略的动作、原因、风险等级与命中规则。",
+      "tags": [
+        "策略结果",
+        "数据模型",
+        "风险控制"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "class:src/lifeops/runtime/policy.py:ToolPolicyEngine",
+      "type": "class",
+      "name": "ToolPolicyEngine",
+      "filePath": "src/lifeops/runtime/policy.py",
+      "lineRange": [
+        34,
+        98
+      ],
+      "summary": "按配置模式、工具类别、风险属性和 Bash 规则评估工具调用并返回执行决策。",
+      "tags": [
+        "决策引擎",
+        "工具策略",
+        "安全",
+        "风险控制"
+      ],
+      "complexity": "moderate"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:src/lifeops/memory/__init__.py",
+      "target": "function:src/lifeops/memory/__init__.py:__getattr__",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/lifeops/memory/__init__.py",
+      "target": "function:src/lifeops/memory/__init__.py:__getattr__",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/lifeops/runtime/__init__.py",
+      "target": "file:src/lifeops/runtime/errors.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/lifeops/runtime/__init__.py",
+      "target": "file:src/lifeops/runtime/policy_rules.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/lifeops/runtime/__init__.py",
+      "target": "file:src/lifeops/runtime/policy.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/lifeops/runtime/__init__.py",
+      "target": "file:src/lifeops/runtime/store.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/lifeops/runtime/__init__.py",
+      "target": "file:src/lifeops/runtime/types.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/lifeops/runtime/errors.py",
+      "target": "function:src/lifeops/runtime/errors.py:to_trace_payload",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/lifeops/runtime/errors.py",
+      "target": "function:src/lifeops/runtime/errors.py:to_trace_payload",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/lifeops/runtime/errors.py",
+      "target": "class:src/lifeops/runtime/errors.py:RuntimeErrorType",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/lifeops/runtime/errors.py",
+      "target": "class:src/lifeops/runtime/errors.py:RuntimeErrorType",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/lifeops/runtime/errors.py",
+      "target": "class:src/lifeops/runtime/errors.py:AgentRuntimeError",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/lifeops/runtime/errors.py",
+      "target": "class:src/lifeops/runtime/errors.py:AgentRuntimeError",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/lifeops/runtime/policy.py",
+      "target": "class:src/lifeops/runtime/policy.py:ToolPolicyContext",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/lifeops/runtime/policy.py",
+      "target": "class:src/lifeops/runtime/policy.py:ToolPolicyContext",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/lifeops/runtime/policy.py",
+      "target": "class:src/lifeops/runtime/policy.py:ToolPolicyResult",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/lifeops/runtime/policy.py",
+      "target": "class:src/lifeops/runtime/policy.py:ToolPolicyResult",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/lifeops/runtime/policy.py",
+      "target": "class:src/lifeops/runtime/policy.py:ToolPolicyEngine",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1
+    },
+    {
+      "source": "file:src/lifeops/runtime/policy.py",
+      "target": "class:src/lifeops/runtime/policy.py:ToolPolicyEngine",
+      "type": "exports",
+      "direction": "forward",
+      "weight": 0.8
+    },
+    {
+      "source": "file:src/lifeops/runtime/policy.py",
+      "target": "file:src/lifeops/core/config.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/lifeops/runtime/policy.py",
+      "target": "file:src/lifeops/runtime/policy_rules.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    },
+    {
+      "source": "file:src/lifeops/runtime/policy.py",
+      "target": "file:src/lifeops/tools/base.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}
+

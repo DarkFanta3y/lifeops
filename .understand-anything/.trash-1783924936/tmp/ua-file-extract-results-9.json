@@ -1,0 +1,1873 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 24,
+  "filesSkipped": [],
+  "results": [
+    {
+      "path": ".python-version",
+      "language": "unknown",
+      "fileCategory": "code",
+      "totalLines": 1,
+      "nonEmptyLines": 1,
+      "metrics": {}
+    },
+    {
+      "path": ".understand-anything/.understandignore",
+      "language": "unknown",
+      "fileCategory": "code",
+      "totalLines": 70,
+      "nonEmptyLines": 64,
+      "metrics": {}
+    },
+    {
+      "path": ".understand-anything/config.json",
+      "language": "json",
+      "fileCategory": "config",
+      "totalLines": 3,
+      "nonEmptyLines": 3,
+      "sections": [
+        {
+          "heading": "outputLanguage",
+          "level": 1,
+          "line": 2
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 1
+      }
+    },
+    {
+      "path": "src/lifeops/__init__.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 1,
+      "nonEmptyLines": 1,
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/lifeops/core/__init__.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 1,
+      "nonEmptyLines": 0,
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/lifeops/memory/types.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 38,
+      "nonEmptyLines": 29,
+      "classes": [
+        {
+          "name": "ConversationSummary",
+          "startLine": 7,
+          "endLine": 14,
+          "methods": [],
+          "properties": [
+            "conversation_id",
+            "summary",
+            "key_decisions",
+            "action_items",
+            "topics",
+            "tone",
+            "embedding"
+          ]
+        },
+        {
+          "name": "UserPreference",
+          "startLine": 18,
+          "endLine": 22,
+          "methods": [],
+          "properties": [
+            "key",
+            "value",
+            "confidence",
+            "evidence"
+          ]
+        },
+        {
+          "name": "KnowledgeEntity",
+          "startLine": 26,
+          "endLine": 29,
+          "methods": [],
+          "properties": [
+            "name",
+            "entity_type",
+            "attributes"
+          ]
+        },
+        {
+          "name": "KnowledgeRelation",
+          "startLine": 33,
+          "endLine": 38,
+          "methods": [],
+          "properties": [
+            "source",
+            "target",
+            "relation_type",
+            "confidence",
+            "attributes"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "ConversationSummary",
+          "line": 6,
+          "isDefault": false
+        },
+        {
+          "name": "UserPreference",
+          "line": 17,
+          "isDefault": false
+        },
+        {
+          "name": "KnowledgeEntity",
+          "line": 25,
+          "isDefault": false
+        },
+        {
+          "name": "KnowledgeRelation",
+          "line": 32,
+          "isDefault": false
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 4,
+        "functionCount": 0,
+        "classCount": 4
+      }
+    },
+    {
+      "path": "src/lifeops/rag/__init__.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 13,
+      "nonEmptyLines": 9,
+      "functions": [
+        {
+          "name": "__getattr__",
+          "startLine": 4,
+          "endLine": 13,
+          "params": [
+            "name"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "__getattr__",
+          "line": 4,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "__getattr__",
+          "callee": "AttributeError",
+          "lineNumber": 13
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 1,
+        "functionCount": 1,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/lifeops/utils/__init__.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 1,
+      "nonEmptyLines": 0,
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/lifeops/web/__init__.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 2,
+      "nonEmptyLines": 1,
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "tests/evals/__init__.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 1,
+      "nonEmptyLines": 0,
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "tests/evals/test_runtime_reliability.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 110,
+      "nonEmptyLines": 88,
+      "functions": [
+        {
+          "name": "_make_agent",
+          "startLine": 24,
+          "endLine": 46,
+          "params": [
+            "tmp_path",
+            "responses"
+          ]
+        },
+        {
+          "name": "test_plain_answer_no_tool_eval",
+          "startLine": 50,
+          "endLine": 63,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_dangerous_bash_denied_eval",
+          "startLine": 67,
+          "endLine": 110,
+          "params": [
+            "tmp_path"
+          ]
+        }
+      ],
+      "classes": [
+        {
+          "name": "BashParams",
+          "startLine": 20,
+          "endLine": 21,
+          "methods": [],
+          "properties": [
+            "command"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "BashParams",
+          "line": 20,
+          "isDefault": false
+        },
+        {
+          "name": "_make_agent",
+          "line": 24,
+          "isDefault": false
+        },
+        {
+          "name": "test_plain_answer_no_tool_eval",
+          "line": 49,
+          "isDefault": false
+        },
+        {
+          "name": "test_dangerous_bash_denied_eval",
+          "line": 66,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "_make_agent",
+          "callee": "AppConfig",
+          "lineNumber": 25
+        },
+        {
+          "caller": "_make_agent",
+          "callee": "LLMConfig",
+          "lineNumber": 26
+        },
+        {
+          "caller": "_make_agent",
+          "callee": "SkillsConfig",
+          "lineNumber": 27
+        },
+        {
+          "caller": "_make_agent",
+          "callee": "ToolPolicyConfig",
+          "lineNumber": 28
+        },
+        {
+          "caller": "_make_agent",
+          "callee": "ConversationHistoryStoreSQLite",
+          "lineNumber": 30
+        },
+        {
+          "caller": "_make_agent",
+          "callee": "RuntimeStore",
+          "lineNumber": 31
+        },
+        {
+          "caller": "_make_agent",
+          "callee": "runtime.create_run",
+          "lineNumber": 32
+        },
+        {
+          "caller": "_make_agent",
+          "callee": "Agent",
+          "lineNumber": 33
+        },
+        {
+          "caller": "_make_agent",
+          "callee": "TraceRecorder",
+          "lineNumber": 38
+        },
+        {
+          "caller": "_make_agent",
+          "callee": "ToolPolicyEngine",
+          "lineNumber": 39
+        },
+        {
+          "caller": "mock_chat",
+          "callee": "responses.pop",
+          "lineNumber": 43
+        },
+        {
+          "caller": "test_plain_answer_no_tool_eval",
+          "callee": "_make_agent",
+          "lineNumber": 51
+        },
+        {
+          "caller": "test_plain_answer_no_tool_eval",
+          "callee": "ChatResponse",
+          "lineNumber": 54
+        },
+        {
+          "caller": "test_plain_answer_no_tool_eval",
+          "callee": "ChatResponse",
+          "lineNumber": 55
+        },
+        {
+          "caller": "test_plain_answer_no_tool_eval",
+          "callee": "agent.run",
+          "lineNumber": 59
+        },
+        {
+          "caller": "test_plain_answer_no_tool_eval",
+          "callee": "runtime.get_run",
+          "lineNumber": 62
+        },
+        {
+          "caller": "test_plain_answer_no_tool_eval",
+          "callee": "runtime.list_run_events",
+          "lineNumber": 63
+        },
+        {
+          "caller": "test_dangerous_bash_denied_eval",
+          "callee": "_make_agent",
+          "lineNumber": 68
+        },
+        {
+          "caller": "test_dangerous_bash_denied_eval",
+          "callee": "ChatResponse",
+          "lineNumber": 71
+        },
+        {
+          "caller": "test_dangerous_bash_denied_eval",
+          "callee": "ChatResponse",
+          "lineNumber": 72
+        },
+        {
+          "caller": "test_dangerous_bash_denied_eval",
+          "callee": "ToolCallResult",
+          "lineNumber": 75
+        },
+        {
+          "caller": "test_dangerous_bash_denied_eval",
+          "callee": "json.dumps",
+          "lineNumber": 78
+        },
+        {
+          "caller": "test_dangerous_bash_denied_eval",
+          "callee": "ChatResponse",
+          "lineNumber": 82
+        },
+        {
+          "caller": "handler",
+          "callee": "ToolResult",
+          "lineNumber": 91
+        },
+        {
+          "caller": "test_dangerous_bash_denied_eval",
+          "callee": "agent.tools.register",
+          "lineNumber": 93
+        },
+        {
+          "caller": "test_dangerous_bash_denied_eval",
+          "callee": "ToolDefinition",
+          "lineNumber": 94
+        },
+        {
+          "caller": "test_dangerous_bash_denied_eval",
+          "callee": "agent.run",
+          "lineNumber": 104
+        },
+        {
+          "caller": "test_dangerous_bash_denied_eval",
+          "callee": "runtime.list_run_events",
+          "lineNumber": 109
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 4,
+        "functionCount": 3,
+        "classCount": 1
+      }
+    },
+    {
+      "path": "tests/fixtures/runtime_eval_cases.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 26,
+      "nonEmptyLines": 19,
+      "functions": [
+        {
+          "name": "test_runtime_eval_case_names_are_unique",
+          "startLine": 24,
+          "endLine": 26,
+          "params": []
+        }
+      ],
+      "classes": [
+        {
+          "name": "RuntimeEvalCase",
+          "startLine": 8,
+          "endLine": 15,
+          "methods": [],
+          "properties": [
+            "name",
+            "user_input",
+            "llm_script",
+            "tool_results",
+            "expected_status",
+            "expected_events",
+            "expected_reply_contains"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "RuntimeEvalCase",
+          "line": 7,
+          "isDefault": false
+        },
+        {
+          "name": "test_runtime_eval_case_names_are_unique",
+          "line": 24,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "test_runtime_eval_case_names_are_unique",
+          "callee": "len",
+          "lineNumber": 26
+        },
+        {
+          "caller": "test_runtime_eval_case_names_are_unique",
+          "callee": "len",
+          "lineNumber": 26
+        },
+        {
+          "caller": "test_runtime_eval_case_names_are_unique",
+          "callee": "set",
+          "lineNumber": 26
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 2,
+        "functionCount": 1,
+        "classCount": 1
+      }
+    },
+    {
+      "path": "tests/helpers/fake_runtime.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 43,
+      "nonEmptyLines": 31,
+      "classes": [
+        {
+          "name": "ScriptedLLMClient",
+          "startLine": 10,
+          "endLine": 24,
+          "methods": [
+            "__init__",
+            "chat",
+            "chat_stream"
+          ],
+          "properties": []
+        },
+        {
+          "name": "FakeToolHandlerFactory",
+          "startLine": 27,
+          "endLine": 43,
+          "methods": [
+            "__init__",
+            "success",
+            "failure"
+          ],
+          "properties": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "ScriptedLLMClient",
+          "line": 10,
+          "isDefault": false
+        },
+        {
+          "name": "FakeToolHandlerFactory",
+          "line": 27,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "__init__",
+          "callee": "list",
+          "lineNumber": 12
+        },
+        {
+          "caller": "chat",
+          "callee": "self.responses.pop",
+          "lineNumber": 18
+        },
+        {
+          "caller": "chat",
+          "callee": "ChatResponse",
+          "lineNumber": 19
+        },
+        {
+          "caller": "chat_stream",
+          "callee": "self.chat",
+          "lineNumber": 22
+        },
+        {
+          "caller": "handler",
+          "callee": "self.calls.append",
+          "lineNumber": 33
+        },
+        {
+          "caller": "handler",
+          "callee": "ToolResult",
+          "lineNumber": 34
+        },
+        {
+          "caller": "handler",
+          "callee": "self.calls.append",
+          "lineNumber": 40
+        },
+        {
+          "caller": "handler",
+          "callee": "ToolResult",
+          "lineNumber": 41
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 2,
+        "functionCount": 0,
+        "classCount": 2
+      }
+    },
+    {
+      "path": "tests/test_agent_failure_recovery.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 61,
+      "nonEmptyLines": 48,
+      "functions": [
+        {
+          "name": "test_invalid_retrieval_route_json_does_not_block_reply",
+          "startLine": 14,
+          "endLine": 39,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_rag_tool_failure_degrades_to_tool_result",
+          "startLine": 43,
+          "endLine": 61,
+          "params": [
+            "tmp_path"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "test_invalid_retrieval_route_json_does_not_block_reply",
+          "line": 13,
+          "isDefault": false
+        },
+        {
+          "name": "test_rag_tool_failure_degrades_to_tool_result",
+          "line": 42,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "test_invalid_retrieval_route_json_does_not_block_reply",
+          "callee": "AppConfig",
+          "lineNumber": 15
+        },
+        {
+          "caller": "test_invalid_retrieval_route_json_does_not_block_reply",
+          "callee": "LLMConfig",
+          "lineNumber": 15
+        },
+        {
+          "caller": "test_invalid_retrieval_route_json_does_not_block_reply",
+          "callee": "SkillsConfig",
+          "lineNumber": 15
+        },
+        {
+          "caller": "test_invalid_retrieval_route_json_does_not_block_reply",
+          "callee": "ConversationHistoryStoreSQLite",
+          "lineNumber": 16
+        },
+        {
+          "caller": "test_invalid_retrieval_route_json_does_not_block_reply",
+          "callee": "RuntimeStore",
+          "lineNumber": 17
+        },
+        {
+          "caller": "test_invalid_retrieval_route_json_does_not_block_reply",
+          "callee": "runtime.create_run",
+          "lineNumber": 18
+        },
+        {
+          "caller": "test_invalid_retrieval_route_json_does_not_block_reply",
+          "callee": "Agent",
+          "lineNumber": 19
+        },
+        {
+          "caller": "test_invalid_retrieval_route_json_does_not_block_reply",
+          "callee": "TraceRecorder",
+          "lineNumber": 24
+        },
+        {
+          "caller": "test_invalid_retrieval_route_json_does_not_block_reply",
+          "callee": "ChatResponse",
+          "lineNumber": 27
+        },
+        {
+          "caller": "test_invalid_retrieval_route_json_does_not_block_reply",
+          "callee": "ChatResponse",
+          "lineNumber": 28
+        },
+        {
+          "caller": "mock_chat",
+          "callee": "responses.pop",
+          "lineNumber": 32
+        },
+        {
+          "caller": "test_invalid_retrieval_route_json_does_not_block_reply",
+          "callee": "agent.run",
+          "lineNumber": 36
+        },
+        {
+          "caller": "test_invalid_retrieval_route_json_does_not_block_reply",
+          "callee": "runtime.list_run_events",
+          "lineNumber": 38
+        },
+        {
+          "caller": "test_rag_tool_failure_degrades_to_tool_result",
+          "callee": "AppConfig",
+          "lineNumber": 44
+        },
+        {
+          "caller": "test_rag_tool_failure_degrades_to_tool_result",
+          "callee": "LLMConfig",
+          "lineNumber": 45
+        },
+        {
+          "caller": "test_rag_tool_failure_degrades_to_tool_result",
+          "callee": "SkillsConfig",
+          "lineNumber": 46
+        },
+        {
+          "caller": "test_rag_tool_failure_degrades_to_tool_result",
+          "callee": "RAGConfig",
+          "lineNumber": 47
+        },
+        {
+          "caller": "test_rag_tool_failure_degrades_to_tool_result",
+          "callee": "Agent",
+          "lineNumber": 49
+        },
+        {
+          "caller": "retrieve",
+          "callee": "RuntimeError",
+          "lineNumber": 53
+        },
+        {
+          "caller": "test_rag_tool_failure_degrades_to_tool_result",
+          "callee": "BrokenRetriever",
+          "lineNumber": 55
+        },
+        {
+          "caller": "test_rag_tool_failure_degrades_to_tool_result",
+          "callee": "agent._execute_pre_answer_tool",
+          "lineNumber": 57
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 2,
+        "functionCount": 2,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "tests/test_agent_tool_policy.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 102,
+      "nonEmptyLines": 85,
+      "functions": [
+        {
+          "name": "test_agent_policy_denies_dangerous_tool_before_handler_runs",
+          "startLine": 22,
+          "endLine": 69,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_agent_records_run_failure_on_max_iterations",
+          "startLine": 73,
+          "endLine": 102,
+          "params": [
+            "tmp_path"
+          ]
+        }
+      ],
+      "classes": [
+        {
+          "name": "BashParams",
+          "startLine": 17,
+          "endLine": 18,
+          "methods": [],
+          "properties": [
+            "command"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "BashParams",
+          "line": 17,
+          "isDefault": false
+        },
+        {
+          "name": "test_agent_policy_denies_dangerous_tool_before_handler_runs",
+          "line": 21,
+          "isDefault": false
+        },
+        {
+          "name": "test_agent_records_run_failure_on_max_iterations",
+          "line": 72,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "test_agent_policy_denies_dangerous_tool_before_handler_runs",
+          "callee": "AppConfig",
+          "lineNumber": 23
+        },
+        {
+          "caller": "test_agent_policy_denies_dangerous_tool_before_handler_runs",
+          "callee": "LLMConfig",
+          "lineNumber": 24
+        },
+        {
+          "caller": "test_agent_policy_denies_dangerous_tool_before_handler_runs",
+          "callee": "SkillsConfig",
+          "lineNumber": 25
+        },
+        {
+          "caller": "test_agent_policy_denies_dangerous_tool_before_handler_runs",
+          "callee": "ToolPolicyConfig",
+          "lineNumber": 26
+        },
+        {
+          "caller": "test_agent_policy_denies_dangerous_tool_before_handler_runs",
+          "callee": "ConversationHistoryStoreSQLite",
+          "lineNumber": 28
+        },
+        {
+          "caller": "test_agent_policy_denies_dangerous_tool_before_handler_runs",
+          "callee": "RuntimeStore",
+          "lineNumber": 29
+        },
+        {
+          "caller": "test_agent_policy_denies_dangerous_tool_before_handler_runs",
+          "callee": "runtime.create_run",
+          "lineNumber": 30
+        },
+        {
+          "caller": "test_agent_policy_denies_dangerous_tool_before_handler_runs",
+          "callee": "Agent",
+          "lineNumber": 31
+        },
+        {
+          "caller": "test_agent_policy_denies_dangerous_tool_before_handler_runs",
+          "callee": "TraceRecorder",
+          "lineNumber": 36
+        },
+        {
+          "caller": "test_agent_policy_denies_dangerous_tool_before_handler_runs",
+          "callee": "ToolPolicyEngine",
+          "lineNumber": 37
+        },
+        {
+          "caller": "handler",
+          "callee": "ToolResult",
+          "lineNumber": 44
+        },
+        {
+          "caller": "test_agent_policy_denies_dangerous_tool_before_handler_runs",
+          "callee": "agent.tools.register",
+          "lineNumber": 46
+        },
+        {
+          "caller": "test_agent_policy_denies_dangerous_tool_before_handler_runs",
+          "callee": "ToolDefinition",
+          "lineNumber": 47
+        },
+        {
+          "caller": "test_agent_policy_denies_dangerous_tool_before_handler_runs",
+          "callee": "agent._execute_tool_call_result",
+          "lineNumber": 57
+        },
+        {
+          "caller": "test_agent_policy_denies_dangerous_tool_before_handler_runs",
+          "callee": "ToolCallResult",
+          "lineNumber": 58
+        },
+        {
+          "caller": "test_agent_policy_denies_dangerous_tool_before_handler_runs",
+          "callee": "json.dumps",
+          "lineNumber": 61
+        },
+        {
+          "caller": "test_agent_policy_denies_dangerous_tool_before_handler_runs",
+          "callee": "runtime.list_run_events",
+          "lineNumber": 68
+        },
+        {
+          "caller": "test_agent_records_run_failure_on_max_iterations",
+          "callee": "AppConfig",
+          "lineNumber": 74
+        },
+        {
+          "caller": "test_agent_records_run_failure_on_max_iterations",
+          "callee": "LLMConfig",
+          "lineNumber": 74
+        },
+        {
+          "caller": "test_agent_records_run_failure_on_max_iterations",
+          "callee": "SkillsConfig",
+          "lineNumber": 74
+        },
+        {
+          "caller": "test_agent_records_run_failure_on_max_iterations",
+          "callee": "ConversationHistoryStoreSQLite",
+          "lineNumber": 75
+        },
+        {
+          "caller": "test_agent_records_run_failure_on_max_iterations",
+          "callee": "RuntimeStore",
+          "lineNumber": 76
+        },
+        {
+          "caller": "test_agent_records_run_failure_on_max_iterations",
+          "callee": "runtime.create_run",
+          "lineNumber": 77
+        },
+        {
+          "caller": "test_agent_records_run_failure_on_max_iterations",
+          "callee": "Agent",
+          "lineNumber": 78
+        },
+        {
+          "caller": "test_agent_records_run_failure_on_max_iterations",
+          "callee": "TraceRecorder",
+          "lineNumber": 83
+        },
+        {
+          "caller": "mock_chat",
+          "callee": "ChatResponse",
+          "lineNumber": 88
+        },
+        {
+          "caller": "mock_chat",
+          "callee": "ToolCallResult",
+          "lineNumber": 91
+        },
+        {
+          "caller": "test_agent_records_run_failure_on_max_iterations",
+          "callee": "agent.run",
+          "lineNumber": 97
+        },
+        {
+          "caller": "test_agent_records_run_failure_on_max_iterations",
+          "callee": "runtime.get_run",
+          "lineNumber": 99
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 3,
+        "functionCount": 2,
+        "classCount": 1
+      }
+    },
+    {
+      "path": "tests/test_runtime_api.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 98,
+      "nonEmptyLines": 77,
+      "functions": [
+        {
+          "name": "make_config",
+          "startLine": 14,
+          "endLine": 26,
+          "params": [
+            "tmp_path",
+            "policy_mode"
+          ]
+        },
+        {
+          "name": "request",
+          "startLine": 29,
+          "endLine": 32,
+          "params": [
+            "app",
+            "method",
+            "url",
+            "**kwargs"
+          ]
+        },
+        {
+          "name": "collect_sse_events",
+          "startLine": 35,
+          "endLine": 40,
+          "params": [
+            "response"
+          ]
+        },
+        {
+          "name": "test_chat_done_includes_run_id_and_run_api_returns_events",
+          "startLine": 44,
+          "endLine": 83,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_missing_run_returns_404_and_policy_api_is_public_summary",
+          "startLine": 87,
+          "endLine": 98,
+          "params": [
+            "tmp_path"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "make_config",
+          "line": 14,
+          "isDefault": false
+        },
+        {
+          "name": "request",
+          "line": 29,
+          "isDefault": false
+        },
+        {
+          "name": "collect_sse_events",
+          "line": 35,
+          "isDefault": false
+        },
+        {
+          "name": "test_chat_done_includes_run_id_and_run_api_returns_events",
+          "line": 43,
+          "isDefault": false
+        },
+        {
+          "name": "test_missing_run_returns_404_and_policy_api_is_public_summary",
+          "line": 86,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "make_config",
+          "callee": "AppConfig",
+          "lineNumber": 15
+        },
+        {
+          "caller": "make_config",
+          "callee": "LLMConfig",
+          "lineNumber": 16
+        },
+        {
+          "caller": "make_config",
+          "callee": "SkillsConfig",
+          "lineNumber": 17
+        },
+        {
+          "caller": "make_config",
+          "callee": "str",
+          "lineNumber": 19
+        },
+        {
+          "caller": "make_config",
+          "callee": "str",
+          "lineNumber": 20
+        },
+        {
+          "caller": "make_config",
+          "callee": "ToolPolicyConfig",
+          "lineNumber": 23
+        },
+        {
+          "caller": "make_config",
+          "callee": "str",
+          "lineNumber": 24
+        },
+        {
+          "caller": "make_config",
+          "callee": "str",
+          "lineNumber": 25
+        },
+        {
+          "caller": "request",
+          "callee": "httpx.ASGITransport",
+          "lineNumber": 30
+        },
+        {
+          "caller": "request",
+          "callee": "httpx.AsyncClient",
+          "lineNumber": 31
+        },
+        {
+          "caller": "request",
+          "callee": "client.request",
+          "lineNumber": 32
+        },
+        {
+          "caller": "collect_sse_events",
+          "callee": "response.text.splitlines",
+          "lineNumber": 37
+        },
+        {
+          "caller": "collect_sse_events",
+          "callee": "line.startswith",
+          "lineNumber": 38
+        },
+        {
+          "caller": "collect_sse_events",
+          "callee": "events.append",
+          "lineNumber": 39
+        },
+        {
+          "caller": "collect_sse_events",
+          "callee": "json.loads",
+          "lineNumber": 39
+        },
+        {
+          "caller": "collect_sse_events",
+          "callee": "len",
+          "lineNumber": 39
+        },
+        {
+          "caller": "test_chat_done_includes_run_id_and_run_api_returns_events",
+          "callee": "make_config",
+          "lineNumber": 45
+        },
+        {
+          "caller": "mock_chat",
+          "callee": "hasattr",
+          "lineNumber": 48
+        },
+        {
+          "caller": "mock_chat",
+          "callee": "ChatResponse",
+          "lineNumber": 50
+        },
+        {
+          "caller": "mock_chat",
+          "callee": "ChatResponse",
+          "lineNumber": 55
+        },
+        {
+          "caller": "test_chat_done_includes_run_id_and_run_api_returns_events",
+          "callee": "patch",
+          "lineNumber": 58
+        },
+        {
+          "caller": "test_chat_done_includes_run_id_and_run_api_returns_events",
+          "callee": "patch",
+          "lineNumber": 59
+        },
+        {
+          "caller": "test_chat_done_includes_run_id_and_run_api_returns_events",
+          "callee": "AsyncMock",
+          "lineNumber": 59
+        },
+        {
+          "caller": "test_chat_done_includes_run_id_and_run_api_returns_events",
+          "callee": "AsyncMock",
+          "lineNumber": 61
+        },
+        {
+          "caller": "test_chat_done_includes_run_id_and_run_api_returns_events",
+          "callee": "AsyncMock",
+          "lineNumber": 62
+        },
+        {
+          "caller": "test_chat_done_includes_run_id_and_run_api_returns_events",
+          "callee": "create_app",
+          "lineNumber": 64
+        },
+        {
+          "caller": "test_chat_done_includes_run_id_and_run_api_returns_events",
+          "callee": "request",
+          "lineNumber": 66
+        },
+        {
+          "caller": "test_chat_done_includes_run_id_and_run_api_returns_events",
+          "callee": "collect_sse_events",
+          "lineNumber": 68
+        },
+        {
+          "caller": "test_chat_done_includes_run_id_and_run_api_returns_events",
+          "callee": "request",
+          "lineNumber": 72
+        },
+        {
+          "caller": "test_chat_done_includes_run_id_and_run_api_returns_events",
+          "callee": "run_response.json",
+          "lineNumber": 74
+        },
+        {
+          "caller": "test_chat_done_includes_run_id_and_run_api_returns_events",
+          "callee": "request",
+          "lineNumber": 79
+        },
+        {
+          "caller": "test_chat_done_includes_run_id_and_run_api_returns_events",
+          "callee": "runs_response.json",
+          "lineNumber": 83
+        },
+        {
+          "caller": "test_missing_run_returns_404_and_policy_api_is_public_summary",
+          "callee": "create_app",
+          "lineNumber": 88
+        },
+        {
+          "caller": "test_missing_run_returns_404_and_policy_api_is_public_summary",
+          "callee": "make_config",
+          "lineNumber": 88
+        },
+        {
+          "caller": "test_missing_run_returns_404_and_policy_api_is_public_summary",
+          "callee": "request",
+          "lineNumber": 90
+        },
+        {
+          "caller": "test_missing_run_returns_404_and_policy_api_is_public_summary",
+          "callee": "request",
+          "lineNumber": 93
+        },
+        {
+          "caller": "test_missing_run_returns_404_and_policy_api_is_public_summary",
+          "callee": "policy.json",
+          "lineNumber": 95
+        },
+        {
+          "caller": "test_missing_run_returns_404_and_policy_api_is_public_summary",
+          "callee": "str",
+          "lineNumber": 98
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 5,
+        "functionCount": 5,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "tests/test_runtime_errors.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 26,
+      "nonEmptyLines": 19,
+      "functions": [
+        {
+          "name": "test_runtime_error_types_are_serializable",
+          "startLine": 6,
+          "endLine": 8,
+          "params": []
+        },
+        {
+          "name": "test_agent_runtime_error_converts_to_trace_payload",
+          "startLine": 11,
+          "endLine": 26,
+          "params": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "test_runtime_error_types_are_serializable",
+          "line": 6,
+          "isDefault": false
+        },
+        {
+          "name": "test_agent_runtime_error_converts_to_trace_payload",
+          "line": 11,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "test_agent_runtime_error_converts_to_trace_payload",
+          "callee": "AgentRuntimeError",
+          "lineNumber": 12
+        },
+        {
+          "caller": "test_agent_runtime_error_converts_to_trace_payload",
+          "callee": "to_trace_payload",
+          "lineNumber": 19
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 2,
+        "functionCount": 2,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "tests/test_runtime_memory_context.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 28,
+      "nonEmptyLines": 21,
+      "functions": [
+        {
+          "name": "test_compression_and_usage_events_can_be_queried_by_run_id",
+          "startLine": 9,
+          "endLine": 28,
+          "params": [
+            "tmp_path"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "test_compression_and_usage_events_can_be_queried_by_run_id",
+          "line": 9,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "test_compression_and_usage_events_can_be_queried_by_run_id",
+          "callee": "ConversationHistoryStoreSQLite",
+          "lineNumber": 10
+        },
+        {
+          "caller": "test_compression_and_usage_events_can_be_queried_by_run_id",
+          "callee": "store.append_message",
+          "lineNumber": 11
+        },
+        {
+          "caller": "test_compression_and_usage_events_can_be_queried_by_run_id",
+          "callee": "ContextManager",
+          "lineNumber": 13
+        },
+        {
+          "caller": "test_compression_and_usage_events_can_be_queried_by_run_id",
+          "callee": "context.add_content",
+          "lineNumber": 14
+        },
+        {
+          "caller": "test_compression_and_usage_events_can_be_queried_by_run_id",
+          "callee": "CompressionPipeline(\n        context,\n        store,\n        MemoryConfig(enabled=True, offload_dir=str(tmp_path / \"offload\")),\n    ).execute",
+          "lineNumber": 16
+        },
+        {
+          "caller": "test_compression_and_usage_events_can_be_queried_by_run_id",
+          "callee": "CompressionPipeline",
+          "lineNumber": 16
+        },
+        {
+          "caller": "test_compression_and_usage_events_can_be_queried_by_run_id",
+          "callee": "MemoryConfig",
+          "lineNumber": 19
+        },
+        {
+          "caller": "test_compression_and_usage_events_can_be_queried_by_run_id",
+          "callee": "str",
+          "lineNumber": 19
+        },
+        {
+          "caller": "test_compression_and_usage_events_can_be_queried_by_run_id",
+          "callee": "store.record_tool_usage",
+          "lineNumber": 22
+        },
+        {
+          "caller": "test_compression_and_usage_events_can_be_queried_by_run_id",
+          "callee": "store.record_skill_usage",
+          "lineNumber": 23
+        },
+        {
+          "caller": "test_compression_and_usage_events_can_be_queried_by_run_id",
+          "callee": "store.list_compression_events",
+          "lineNumber": 26
+        },
+        {
+          "caller": "test_compression_and_usage_events_can_be_queried_by_run_id",
+          "callee": "store.list_tool_usage_events",
+          "lineNumber": 27
+        },
+        {
+          "caller": "test_compression_and_usage_events_can_be_queried_by_run_id",
+          "callee": "store.list_skill_usage_events",
+          "lineNumber": 28
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 1,
+        "functionCount": 1,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "tests/test_runtime_store.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 57,
+      "nonEmptyLines": 42,
+      "functions": [
+        {
+          "name": "test_runtime_types_can_be_imported",
+          "startLine": 8,
+          "endLine": 12,
+          "params": []
+        },
+        {
+          "name": "test_runtime_store_creates_run_and_orders_trace_events",
+          "startLine": 15,
+          "endLine": 41,
+          "params": [
+            "tmp_path"
+          ]
+        },
+        {
+          "name": "test_runtime_store_truncates_large_payload_and_lists_conversation_runs",
+          "startLine": 44,
+          "endLine": 57,
+          "params": [
+            "tmp_path"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "test_runtime_types_can_be_imported",
+          "line": 8,
+          "isDefault": false
+        },
+        {
+          "name": "test_runtime_store_creates_run_and_orders_trace_events",
+          "line": 15,
+          "isDefault": false
+        },
+        {
+          "name": "test_runtime_store_truncates_large_payload_and_lists_conversation_runs",
+          "line": 44,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "test_runtime_store_creates_run_and_orders_trace_events",
+          "callee": "ConversationHistoryStoreSQLite",
+          "lineNumber": 16
+        },
+        {
+          "caller": "test_runtime_store_creates_run_and_orders_trace_events",
+          "callee": "RuntimeStore",
+          "lineNumber": 17
+        },
+        {
+          "caller": "test_runtime_store_creates_run_and_orders_trace_events",
+          "callee": "runtime.create_run",
+          "lineNumber": 19
+        },
+        {
+          "caller": "test_runtime_store_creates_run_and_orders_trace_events",
+          "callee": "runtime.append_event",
+          "lineNumber": 27
+        },
+        {
+          "caller": "test_runtime_store_creates_run_and_orders_trace_events",
+          "callee": "runtime.append_event",
+          "lineNumber": 28
+        },
+        {
+          "caller": "test_runtime_store_creates_run_and_orders_trace_events",
+          "callee": "runtime.update_run_status",
+          "lineNumber": 32
+        },
+        {
+          "caller": "test_runtime_store_creates_run_and_orders_trace_events",
+          "callee": "runtime.get_run",
+          "lineNumber": 34
+        },
+        {
+          "caller": "test_runtime_store_creates_run_and_orders_trace_events",
+          "callee": "runtime.list_run_events",
+          "lineNumber": 39
+        },
+        {
+          "caller": "test_runtime_store_truncates_large_payload_and_lists_conversation_runs",
+          "callee": "ConversationHistoryStoreSQLite",
+          "lineNumber": 45
+        },
+        {
+          "caller": "test_runtime_store_truncates_large_payload_and_lists_conversation_runs",
+          "callee": "RuntimeStore",
+          "lineNumber": 46
+        },
+        {
+          "caller": "test_runtime_store_truncates_large_payload_and_lists_conversation_runs",
+          "callee": "runtime.create_run",
+          "lineNumber": 47
+        },
+        {
+          "caller": "test_runtime_store_truncates_large_payload_and_lists_conversation_runs",
+          "callee": "runtime.create_run",
+          "lineNumber": 48
+        },
+        {
+          "caller": "test_runtime_store_truncates_large_payload_and_lists_conversation_runs",
+          "callee": "runtime.append_event",
+          "lineNumber": 50
+        },
+        {
+          "caller": "test_runtime_store_truncates_large_payload_and_lists_conversation_runs",
+          "callee": "runtime.list_run_events",
+          "lineNumber": 52
+        },
+        {
+          "caller": "test_runtime_store_truncates_large_payload_and_lists_conversation_runs",
+          "callee": "len",
+          "lineNumber": 54
+        },
+        {
+          "caller": "test_runtime_store_truncates_large_payload_and_lists_conversation_runs",
+          "callee": "runtime.list_conversation_runs",
+          "lineNumber": 56
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 3,
+        "functionCount": 3,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "tests/test_tool_policy.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 100,
+      "nonEmptyLines": 77,
+      "functions": [
+        {
+          "name": "make_context",
+          "startLine": 16,
+          "endLine": 23,
+          "params": [
+            "canonical_name"
+          ]
+        },
+        {
+          "name": "test_policy_allows_safe_read_and_safe_bash_prefixes",
+          "startLine": 26,
+          "endLine": 38,
+          "params": []
+        },
+        {
+          "name": "test_policy_denies_dangerous_bash_without_executing",
+          "startLine": 41,
+          "endLine": 54,
+          "params": []
+        },
+        {
+          "name": "test_policy_asks_for_file_edit_and_mcp_tools",
+          "startLine": 57,
+          "endLine": 74,
+          "params": []
+        },
+        {
+          "name": "test_policy_modes_and_config_validation",
+          "startLine": 77,
+          "endLine": 92,
+          "params": []
+        },
+        {
+          "name": "test_default_policy_summary_contains_public_rules_only",
+          "startLine": 95,
+          "endLine": 100,
+          "params": []
+        }
+      ],
+      "classes": [
+        {
+          "name": "BashParams",
+          "startLine": 12,
+          "endLine": 13,
+          "methods": [],
+          "properties": [
+            "command"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "BashParams",
+          "line": 12,
+          "isDefault": false
+        },
+        {
+          "name": "make_context",
+          "line": 16,
+          "isDefault": false
+        },
+        {
+          "name": "test_policy_allows_safe_read_and_safe_bash_prefixes",
+          "line": 26,
+          "isDefault": false
+        },
+        {
+          "name": "test_policy_denies_dangerous_bash_without_executing",
+          "line": 41,
+          "isDefault": false
+        },
+        {
+          "name": "test_policy_asks_for_file_edit_and_mcp_tools",
+          "line": 57,
+          "isDefault": false
+        },
+        {
+          "name": "test_policy_modes_and_config_validation",
+          "line": 77,
+          "isDefault": false
+        },
+        {
+          "name": "test_default_policy_summary_contains_public_rules_only",
+          "line": 95,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "make_context",
+          "callee": "ToolPolicyContext",
+          "lineNumber": 17
+        },
+        {
+          "caller": "make_context",
+          "callee": "canonical_name.split",
+          "lineNumber": 21
+        },
+        {
+          "caller": "test_policy_allows_safe_read_and_safe_bash_prefixes",
+          "callee": "ToolPolicyEngine",
+          "lineNumber": 27
+        },
+        {
+          "caller": "test_policy_allows_safe_read_and_safe_bash_prefixes",
+          "callee": "ToolPolicyConfig",
+          "lineNumber": 27
+        },
+        {
+          "caller": "test_policy_allows_safe_read_and_safe_bash_prefixes",
+          "callee": "ToolDefinition",
+          "lineNumber": 28
+        },
+        {
+          "caller": "test_policy_allows_safe_read_and_safe_bash_prefixes",
+          "callee": "engine.evaluate",
+          "lineNumber": 36
+        },
+        {
+          "caller": "test_policy_allows_safe_read_and_safe_bash_prefixes",
+          "callee": "make_context",
+          "lineNumber": 36
+        },
+        {
+          "caller": "test_policy_denies_dangerous_bash_without_executing",
+          "callee": "ToolPolicyEngine",
+          "lineNumber": 42
+        },
+        {
+          "caller": "test_policy_denies_dangerous_bash_without_executing",
+          "callee": "ToolPolicyConfig",
+          "lineNumber": 42
+        },
+        {
+          "caller": "test_policy_denies_dangerous_bash_without_executing",
+          "callee": "ToolDefinition",
+          "lineNumber": 43
+        },
+        {
+          "caller": "test_policy_denies_dangerous_bash_without_executing",
+          "callee": "engine.evaluate",
+          "lineNumber": 51
+        },
+        {
+          "caller": "test_policy_denies_dangerous_bash_without_executing",
+          "callee": "make_context",
+          "lineNumber": 51
+        },
+        {
+          "caller": "test_policy_asks_for_file_edit_and_mcp_tools",
+          "callee": "ToolPolicyEngine",
+          "lineNumber": 58
+        },
+        {
+          "caller": "test_policy_asks_for_file_edit_and_mcp_tools",
+          "callee": "ToolPolicyConfig",
+          "lineNumber": 58
+        },
+        {
+          "caller": "test_policy_asks_for_file_edit_and_mcp_tools",
+          "callee": "ToolDefinition",
+          "lineNumber": 59
+        },
+        {
+          "caller": "test_policy_asks_for_file_edit_and_mcp_tools",
+          "callee": "ToolDefinition",
+          "lineNumber": 66
+        },
+        {
+          "caller": "test_policy_asks_for_file_edit_and_mcp_tools",
+          "callee": "engine.evaluate",
+          "lineNumber": 73
+        },
+        {
+          "caller": "test_policy_asks_for_file_edit_and_mcp_tools",
+          "callee": "make_context",
+          "lineNumber": 73
+        },
+        {
+          "caller": "test_policy_asks_for_file_edit_and_mcp_tools",
+          "callee": "engine.evaluate",
+          "lineNumber": 74
+        },
+        {
+          "caller": "test_policy_asks_for_file_edit_and_mcp_tools",
+          "callee": "make_context",
+          "lineNumber": 74
+        },
+        {
+          "caller": "test_policy_modes_and_config_validation",
+          "callee": "ToolDefinition",
+          "lineNumber": 78
+        },
+        {
+          "caller": "test_policy_modes_and_config_validation",
+          "callee": "ToolPolicyEngine",
+          "lineNumber": 86
+        },
+        {
+          "caller": "test_policy_modes_and_config_validation",
+          "callee": "ToolPolicyConfig",
+          "lineNumber": 86
+        },
+        {
+          "caller": "test_policy_modes_and_config_validation",
+          "callee": "ToolPolicyEngine",
+          "lineNumber": 87
+        },
+        {
+          "caller": "test_policy_modes_and_config_validation",
+          "callee": "ToolPolicyConfig",
+          "lineNumber": 87
+        },
+        {
+          "caller": "test_policy_modes_and_config_validation",
+          "callee": "off.evaluate",
+          "lineNumber": 89
+        },
+        {
+          "caller": "test_policy_modes_and_config_validation",
+          "callee": "make_context",
+          "lineNumber": 89
+        },
+        {
+          "caller": "test_policy_modes_and_config_validation",
+          "callee": "strict.evaluate",
+          "lineNumber": 90
+        },
+        {
+          "caller": "test_policy_modes_and_config_validation",
+          "callee": "make_context",
+          "lineNumber": 90
+        },
+        {
+          "caller": "test_policy_modes_and_config_validation",
+          "callee": "pytest.raises",
+          "lineNumber": 91
+        },
+        {
+          "caller": "test_policy_modes_and_config_validation",
+          "callee": "ToolPolicyConfig",
+          "lineNumber": 92
+        },
+        {
+          "caller": "test_default_policy_summary_contains_public_rules_only",
+          "callee": "default_policy_summary",
+          "lineNumber": 96
+        },
+        {
+          "caller": "test_default_policy_summary_contains_public_rules_only",
+          "callee": "str(summary).lower",
+          "lineNumber": 100
+        },
+        {
+          "caller": "test_default_policy_summary_contains_public_rules_only",
+          "callee": "str",
+          "lineNumber": 100
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 7,
+        "functionCount": 6,
+        "classCount": 1
+      }
+    },
+    {
+      "path": "web/index.html",
+      "language": "html",
+      "fileCategory": "markup",
+      "totalLines": 13,
+      "nonEmptyLines": 13,
+      "metrics": {}
+    },
+    {
+      "path": "web/package.json",
+      "language": "json",
+      "fileCategory": "config",
+      "totalLines": 21,
+      "nonEmptyLines": 21,
+      "sections": [
+        {
+          "heading": "name",
+          "level": 1,
+          "line": 2
+        },
+        {
+          "heading": "version",
+          "level": 1,
+          "line": 3
+        },
+        {
+          "heading": "private",
+          "level": 1,
+          "line": 4
+        },
+        {
+          "heading": "type",
+          "level": 1,
+          "line": 5
+        },
+        {
+          "heading": "scripts",
+          "level": 1,
+          "line": 6
+        },
+        {
+          "heading": "dependencies",
+          "level": 1,
+          "line": 11
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 6
+      }
+    },
+    {
+      "path": "web/src/styles.css",
+      "language": "css",
+      "fileCategory": "markup",
+      "totalLines": 792,
+      "nonEmptyLines": 673,
+      "metrics": {}
+    },
+    {
+      "path": "web/vite.config.js",
+      "language": "javascript",
+      "fileCategory": "code",
+      "totalLines": 10,
+      "nonEmptyLines": 9,
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0
+      }
+    }
+  ]
+}

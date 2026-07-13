@@ -1,0 +1,4486 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 11,
+  "filesSkipped": [],
+  "results": [
+    {
+      "path": "src/lifeops/core/compression_pipeline.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 160,
+      "nonEmptyLines": 146,
+      "classes": [
+        {
+          "name": "CompressionPipeline",
+          "startLine": 14,
+          "endLine": 160,
+          "methods": [
+            "__init__",
+            "execute",
+            "_offload_large_l3",
+            "_trim_old_l3",
+            "_dedupe_and_summarize",
+            "_critical_cleanup",
+            "_record",
+            "_offload_dir",
+            "_summarize_entry"
+          ],
+          "properties": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "CompressionPipeline",
+          "line": 14,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "execute",
+          "callee": "self.context.suggest_compression",
+          "lineNumber": 28
+        },
+        {
+          "caller": "execute",
+          "callee": "str",
+          "lineNumber": 29
+        },
+        {
+          "caller": "execute",
+          "callee": "self._record",
+          "lineNumber": 33
+        },
+        {
+          "caller": "execute",
+          "callee": "self._offload_large_l3",
+          "lineNumber": 35
+        },
+        {
+          "caller": "execute",
+          "callee": "self._trim_old_l3",
+          "lineNumber": 37
+        },
+        {
+          "caller": "execute",
+          "callee": "self._dedupe_and_summarize",
+          "lineNumber": 39
+        },
+        {
+          "caller": "execute",
+          "callee": "self._critical_cleanup",
+          "lineNumber": 40
+        },
+        {
+          "caller": "_offload_large_l3",
+          "callee": "sorted",
+          "lineNumber": 45
+        },
+        {
+          "caller": "_offload_large_l3",
+          "callee": "self.context.get_l3_content",
+          "lineNumber": 46
+        },
+        {
+          "caller": "_offload_large_l3",
+          "callee": "self._record",
+          "lineNumber": 51
+        },
+        {
+          "caller": "_offload_large_l3",
+          "callee": "self._offload_dir",
+          "lineNumber": 54
+        },
+        {
+          "caller": "_offload_large_l3",
+          "callee": "offload_dir.mkdir",
+          "lineNumber": 55
+        },
+        {
+          "caller": "_offload_large_l3",
+          "callee": "uuid4",
+          "lineNumber": 56
+        },
+        {
+          "caller": "_offload_large_l3",
+          "callee": "file_path.write_text",
+          "lineNumber": 57
+        },
+        {
+          "caller": "_offload_large_l3",
+          "callee": "self._summarize_entry",
+          "lineNumber": 58
+        },
+        {
+          "caller": "_offload_large_l3",
+          "callee": "max",
+          "lineNumber": 59
+        },
+        {
+          "caller": "_offload_large_l3",
+          "callee": "len",
+          "lineNumber": 59
+        },
+        {
+          "caller": "_offload_large_l3",
+          "callee": "self.context.add_content",
+          "lineNumber": 60
+        },
+        {
+          "caller": "_offload_large_l3",
+          "callee": "max",
+          "lineNumber": 61
+        },
+        {
+          "caller": "_offload_large_l3",
+          "callee": "self.store.record_offload_metadata",
+          "lineNumber": 63
+        },
+        {
+          "caller": "_offload_large_l3",
+          "callee": "file_path.relative_to(offload_dir).as_posix",
+          "lineNumber": 66
+        },
+        {
+          "caller": "_offload_large_l3",
+          "callee": "file_path.relative_to",
+          "lineNumber": 66
+        },
+        {
+          "caller": "_offload_large_l3",
+          "callee": "self._record",
+          "lineNumber": 70
+        },
+        {
+          "caller": "_trim_old_l3",
+          "callee": "sorted",
+          "lineNumber": 75
+        },
+        {
+          "caller": "_trim_old_l3",
+          "callee": "self.context.get_l3_content",
+          "lineNumber": 75
+        },
+        {
+          "caller": "_trim_old_l3",
+          "callee": "len",
+          "lineNumber": 76
+        },
+        {
+          "caller": "_trim_old_l3",
+          "callee": "self.context.remove_content",
+          "lineNumber": 80
+        },
+        {
+          "caller": "_trim_old_l3",
+          "callee": "self._record",
+          "lineNumber": 81
+        },
+        {
+          "caller": "_dedupe_and_summarize",
+          "callee": "list",
+          "lineNumber": 88
+        },
+        {
+          "caller": "_dedupe_and_summarize",
+          "callee": "self.context.get_l3_content",
+          "lineNumber": 88
+        },
+        {
+          "caller": "_dedupe_and_summarize",
+          "callee": "entry.content.strip",
+          "lineNumber": 89
+        },
+        {
+          "caller": "_dedupe_and_summarize",
+          "callee": "self.context.remove_content",
+          "lineNumber": 92
+        },
+        {
+          "caller": "_dedupe_and_summarize",
+          "callee": "self._summarize_entry",
+          "lineNumber": 96
+        },
+        {
+          "caller": "_dedupe_and_summarize",
+          "callee": "max",
+          "lineNumber": 97
+        },
+        {
+          "caller": "_dedupe_and_summarize",
+          "callee": "len",
+          "lineNumber": 97
+        },
+        {
+          "caller": "_dedupe_and_summarize",
+          "callee": "self.context.add_content",
+          "lineNumber": 99
+        },
+        {
+          "caller": "_dedupe_and_summarize",
+          "callee": "self._record",
+          "lineNumber": 101
+        },
+        {
+          "caller": "_critical_cleanup",
+          "callee": "sorted",
+          "lineNumber": 107
+        },
+        {
+          "caller": "_critical_cleanup",
+          "callee": "self.context.get_l3_content",
+          "lineNumber": 108
+        },
+        {
+          "caller": "_critical_cleanup",
+          "callee": "self.context.remove_content",
+          "lineNumber": 115
+        },
+        {
+          "caller": "_critical_cleanup",
+          "callee": "sorted",
+          "lineNumber": 116
+        },
+        {
+          "caller": "_critical_cleanup",
+          "callee": "self.context.get_l2_content",
+          "lineNumber": 117
+        },
+        {
+          "caller": "_critical_cleanup",
+          "callee": "self.context.remove_content",
+          "lineNumber": 124
+        },
+        {
+          "caller": "_critical_cleanup",
+          "callee": "self._record",
+          "lineNumber": 125
+        },
+        {
+          "caller": "_record",
+          "callee": "self.context.log_compression_event",
+          "lineNumber": 135
+        },
+        {
+          "caller": "_record",
+          "callee": "self.store.record_compression_event",
+          "lineNumber": 138
+        },
+        {
+          "caller": "_record",
+          "callee": "logger.exception",
+          "lineNumber": 142
+        },
+        {
+          "caller": "_offload_dir",
+          "callee": "Path(self.config.offload_dir).expanduser",
+          "lineNumber": 146
+        },
+        {
+          "caller": "_offload_dir",
+          "callee": "Path",
+          "lineNumber": 146
+        },
+        {
+          "caller": "_offload_dir",
+          "callee": "path.is_absolute",
+          "lineNumber": 147
+        },
+        {
+          "caller": "_summarize_entry",
+          "callee": "entry.content.strip().replace",
+          "lineNumber": 152
+        },
+        {
+          "caller": "_summarize_entry",
+          "callee": "entry.content.strip",
+          "lineNumber": 152
+        },
+        {
+          "caller": "_summarize_entry",
+          "callee": "len",
+          "lineNumber": 153
+        }
+      ],
+      "metrics": {
+        "importCount": 4,
+        "exportCount": 1,
+        "functionCount": 0,
+        "classCount": 1
+      }
+    },
+    {
+      "path": "src/lifeops/core/context_manager.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 211,
+      "nonEmptyLines": 174,
+      "classes": [
+        {
+          "name": "ContextLayer",
+          "startLine": 12,
+          "endLine": 15,
+          "methods": [],
+          "properties": []
+        },
+        {
+          "name": "ContextEntry",
+          "startLine": 19,
+          "endLine": 23,
+          "methods": [],
+          "properties": [
+            "key",
+            "content",
+            "layer",
+            "token_count"
+          ]
+        },
+        {
+          "name": "ContextManager",
+          "startLine": 26,
+          "endLine": 211,
+          "methods": [
+            "__init__",
+            "used_tokens",
+            "remaining_tokens",
+            "available_tokens",
+            "add_content",
+            "can_add",
+            "remove_content",
+            "get_content",
+            "compress_l2",
+            "compress_l3",
+            "get_l1_content",
+            "get_l2_content",
+            "get_l3_content",
+            "get_summary",
+            "get_context_summary",
+            "suggest_compression",
+            "prioritize_by_intent",
+            "log_compression_event",
+            "_estimate_tokens"
+          ],
+          "properties": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "ContextLayer",
+          "line": 12,
+          "isDefault": false
+        },
+        {
+          "name": "ContextEntry",
+          "line": 18,
+          "isDefault": false
+        },
+        {
+          "name": "ContextManager",
+          "line": 26,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "__init__",
+          "callee": "set",
+          "lineNumber": 41
+        },
+        {
+          "caller": "__init__",
+          "callee": "set",
+          "lineNumber": 42
+        },
+        {
+          "caller": "__init__",
+          "callee": "set",
+          "lineNumber": 43
+        },
+        {
+          "caller": "used_tokens",
+          "callee": "sum",
+          "lineNumber": 48
+        },
+        {
+          "caller": "used_tokens",
+          "callee": "self._entries.values",
+          "lineNumber": 48
+        },
+        {
+          "caller": "available_tokens",
+          "callee": "int",
+          "lineNumber": 56
+        },
+        {
+          "caller": "add_content",
+          "callee": "self._estimate_tokens",
+          "lineNumber": 66
+        },
+        {
+          "caller": "add_content",
+          "callee": "self.remove_content",
+          "lineNumber": 69
+        },
+        {
+          "caller": "add_content",
+          "callee": "ContextEntry",
+          "lineNumber": 71
+        },
+        {
+          "caller": "add_content",
+          "callee": "self._l1_keys.add",
+          "lineNumber": 75
+        },
+        {
+          "caller": "add_content",
+          "callee": "self._l2_keys.add",
+          "lineNumber": 77
+        },
+        {
+          "caller": "add_content",
+          "callee": "self._l3_keys.add",
+          "lineNumber": 79
+        },
+        {
+          "caller": "add_content",
+          "callee": "logger.debug",
+          "lineNumber": 81
+        },
+        {
+          "caller": "can_add",
+          "callee": "int",
+          "lineNumber": 85
+        },
+        {
+          "caller": "remove_content",
+          "callee": "self._entries.pop",
+          "lineNumber": 89
+        },
+        {
+          "caller": "remove_content",
+          "callee": "self._l1_keys.discard",
+          "lineNumber": 92
+        },
+        {
+          "caller": "remove_content",
+          "callee": "self._l2_keys.discard",
+          "lineNumber": 93
+        },
+        {
+          "caller": "remove_content",
+          "callee": "self._l3_keys.discard",
+          "lineNumber": 94
+        },
+        {
+          "caller": "remove_content",
+          "callee": "logger.debug",
+          "lineNumber": 95
+        },
+        {
+          "caller": "get_content",
+          "callee": "self._entries.get",
+          "lineNumber": 99
+        },
+        {
+          "caller": "compress_l2",
+          "callee": "set",
+          "lineNumber": 104
+        },
+        {
+          "caller": "compress_l2",
+          "callee": "sorted",
+          "lineNumber": 109
+        },
+        {
+          "caller": "compress_l2",
+          "callee": "self._entries.get",
+          "lineNumber": 110
+        },
+        {
+          "caller": "compress_l2",
+          "callee": "removed.append",
+          "lineNumber": 112
+        },
+        {
+          "caller": "compress_l2",
+          "callee": "self.remove_content",
+          "lineNumber": 113
+        },
+        {
+          "caller": "compress_l2",
+          "callee": "logger.info",
+          "lineNumber": 115
+        },
+        {
+          "caller": "compress_l2",
+          "callee": "len",
+          "lineNumber": 115
+        },
+        {
+          "caller": "compress_l3",
+          "callee": "list",
+          "lineNumber": 120
+        },
+        {
+          "caller": "compress_l3",
+          "callee": "self._entries.get",
+          "lineNumber": 121
+        },
+        {
+          "caller": "compress_l3",
+          "callee": "removed.append",
+          "lineNumber": 123
+        },
+        {
+          "caller": "compress_l3",
+          "callee": "self.remove_content",
+          "lineNumber": 124
+        },
+        {
+          "caller": "compress_l3",
+          "callee": "logger.info",
+          "lineNumber": 126
+        },
+        {
+          "caller": "compress_l3",
+          "callee": "len",
+          "lineNumber": 126
+        },
+        {
+          "caller": "get_summary",
+          "callee": "sum",
+          "lineNumber": 139
+        },
+        {
+          "caller": "get_summary",
+          "callee": "sum",
+          "lineNumber": 140
+        },
+        {
+          "caller": "get_summary",
+          "callee": "sum",
+          "lineNumber": 141
+        },
+        {
+          "caller": "get_summary",
+          "callee": "len",
+          "lineNumber": 149
+        },
+        {
+          "caller": "get_summary",
+          "callee": "len",
+          "lineNumber": 150
+        },
+        {
+          "caller": "get_summary",
+          "callee": "len",
+          "lineNumber": 151
+        },
+        {
+          "caller": "get_context_summary",
+          "callee": "self.get_summary",
+          "lineNumber": 155
+        },
+        {
+          "caller": "prioritize_by_intent",
+          "callee": "intent.casefold",
+          "lineNumber": 179
+        },
+        {
+          "caller": "prioritize_by_intent",
+          "callee": "list",
+          "lineNumber": 180
+        },
+        {
+          "caller": "prioritize_by_intent",
+          "callee": "self._entries.values",
+          "lineNumber": 180
+        },
+        {
+          "caller": "score",
+          "callee": "f\"{entry.key}\\n{entry.content}\".casefold",
+          "lineNumber": 183
+        },
+        {
+          "caller": "score",
+          "callee": "sum",
+          "lineNumber": 184
+        },
+        {
+          "caller": "score",
+          "callee": "intent_text.split",
+          "lineNumber": 184
+        },
+        {
+          "caller": "prioritize_by_intent",
+          "callee": "sorted",
+          "lineNumber": 192
+        },
+        {
+          "caller": "log_compression_event",
+          "callee": "self._compression_events.append",
+          "lineNumber": 201
+        },
+        {
+          "caller": "_estimate_tokens",
+          "callee": "max",
+          "lineNumber": 211
+        },
+        {
+          "caller": "_estimate_tokens",
+          "callee": "len",
+          "lineNumber": 211
+        }
+      ],
+      "metrics": {
+        "importCount": 1,
+        "exportCount": 3,
+        "functionCount": 0,
+        "classCount": 3
+      }
+    },
+    {
+      "path": "src/lifeops/memory/confidence.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 34,
+      "nonEmptyLines": 28,
+      "functions": [
+        {
+          "name": "normalize_confidence",
+          "startLine": 15,
+          "endLine": 30,
+          "params": [
+            "value",
+            "default"
+          ]
+        },
+        {
+          "name": "_clamp",
+          "startLine": 33,
+          "endLine": 34,
+          "params": [
+            "value"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "normalize_confidence",
+          "line": 15,
+          "isDefault": false
+        },
+        {
+          "name": "_clamp",
+          "line": 33,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "normalize_confidence",
+          "callee": "_clamp",
+          "lineNumber": 18
+        },
+        {
+          "caller": "normalize_confidence",
+          "callee": "isinstance",
+          "lineNumber": 19
+        },
+        {
+          "caller": "normalize_confidence",
+          "callee": "value.strip",
+          "lineNumber": 20
+        },
+        {
+          "caller": "normalize_confidence",
+          "callee": "_clamp",
+          "lineNumber": 22
+        },
+        {
+          "caller": "normalize_confidence",
+          "callee": "_CONFIDENCE_LABELS.get",
+          "lineNumber": 23
+        },
+        {
+          "caller": "normalize_confidence",
+          "callee": "text.casefold",
+          "lineNumber": 23
+        },
+        {
+          "caller": "normalize_confidence",
+          "callee": "_clamp",
+          "lineNumber": 28
+        },
+        {
+          "caller": "normalize_confidence",
+          "callee": "float",
+          "lineNumber": 28
+        },
+        {
+          "caller": "normalize_confidence",
+          "callee": "_clamp",
+          "lineNumber": 30
+        },
+        {
+          "caller": "_clamp",
+          "callee": "min",
+          "lineNumber": 34
+        },
+        {
+          "caller": "_clamp",
+          "callee": "max",
+          "lineNumber": 34
+        },
+        {
+          "caller": "_clamp",
+          "callee": "float",
+          "lineNumber": 34
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 2,
+        "functionCount": 2,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/lifeops/memory/extractor.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 14,
+      "nonEmptyLines": 9,
+      "classes": [
+        {
+          "name": "MemoryExtractor",
+          "startLine": 6,
+          "endLine": 14,
+          "methods": [
+            "normalize_preferences",
+            "normalize_entities",
+            "normalize_relations"
+          ],
+          "properties": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "MemoryExtractor",
+          "line": 6,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "normalize_preferences",
+          "callee": "payload.get",
+          "lineNumber": 8
+        },
+        {
+          "caller": "normalize_preferences",
+          "callee": "isinstance",
+          "lineNumber": 8
+        },
+        {
+          "caller": "normalize_entities",
+          "callee": "payload.get",
+          "lineNumber": 11
+        },
+        {
+          "caller": "normalize_entities",
+          "callee": "isinstance",
+          "lineNumber": 11
+        },
+        {
+          "caller": "normalize_relations",
+          "callee": "payload.get",
+          "lineNumber": 14
+        },
+        {
+          "caller": "normalize_relations",
+          "callee": "isinstance",
+          "lineNumber": 14
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 1,
+        "functionCount": 0,
+        "classCount": 1
+      }
+    },
+    {
+      "path": "src/lifeops/memory/retriever.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 96,
+      "nonEmptyLines": 87,
+      "classes": [
+        {
+          "name": "MemoryRetriever",
+          "startLine": 8,
+          "endLine": 96,
+          "methods": [
+            "__init__",
+            "retrieve",
+            "_bm25_scores",
+            "_embedding_scores",
+            "_terms",
+            "_char_cosine",
+            "_cosine"
+          ],
+          "properties": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "MemoryRetriever",
+          "line": 8,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "retrieve",
+          "callee": "self.store.list_conversation_summaries",
+          "lineNumber": 14
+        },
+        {
+          "caller": "retrieve",
+          "callee": "item.get",
+          "lineNumber": 18
+        },
+        {
+          "caller": "retrieve",
+          "callee": "' '.join",
+          "lineNumber": 18
+        },
+        {
+          "caller": "retrieve",
+          "callee": "item.get",
+          "lineNumber": 18
+        },
+        {
+          "caller": "retrieve",
+          "callee": "self._bm25_scores",
+          "lineNumber": 20
+        },
+        {
+          "caller": "retrieve",
+          "callee": "self._embedding_scores",
+          "lineNumber": 21
+        },
+        {
+          "caller": "retrieve",
+          "callee": "enumerate",
+          "lineNumber": 23
+        },
+        {
+          "caller": "retrieve",
+          "callee": "scored.append",
+          "lineNumber": 25
+        },
+        {
+          "caller": "retrieve",
+          "callee": "scored.sort",
+          "lineNumber": 26
+        },
+        {
+          "caller": "retrieve",
+          "callee": "query.strip",
+          "lineNumber": 27
+        },
+        {
+          "caller": "retrieve",
+          "callee": "hasattr",
+          "lineNumber": 29
+        },
+        {
+          "caller": "retrieve",
+          "callee": "self.store.mark_summary_accessed",
+          "lineNumber": 30
+        },
+        {
+          "caller": "_bm25_scores",
+          "callee": "self._terms",
+          "lineNumber": 34
+        },
+        {
+          "caller": "_bm25_scores",
+          "callee": "self._terms",
+          "lineNumber": 37
+        },
+        {
+          "caller": "_bm25_scores",
+          "callee": "sum",
+          "lineNumber": 38
+        },
+        {
+          "caller": "_bm25_scores",
+          "callee": "len",
+          "lineNumber": 38
+        },
+        {
+          "caller": "_bm25_scores",
+          "callee": "len",
+          "lineNumber": 38
+        },
+        {
+          "caller": "_bm25_scores",
+          "callee": "Counter",
+          "lineNumber": 39
+        },
+        {
+          "caller": "_bm25_scores",
+          "callee": "doc_freq.update",
+          "lineNumber": 41
+        },
+        {
+          "caller": "_bm25_scores",
+          "callee": "set",
+          "lineNumber": 41
+        },
+        {
+          "caller": "_bm25_scores",
+          "callee": "Counter",
+          "lineNumber": 44
+        },
+        {
+          "caller": "_bm25_scores",
+          "callee": "len",
+          "lineNumber": 46
+        },
+        {
+          "caller": "_bm25_scores",
+          "callee": "log",
+          "lineNumber": 50
+        },
+        {
+          "caller": "_bm25_scores",
+          "callee": "len",
+          "lineNumber": 50
+        },
+        {
+          "caller": "_bm25_scores",
+          "callee": "self._char_cosine",
+          "lineNumber": 55
+        },
+        {
+          "caller": "_bm25_scores",
+          "callee": "\" \".join",
+          "lineNumber": 55
+        },
+        {
+          "caller": "_bm25_scores",
+          "callee": "scores.append",
+          "lineNumber": 56
+        },
+        {
+          "caller": "_embedding_scores",
+          "callee": "query.strip",
+          "lineNumber": 60
+        },
+        {
+          "caller": "_embedding_scores",
+          "callee": "self.embedding_provider.embed_query",
+          "lineNumber": 63
+        },
+        {
+          "caller": "_embedding_scores",
+          "callee": "item.get",
+          "lineNumber": 68
+        },
+        {
+          "caller": "_embedding_scores",
+          "callee": "scores.append",
+          "lineNumber": 70
+        },
+        {
+          "caller": "_embedding_scores",
+          "callee": "scores.append",
+          "lineNumber": 72
+        },
+        {
+          "caller": "_embedding_scores",
+          "callee": "self._cosine",
+          "lineNumber": 72
+        },
+        {
+          "caller": "_terms",
+          "callee": "text.casefold",
+          "lineNumber": 76
+        },
+        {
+          "caller": "_terms",
+          "callee": "normalized.split",
+          "lineNumber": 77
+        },
+        {
+          "caller": "_terms",
+          "callee": "char.isspace",
+          "lineNumber": 80
+        },
+        {
+          "caller": "_char_cosine",
+          "callee": "Counter",
+          "lineNumber": 83
+        },
+        {
+          "caller": "_char_cosine",
+          "callee": "query.casefold",
+          "lineNumber": 83
+        },
+        {
+          "caller": "_char_cosine",
+          "callee": "Counter",
+          "lineNumber": 84
+        },
+        {
+          "caller": "_char_cosine",
+          "callee": "text.casefold",
+          "lineNumber": 84
+        },
+        {
+          "caller": "_char_cosine",
+          "callee": "sum",
+          "lineNumber": 85
+        },
+        {
+          "caller": "_char_cosine",
+          "callee": "min",
+          "lineNumber": 85
+        },
+        {
+          "caller": "_char_cosine",
+          "callee": "sqrt",
+          "lineNumber": 86
+        },
+        {
+          "caller": "_char_cosine",
+          "callee": "sum",
+          "lineNumber": 86
+        },
+        {
+          "caller": "_char_cosine",
+          "callee": "q_chars.values",
+          "lineNumber": 86
+        },
+        {
+          "caller": "_char_cosine",
+          "callee": "sqrt",
+          "lineNumber": 87
+        },
+        {
+          "caller": "_char_cosine",
+          "callee": "sum",
+          "lineNumber": 87
+        },
+        {
+          "caller": "_char_cosine",
+          "callee": "t_chars.values",
+          "lineNumber": 87
+        },
+        {
+          "caller": "_cosine",
+          "callee": "len",
+          "lineNumber": 91
+        },
+        {
+          "caller": "_cosine",
+          "callee": "len",
+          "lineNumber": 91
+        },
+        {
+          "caller": "_cosine",
+          "callee": "sum",
+          "lineNumber": 93
+        },
+        {
+          "caller": "_cosine",
+          "callee": "zip",
+          "lineNumber": 93
+        },
+        {
+          "caller": "_cosine",
+          "callee": "sqrt",
+          "lineNumber": 94
+        },
+        {
+          "caller": "_cosine",
+          "callee": "sum",
+          "lineNumber": 94
+        },
+        {
+          "caller": "_cosine",
+          "callee": "sqrt",
+          "lineNumber": 95
+        },
+        {
+          "caller": "_cosine",
+          "callee": "sum",
+          "lineNumber": 95
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 1,
+        "functionCount": 0,
+        "classCount": 1
+      }
+    },
+    {
+      "path": "src/lifeops/memory/service.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 331,
+      "nonEmptyLines": 303,
+      "classes": [
+        {
+          "name": "MemoryService",
+          "startLine": 17,
+          "endLine": 331,
+          "methods": [
+            "__init__",
+            "bootstrap_context",
+            "finalize_conversation",
+            "stats",
+            "user_profile",
+            "knowledge_graph",
+            "summaries",
+            "compression_events",
+            "skill_usage",
+            "tool_stats",
+            "search",
+            "delete_preference",
+            "delete_entity",
+            "forget",
+            "record_tool_usage",
+            "record_skill_usage",
+            "_record_trace",
+            "_format_summary",
+            "_format_preferences",
+            "_format_entities",
+            "_string_list",
+            "_embed_summary",
+            "_record_config_snapshot"
+          ],
+          "properties": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "MemoryService",
+          "line": 17,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "__init__",
+          "callee": "ConversationSummarizer",
+          "lineNumber": 28
+        },
+        {
+          "caller": "__init__",
+          "callee": "MemoryExtractor",
+          "lineNumber": 29
+        },
+        {
+          "caller": "__init__",
+          "callee": "MemoryRetriever",
+          "lineNumber": 30
+        },
+        {
+          "caller": "__init__",
+          "callee": "self._record_config_snapshot",
+          "lineNumber": 31
+        },
+        {
+          "caller": "bootstrap_context",
+          "callee": "self._record_trace",
+          "lineNumber": 43
+        },
+        {
+          "caller": "bootstrap_context",
+          "callee": "len",
+          "lineNumber": 48
+        },
+        {
+          "caller": "bootstrap_context",
+          "callee": "self.retriever.retrieve",
+          "lineNumber": 56
+        },
+        {
+          "caller": "bootstrap_context",
+          "callee": "item.get",
+          "lineNumber": 57
+        },
+        {
+          "caller": "bootstrap_context",
+          "callee": "self._format_summary",
+          "lineNumber": 61
+        },
+        {
+          "caller": "bootstrap_context",
+          "callee": "context.add_content",
+          "lineNumber": 62
+        },
+        {
+          "caller": "bootstrap_context",
+          "callee": "len",
+          "lineNumber": 62
+        },
+        {
+          "caller": "bootstrap_context",
+          "callee": "self.store.get_user_preferences",
+          "lineNumber": 64
+        },
+        {
+          "caller": "bootstrap_context",
+          "callee": "self._format_preferences",
+          "lineNumber": 68
+        },
+        {
+          "caller": "bootstrap_context",
+          "callee": "context.add_content",
+          "lineNumber": 69
+        },
+        {
+          "caller": "bootstrap_context",
+          "callee": "len",
+          "lineNumber": 73
+        },
+        {
+          "caller": "bootstrap_context",
+          "callee": "self.store.search_knowledge_entities",
+          "lineNumber": 75
+        },
+        {
+          "caller": "bootstrap_context",
+          "callee": "self._format_entities",
+          "lineNumber": 77
+        },
+        {
+          "caller": "bootstrap_context",
+          "callee": "context.add_content",
+          "lineNumber": 78
+        },
+        {
+          "caller": "bootstrap_context",
+          "callee": "len",
+          "lineNumber": 82
+        },
+        {
+          "caller": "bootstrap_context",
+          "callee": "self._record_trace",
+          "lineNumber": 84
+        },
+        {
+          "caller": "bootstrap_context",
+          "callee": "len",
+          "lineNumber": 88
+        },
+        {
+          "caller": "bootstrap_context",
+          "callee": "len",
+          "lineNumber": 89
+        },
+        {
+          "caller": "bootstrap_context",
+          "callee": "len",
+          "lineNumber": 90
+        },
+        {
+          "caller": "bootstrap_context",
+          "callee": "logger.exception",
+          "lineNumber": 95
+        },
+        {
+          "caller": "bootstrap_context",
+          "callee": "self._record_trace",
+          "lineNumber": 96
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "self._record_trace",
+          "lineNumber": 111
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "self.store.get_messages",
+          "lineNumber": 118
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "isinstance",
+          "lineNumber": 119
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "item.get",
+          "lineNumber": 122
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "item.get",
+          "lineNumber": 122
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "self.store.get_conversation_summary",
+          "lineNumber": 126
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "existing_summary.get",
+          "lineNumber": 127
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "len",
+          "lineNumber": 127
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "self._record_trace",
+          "lineNumber": 130
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "self.summarizer.summarize",
+          "lineNumber": 137
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "str(payload.get(\"summary\") or \"\").strip",
+          "lineNumber": 138
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "str",
+          "lineNumber": 138
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "payload.get",
+          "lineNumber": 138
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "self._embed_summary",
+          "lineNumber": 141
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "self.store.insert_or_update_conversation_summary",
+          "lineNumber": 142
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "self._string_list",
+          "lineNumber": 146
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "payload.get",
+          "lineNumber": 146
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "self._string_list",
+          "lineNumber": 147
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "payload.get",
+          "lineNumber": 147
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "self._string_list",
+          "lineNumber": 148
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "payload.get",
+          "lineNumber": 148
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "payload.get",
+          "lineNumber": 149
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "normalize_confidence",
+          "lineNumber": 151
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "payload.get",
+          "lineNumber": 151
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "len",
+          "lineNumber": 152
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "self.extractor.normalize_preferences",
+          "lineNumber": 155
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "item.setdefault",
+          "lineNumber": 157
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "self.extractor.normalize_entities",
+          "lineNumber": 158
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "self.extractor.normalize_relations",
+          "lineNumber": 159
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "self.store.upsert_user_preferences",
+          "lineNumber": 160
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "self.store.upsert_knowledge_entities",
+          "lineNumber": 161
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "self.store.upsert_knowledge_relations",
+          "lineNumber": 162
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "self._record_trace",
+          "lineNumber": 163
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "len",
+          "lineNumber": 168
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "len",
+          "lineNumber": 169
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "len",
+          "lineNumber": 170
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "logger.exception",
+          "lineNumber": 175
+        },
+        {
+          "caller": "finalize_conversation",
+          "callee": "self._record_trace",
+          "lineNumber": 176
+        },
+        {
+          "caller": "stats",
+          "callee": "self.store.get_memory_stats",
+          "lineNumber": 184
+        },
+        {
+          "caller": "user_profile",
+          "callee": "self.store.get_user_preferences",
+          "lineNumber": 187
+        },
+        {
+          "caller": "knowledge_graph",
+          "callee": "self.store.get_knowledge_graph",
+          "lineNumber": 190
+        },
+        {
+          "caller": "summaries",
+          "callee": "self.store.list_conversation_summaries",
+          "lineNumber": 193
+        },
+        {
+          "caller": "compression_events",
+          "callee": "self.store.list_compression_events",
+          "lineNumber": 198
+        },
+        {
+          "caller": "skill_usage",
+          "callee": "self.store.list_skill_usage",
+          "lineNumber": 201
+        },
+        {
+          "caller": "tool_stats",
+          "callee": "self.store.list_tool_usage_stats",
+          "lineNumber": 204
+        },
+        {
+          "caller": "search",
+          "callee": "self.retriever.retrieve",
+          "lineNumber": 209
+        },
+        {
+          "caller": "search",
+          "callee": "self.store.get_user_preferences",
+          "lineNumber": 210
+        },
+        {
+          "caller": "search",
+          "callee": "self.store.search_knowledge_entities",
+          "lineNumber": 213
+        },
+        {
+          "caller": "delete_preference",
+          "callee": "self.store.delete_user_preference",
+          "lineNumber": 217
+        },
+        {
+          "caller": "delete_entity",
+          "callee": "self.store.delete_knowledge_entity",
+          "lineNumber": 220
+        },
+        {
+          "caller": "forget",
+          "callee": "self.store.forget_low_value_memories",
+          "lineNumber": 229
+        },
+        {
+          "caller": "record_tool_usage",
+          "callee": "self.store.record_tool_usage",
+          "lineNumber": 244
+        },
+        {
+          "caller": "record_skill_usage",
+          "callee": "self.store.record_skill_usage",
+          "lineNumber": 260
+        },
+        {
+          "caller": "_record_trace",
+          "callee": "trace_recorder.record",
+          "lineNumber": 277
+        },
+        {
+          "caller": "_record_trace",
+          "callee": "logger.exception",
+          "lineNumber": 279
+        },
+        {
+          "caller": "_format_summary",
+          "callee": "\"、\".join",
+          "lineNumber": 282
+        },
+        {
+          "caller": "_format_summary",
+          "callee": "item.get",
+          "lineNumber": 282
+        },
+        {
+          "caller": "_format_summary",
+          "callee": "item.get",
+          "lineNumber": 285
+        },
+        {
+          "caller": "_format_summary",
+          "callee": "item.get",
+          "lineNumber": 287
+        },
+        {
+          "caller": "_format_preferences",
+          "callee": "lines.append",
+          "lineNumber": 293
+        },
+        {
+          "caller": "_format_preferences",
+          "callee": "\"\\n\".join",
+          "lineNumber": 297
+        },
+        {
+          "caller": "_format_entities",
+          "callee": "lines.append",
+          "lineNumber": 302
+        },
+        {
+          "caller": "_format_entities",
+          "callee": "item.get",
+          "lineNumber": 302
+        },
+        {
+          "caller": "_format_entities",
+          "callee": "item.get",
+          "lineNumber": 302
+        },
+        {
+          "caller": "_format_entities",
+          "callee": "\"\\n\".join",
+          "lineNumber": 303
+        },
+        {
+          "caller": "_string_list",
+          "callee": "isinstance",
+          "lineNumber": 306
+        },
+        {
+          "caller": "_string_list",
+          "callee": "str",
+          "lineNumber": 308
+        },
+        {
+          "caller": "_embed_summary",
+          "callee": "provider.embed_query",
+          "lineNumber": 315
+        },
+        {
+          "caller": "_embed_summary",
+          "callee": "logger.warning",
+          "lineNumber": 317
+        },
+        {
+          "caller": "_record_config_snapshot",
+          "callee": "hasattr",
+          "lineNumber": 321
+        },
+        {
+          "caller": "_record_config_snapshot",
+          "callee": "self.config.model_dump",
+          "lineNumber": 325
+        },
+        {
+          "caller": "_record_config_snapshot",
+          "callee": "hasattr",
+          "lineNumber": 326
+        },
+        {
+          "caller": "_record_config_snapshot",
+          "callee": "dict",
+          "lineNumber": 327
+        },
+        {
+          "caller": "_record_config_snapshot",
+          "callee": "self.store.record_memory_config_snapshot",
+          "lineNumber": 329
+        },
+        {
+          "caller": "_record_config_snapshot",
+          "callee": "logger.warning",
+          "lineNumber": 331
+        }
+      ],
+      "metrics": {
+        "importCount": 8,
+        "exportCount": 1,
+        "functionCount": 0,
+        "classCount": 1
+      }
+    },
+    {
+      "path": "src/lifeops/memory/summarizer.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 44,
+      "nonEmptyLines": 38,
+      "classes": [
+        {
+          "name": "ConversationSummarizer",
+          "startLine": 9,
+          "endLine": 44,
+          "methods": [
+            "__init__",
+            "summarize",
+            "_parse_payload"
+          ],
+          "properties": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "ConversationSummarizer",
+          "line": 9,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "summarize",
+          "callee": "\"\\n\".join",
+          "lineNumber": 14
+        },
+        {
+          "caller": "summarize",
+          "callee": "item.get",
+          "lineNumber": 15
+        },
+        {
+          "caller": "summarize",
+          "callee": "item.get",
+          "lineNumber": 15
+        },
+        {
+          "caller": "summarize",
+          "callee": "item.get",
+          "lineNumber": 15
+        },
+        {
+          "caller": "summarize",
+          "callee": "self.llm.chat",
+          "lineNumber": 26
+        },
+        {
+          "caller": "summarize",
+          "callee": "Message",
+          "lineNumber": 26
+        },
+        {
+          "caller": "summarize",
+          "callee": "self._parse_payload",
+          "lineNumber": 27
+        },
+        {
+          "caller": "_parse_payload",
+          "callee": "content.strip",
+          "lineNumber": 32
+        },
+        {
+          "caller": "_parse_payload",
+          "callee": "text.startswith",
+          "lineNumber": 33
+        },
+        {
+          "caller": "_parse_payload",
+          "callee": "text.splitlines",
+          "lineNumber": 34
+        },
+        {
+          "caller": "_parse_payload",
+          "callee": "lines[0].startswith",
+          "lineNumber": 35
+        },
+        {
+          "caller": "_parse_payload",
+          "callee": "lines[-1].startswith",
+          "lineNumber": 37
+        },
+        {
+          "caller": "_parse_payload",
+          "callee": "\"\\n\".join(lines).strip",
+          "lineNumber": 39
+        },
+        {
+          "caller": "_parse_payload",
+          "callee": "\"\\n\".join",
+          "lineNumber": 39
+        },
+        {
+          "caller": "_parse_payload",
+          "callee": "json.loads",
+          "lineNumber": 41
+        },
+        {
+          "caller": "_parse_payload",
+          "callee": "isinstance",
+          "lineNumber": 44
+        }
+      ],
+      "metrics": {
+        "importCount": 1,
+        "exportCount": 1,
+        "functionCount": 0,
+        "classCount": 1
+      }
+    },
+    {
+      "path": "src/lifeops/storage/__init__.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 14,
+      "nonEmptyLines": 12,
+      "metrics": {
+        "importCount": 3,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/lifeops/storage/migration.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 185,
+      "nonEmptyLines": 146,
+      "functions": [
+        {
+          "name": "migrate_jsonl_to_sqlite",
+          "startLine": 17,
+          "endLine": 99,
+          "params": [
+            "jsonl_path",
+            "db_path",
+            "dry_run"
+          ]
+        },
+        {
+          "name": "should_migrate",
+          "startLine": 102,
+          "endLine": 125,
+          "params": [
+            "jsonl_path",
+            "db_path"
+          ]
+        },
+        {
+          "name": "auto_migrate",
+          "startLine": 128,
+          "endLine": 147,
+          "params": [
+            "jsonl_path",
+            "db_path"
+          ]
+        },
+        {
+          "name": "_is_valid_record",
+          "startLine": 150,
+          "endLine": 155,
+          "params": [
+            "record"
+          ]
+        },
+        {
+          "name": "_insert_record",
+          "startLine": 158,
+          "endLine": 185,
+          "params": [
+            "store",
+            "record"
+          ]
+        }
+      ],
+      "exports": [
+        {
+          "name": "migrate_jsonl_to_sqlite",
+          "line": 17,
+          "isDefault": false
+        },
+        {
+          "name": "should_migrate",
+          "line": 102,
+          "isDefault": false
+        },
+        {
+          "name": "auto_migrate",
+          "line": 128,
+          "isDefault": false
+        },
+        {
+          "name": "_is_valid_record",
+          "line": 150,
+          "isDefault": false
+        },
+        {
+          "name": "_insert_record",
+          "line": 158,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "migrate_jsonl_to_sqlite",
+          "callee": "Path(jsonl_path).expanduser",
+          "lineNumber": 32
+        },
+        {
+          "caller": "migrate_jsonl_to_sqlite",
+          "callee": "Path",
+          "lineNumber": 32
+        },
+        {
+          "caller": "migrate_jsonl_to_sqlite",
+          "callee": "Path(db_path).expanduser",
+          "lineNumber": 33
+        },
+        {
+          "caller": "migrate_jsonl_to_sqlite",
+          "callee": "Path",
+          "lineNumber": 33
+        },
+        {
+          "caller": "migrate_jsonl_to_sqlite",
+          "callee": "jsonl_path.exists",
+          "lineNumber": 37
+        },
+        {
+          "caller": "migrate_jsonl_to_sqlite",
+          "callee": "logger.info",
+          "lineNumber": 38
+        },
+        {
+          "caller": "migrate_jsonl_to_sqlite",
+          "callee": "logger.info",
+          "lineNumber": 41
+        },
+        {
+          "caller": "migrate_jsonl_to_sqlite",
+          "callee": "ConversationHistoryStoreSQLite",
+          "lineNumber": 45
+        },
+        {
+          "caller": "migrate_jsonl_to_sqlite",
+          "callee": "jsonl_path.open",
+          "lineNumber": 48
+        },
+        {
+          "caller": "migrate_jsonl_to_sqlite",
+          "callee": "enumerate",
+          "lineNumber": 49
+        },
+        {
+          "caller": "migrate_jsonl_to_sqlite",
+          "callee": "raw_line.strip",
+          "lineNumber": 50
+        },
+        {
+          "caller": "migrate_jsonl_to_sqlite",
+          "callee": "json.loads",
+          "lineNumber": 57
+        },
+        {
+          "caller": "migrate_jsonl_to_sqlite",
+          "callee": "logger.warning",
+          "lineNumber": 60
+        },
+        {
+          "caller": "migrate_jsonl_to_sqlite",
+          "callee": "stats[\"errors\"].append",
+          "lineNumber": 62
+        },
+        {
+          "caller": "migrate_jsonl_to_sqlite",
+          "callee": "_is_valid_record",
+          "lineNumber": 65
+        },
+        {
+          "caller": "migrate_jsonl_to_sqlite",
+          "callee": "logger.warning",
+          "lineNumber": 67
+        },
+        {
+          "caller": "migrate_jsonl_to_sqlite",
+          "callee": "stats[\"errors\"].append",
+          "lineNumber": 69
+        },
+        {
+          "caller": "migrate_jsonl_to_sqlite",
+          "callee": "_insert_record",
+          "lineNumber": 78
+        },
+        {
+          "caller": "migrate_jsonl_to_sqlite",
+          "callee": "logger.warning",
+          "lineNumber": 82
+        },
+        {
+          "caller": "migrate_jsonl_to_sqlite",
+          "callee": "stats[\"errors\"].append",
+          "lineNumber": 84
+        },
+        {
+          "caller": "migrate_jsonl_to_sqlite",
+          "callee": "logger.info",
+          "lineNumber": 87
+        },
+        {
+          "caller": "migrate_jsonl_to_sqlite",
+          "callee": "store.close",
+          "lineNumber": 91
+        },
+        {
+          "caller": "migrate_jsonl_to_sqlite",
+          "callee": "logger.info",
+          "lineNumber": 93
+        },
+        {
+          "caller": "should_migrate",
+          "callee": "Path(jsonl_path).expanduser",
+          "lineNumber": 107
+        },
+        {
+          "caller": "should_migrate",
+          "callee": "Path",
+          "lineNumber": 107
+        },
+        {
+          "caller": "should_migrate",
+          "callee": "Path(db_path).expanduser",
+          "lineNumber": 108
+        },
+        {
+          "caller": "should_migrate",
+          "callee": "Path",
+          "lineNumber": 108
+        },
+        {
+          "caller": "should_migrate",
+          "callee": "jsonl_path.exists",
+          "lineNumber": 110
+        },
+        {
+          "caller": "should_migrate",
+          "callee": "db_path.exists",
+          "lineNumber": 113
+        },
+        {
+          "caller": "should_migrate",
+          "callee": "ConversationHistoryStoreSQLite",
+          "lineNumber": 117
+        },
+        {
+          "caller": "should_migrate",
+          "callee": "store.list_records",
+          "lineNumber": 119
+        },
+        {
+          "caller": "should_migrate",
+          "callee": "len",
+          "lineNumber": 120
+        },
+        {
+          "caller": "should_migrate",
+          "callee": "store.close",
+          "lineNumber": 122
+        },
+        {
+          "caller": "should_migrate",
+          "callee": "logger.warning",
+          "lineNumber": 124
+        },
+        {
+          "caller": "auto_migrate",
+          "callee": "should_migrate",
+          "lineNumber": 137
+        },
+        {
+          "caller": "auto_migrate",
+          "callee": "logger.info",
+          "lineNumber": 138
+        },
+        {
+          "caller": "auto_migrate",
+          "callee": "logger.info",
+          "lineNumber": 141
+        },
+        {
+          "caller": "auto_migrate",
+          "callee": "migrate_jsonl_to_sqlite",
+          "lineNumber": 142
+        },
+        {
+          "caller": "auto_migrate",
+          "callee": "logger.info",
+          "lineNumber": 143
+        },
+        {
+          "caller": "auto_migrate",
+          "callee": "logger.error",
+          "lineNumber": 146
+        },
+        {
+          "caller": "_is_valid_record",
+          "callee": "isinstance",
+          "lineNumber": 151
+        },
+        {
+          "caller": "_is_valid_record",
+          "callee": "REQUIRED_RECORD_KEYS.issubset",
+          "lineNumber": 153
+        },
+        {
+          "caller": "_is_valid_record",
+          "callee": "record.keys",
+          "lineNumber": 153
+        },
+        {
+          "caller": "_is_valid_record",
+          "callee": "all",
+          "lineNumber": 155
+        },
+        {
+          "caller": "_is_valid_record",
+          "callee": "isinstance",
+          "lineNumber": 155
+        },
+        {
+          "caller": "_insert_record",
+          "callee": "record.get",
+          "lineNumber": 165
+        },
+        {
+          "caller": "_insert_record",
+          "callee": "store.append_conversation_title",
+          "lineNumber": 166
+        },
+        {
+          "caller": "_insert_record",
+          "callee": "record.get",
+          "lineNumber": 174
+        },
+        {
+          "caller": "_insert_record",
+          "callee": "store.append_message",
+          "lineNumber": 175
+        },
+        {
+          "caller": "_insert_record",
+          "callee": "record.get",
+          "lineNumber": 181
+        },
+        {
+          "caller": "_insert_record",
+          "callee": "record.get",
+          "lineNumber": 182
+        },
+        {
+          "caller": "_insert_record",
+          "callee": "bool",
+          "lineNumber": 184
+        },
+        {
+          "caller": "_insert_record",
+          "callee": "record.get",
+          "lineNumber": 184
+        }
+      ],
+      "metrics": {
+        "importCount": 1,
+        "exportCount": 5,
+        "functionCount": 5,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/lifeops/storage/schema.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 299,
+      "nonEmptyLines": 262,
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0
+      }
+    },
+    {
+      "path": "src/lifeops/storage/sqlite_store.py",
+      "language": "python",
+      "fileCategory": "code",
+      "totalLines": 1378,
+      "nonEmptyLines": 1273,
+      "classes": [
+        {
+          "name": "ConversationHistoryStoreSQLite",
+          "startLine": 20,
+          "endLine": 1378,
+          "methods": [
+            "__init__",
+            "_connect",
+            "_init_db",
+            "_migrate_schema_v3",
+            "_add_column_if_missing",
+            "_ensure_schema",
+            "_get_schema_version",
+            "_backup_before_schema_upgrade",
+            "_now",
+            "_sanitize_unicode_text",
+            "_sanitize_unicode_data",
+            "_get_or_create_conversation",
+            "_row_to_record",
+            "append_message",
+            "append_conversation_title",
+            "list_records",
+            "list_conversations",
+            "get_messages",
+            "get_first_user_message",
+            "has_conversation_title",
+            "search_messages",
+            "insert_or_update_conversation_summary",
+            "list_conversation_summaries",
+            "get_conversation_summary",
+            "mark_summary_accessed",
+            "upsert_user_preferences",
+            "get_user_preferences",
+            "upsert_knowledge_entities",
+            "upsert_knowledge_relations",
+            "get_knowledge_graph",
+            "record_message_embedding",
+            "get_message_embedding",
+            "record_offload_metadata",
+            "record_compression_event",
+            "list_compression_events",
+            "record_skill_usage",
+            "list_skill_usage",
+            "record_tool_usage",
+            "list_tool_usage_events",
+            "list_skill_usage_events",
+            "list_tool_usage_stats",
+            "record_memory_config_snapshot",
+            "delete_user_preference",
+            "delete_knowledge_entity",
+            "search_knowledge_entities",
+            "forget_low_value_memories",
+            "get_memory_stats",
+            "delete_conversation",
+            "_json_dumps",
+            "_json_loads",
+            "_embedding_to_blob",
+            "_blob_to_embedding",
+            "_summary_row_to_dict",
+            "_visible_message_count",
+            "_stable_id",
+            "_fetch_tool_calls",
+            "_get_first_user_content",
+            "_title_matches_query",
+            "close",
+            "__enter__",
+            "__exit__"
+          ],
+          "properties": []
+        }
+      ],
+      "exports": [
+        {
+          "name": "ConversationHistoryStoreSQLite",
+          "line": 20,
+          "isDefault": false
+        }
+      ],
+      "callGraph": [
+        {
+          "caller": "__init__",
+          "callee": "Path",
+          "lineNumber": 23
+        },
+        {
+          "caller": "__init__",
+          "callee": "self._path.parent.mkdir",
+          "lineNumber": 24
+        },
+        {
+          "caller": "__init__",
+          "callee": "self._connect",
+          "lineNumber": 26
+        },
+        {
+          "caller": "__init__",
+          "callee": "self._init_db",
+          "lineNumber": 27
+        },
+        {
+          "caller": "_connect",
+          "callee": "sqlite3.connect",
+          "lineNumber": 30
+        },
+        {
+          "caller": "_connect",
+          "callee": "str",
+          "lineNumber": 30
+        },
+        {
+          "caller": "_connect",
+          "callee": "self._conn.execute",
+          "lineNumber": 32
+        },
+        {
+          "caller": "_connect",
+          "callee": "self._conn.execute",
+          "lineNumber": 33
+        },
+        {
+          "caller": "_init_db",
+          "callee": "self._conn.cursor",
+          "lineNumber": 36
+        },
+        {
+          "caller": "_init_db",
+          "callee": "self._get_schema_version",
+          "lineNumber": 37
+        },
+        {
+          "caller": "_init_db",
+          "callee": "self._backup_before_schema_upgrade",
+          "lineNumber": 39
+        },
+        {
+          "caller": "_init_db",
+          "callee": "cursor.executescript",
+          "lineNumber": 40
+        },
+        {
+          "caller": "_init_db",
+          "callee": "self._migrate_schema_v3",
+          "lineNumber": 41
+        },
+        {
+          "caller": "_init_db",
+          "callee": "cursor.execute",
+          "lineNumber": 42
+        },
+        {
+          "caller": "_init_db",
+          "callee": "cursor.execute",
+          "lineNumber": 45
+        },
+        {
+          "caller": "_init_db",
+          "callee": "cursor.execute",
+          "lineNumber": 46
+        },
+        {
+          "caller": "_init_db",
+          "callee": "cursor.execute",
+          "lineNumber": 52
+        },
+        {
+          "caller": "_init_db",
+          "callee": "self._conn.commit",
+          "lineNumber": 55
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "self._add_column_if_missing",
+          "lineNumber": 58
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "self._add_column_if_missing",
+          "lineNumber": 62
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "self._add_column_if_missing",
+          "lineNumber": 65
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "self._add_column_if_missing",
+          "lineNumber": 68
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "self._add_column_if_missing",
+          "lineNumber": 71
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "self._add_column_if_missing",
+          "lineNumber": 74
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "self._add_column_if_missing",
+          "lineNumber": 77
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "self._add_column_if_missing",
+          "lineNumber": 80
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "self._add_column_if_missing",
+          "lineNumber": 83
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "self._add_column_if_missing",
+          "lineNumber": 86
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "self._add_column_if_missing",
+          "lineNumber": 90
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "self._add_column_if_missing",
+          "lineNumber": 94
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "self._add_column_if_missing",
+          "lineNumber": 97
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "self._add_column_if_missing",
+          "lineNumber": 100
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "self._add_column_if_missing",
+          "lineNumber": 103
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "self._add_column_if_missing",
+          "lineNumber": 107
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "self._add_column_if_missing",
+          "lineNumber": 111
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "self._add_column_if_missing",
+          "lineNumber": 114
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "self._add_column_if_missing",
+          "lineNumber": 117
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "self._add_column_if_missing",
+          "lineNumber": 120
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "self._add_column_if_missing",
+          "lineNumber": 124
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "self._add_column_if_missing",
+          "lineNumber": 127
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "self._add_column_if_missing",
+          "lineNumber": 130
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "self._now",
+          "lineNumber": 131
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "cursor.execute",
+          "lineNumber": 132
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "cursor.execute",
+          "lineNumber": 136
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "cursor.execute",
+          "lineNumber": 140
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "cursor.execute",
+          "lineNumber": 144
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "cursor.execute",
+          "lineNumber": 148
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "cursor.execute",
+          "lineNumber": 153
+        },
+        {
+          "caller": "_migrate_schema_v3",
+          "callee": "cursor.execute",
+          "lineNumber": 156
+        },
+        {
+          "caller": "_add_column_if_missing",
+          "callee": "cursor.execute",
+          "lineNumber": 165
+        },
+        {
+          "caller": "_add_column_if_missing",
+          "callee": "cursor.fetchall",
+          "lineNumber": 166
+        },
+        {
+          "caller": "_add_column_if_missing",
+          "callee": "cursor.execute",
+          "lineNumber": 168
+        },
+        {
+          "caller": "_ensure_schema",
+          "callee": "self._conn.cursor",
+          "lineNumber": 171
+        },
+        {
+          "caller": "_ensure_schema",
+          "callee": "cursor.execute",
+          "lineNumber": 172
+        },
+        {
+          "caller": "_ensure_schema",
+          "callee": "cursor.fetchone",
+          "lineNumber": 173
+        },
+        {
+          "caller": "_ensure_schema",
+          "callee": "ValueError",
+          "lineNumber": 175
+        },
+        {
+          "caller": "_get_schema_version",
+          "callee": "cursor.execute",
+          "lineNumber": 180
+        },
+        {
+          "caller": "_get_schema_version",
+          "callee": "cursor.fetchone",
+          "lineNumber": 183
+        },
+        {
+          "caller": "_get_schema_version",
+          "callee": "cursor.execute",
+          "lineNumber": 185
+        },
+        {
+          "caller": "_get_schema_version",
+          "callee": "cursor.fetchone",
+          "lineNumber": 186
+        },
+        {
+          "caller": "_get_schema_version",
+          "callee": "int",
+          "lineNumber": 187
+        },
+        {
+          "caller": "_backup_before_schema_upgrade",
+          "callee": "self._path.exists",
+          "lineNumber": 190
+        },
+        {
+          "caller": "_backup_before_schema_upgrade",
+          "callee": "self._path.with_name",
+          "lineNumber": 192
+        },
+        {
+          "caller": "_backup_before_schema_upgrade",
+          "callee": "backup_path.exists",
+          "lineNumber": 193
+        },
+        {
+          "caller": "_backup_before_schema_upgrade",
+          "callee": "shutil.copy2",
+          "lineNumber": 195
+        },
+        {
+          "caller": "_now",
+          "callee": "datetime.now().astimezone().isoformat",
+          "lineNumber": 198
+        },
+        {
+          "caller": "_now",
+          "callee": "datetime.now().astimezone",
+          "lineNumber": 198
+        },
+        {
+          "caller": "_now",
+          "callee": "datetime.now",
+          "lineNumber": 198
+        },
+        {
+          "caller": "_sanitize_unicode_text",
+          "callee": "sanitize_unicode_text",
+          "lineNumber": 201
+        },
+        {
+          "caller": "_sanitize_unicode_data",
+          "callee": "sanitize_unicode_data",
+          "lineNumber": 204
+        },
+        {
+          "caller": "_get_or_create_conversation",
+          "callee": "self._conn.cursor",
+          "lineNumber": 207
+        },
+        {
+          "caller": "_get_or_create_conversation",
+          "callee": "cursor.execute",
+          "lineNumber": 208
+        },
+        {
+          "caller": "_get_or_create_conversation",
+          "callee": "cursor.fetchone",
+          "lineNumber": 212
+        },
+        {
+          "caller": "_get_or_create_conversation",
+          "callee": "self._now",
+          "lineNumber": 213
+        },
+        {
+          "caller": "_get_or_create_conversation",
+          "callee": "cursor.execute",
+          "lineNumber": 214
+        },
+        {
+          "caller": "_get_or_create_conversation",
+          "callee": "self._conn.commit",
+          "lineNumber": 219
+        },
+        {
+          "caller": "append_message",
+          "callee": "self._now",
+          "lineNumber": 253
+        },
+        {
+          "caller": "append_message",
+          "callee": "self._sanitize_unicode_text",
+          "lineNumber": 254
+        },
+        {
+          "caller": "append_message",
+          "callee": "self._get_or_create_conversation",
+          "lineNumber": 256
+        },
+        {
+          "caller": "append_message",
+          "callee": "self._conn.cursor",
+          "lineNumber": 258
+        },
+        {
+          "caller": "append_message",
+          "callee": "cursor.execute",
+          "lineNumber": 259
+        },
+        {
+          "caller": "append_message",
+          "callee": "self._sanitize_unicode_text",
+          "lineNumber": 270
+        },
+        {
+          "caller": "append_message",
+          "callee": "self._sanitize_unicode_text",
+          "lineNumber": 271
+        },
+        {
+          "caller": "append_message",
+          "callee": "self._sanitize_unicode_data",
+          "lineNumber": 279
+        },
+        {
+          "caller": "append_message",
+          "callee": "sanitized_tc.get",
+          "lineNumber": 280
+        },
+        {
+          "caller": "append_message",
+          "callee": "sanitized_tc.get",
+          "lineNumber": 281
+        },
+        {
+          "caller": "append_message",
+          "callee": "fn.get",
+          "lineNumber": 282
+        },
+        {
+          "caller": "append_message",
+          "callee": "fn.get",
+          "lineNumber": 283
+        },
+        {
+          "caller": "append_message",
+          "callee": "isinstance",
+          "lineNumber": 284
+        },
+        {
+          "caller": "append_message",
+          "callee": "json.dumps",
+          "lineNumber": 285
+        },
+        {
+          "caller": "append_message",
+          "callee": "cursor.execute",
+          "lineNumber": 286
+        },
+        {
+          "caller": "append_message",
+          "callee": "cursor.execute",
+          "lineNumber": 294
+        },
+        {
+          "caller": "append_message",
+          "callee": "self._conn.commit",
+          "lineNumber": 302
+        },
+        {
+          "caller": "append_message",
+          "callee": "self._sanitize_unicode_text",
+          "lineNumber": 312
+        },
+        {
+          "caller": "append_message",
+          "callee": "self._sanitize_unicode_text",
+          "lineNumber": 314
+        },
+        {
+          "caller": "append_message",
+          "callee": "self._sanitize_unicode_data",
+          "lineNumber": 316
+        },
+        {
+          "caller": "append_conversation_title",
+          "callee": "self._now",
+          "lineNumber": 328
+        },
+        {
+          "caller": "append_conversation_title",
+          "callee": "self._sanitize_unicode_text",
+          "lineNumber": 329
+        },
+        {
+          "caller": "append_conversation_title",
+          "callee": "self._conn.cursor",
+          "lineNumber": 331
+        },
+        {
+          "caller": "append_conversation_title",
+          "callee": "cursor.execute",
+          "lineNumber": 332
+        },
+        {
+          "caller": "append_conversation_title",
+          "callee": "cursor.fetchone",
+          "lineNumber": 336
+        },
+        {
+          "caller": "append_conversation_title",
+          "callee": "cursor.execute",
+          "lineNumber": 337
+        },
+        {
+          "caller": "append_conversation_title",
+          "callee": "cursor.execute",
+          "lineNumber": 343
+        },
+        {
+          "caller": "append_conversation_title",
+          "callee": "cursor.execute",
+          "lineNumber": 349
+        },
+        {
+          "caller": "append_conversation_title",
+          "callee": "self._conn.commit",
+          "lineNumber": 356
+        },
+        {
+          "caller": "list_records",
+          "callee": "self._conn.cursor",
+          "lineNumber": 380
+        },
+        {
+          "caller": "list_records",
+          "callee": "cursor.execute",
+          "lineNumber": 383
+        },
+        {
+          "caller": "list_records",
+          "callee": "cursor.fetchall",
+          "lineNumber": 384
+        },
+        {
+          "caller": "list_records",
+          "callee": "self._fetch_tool_calls",
+          "lineNumber": 387
+        },
+        {
+          "caller": "list_records",
+          "callee": "self._row_to_record",
+          "lineNumber": 388
+        },
+        {
+          "caller": "list_records",
+          "callee": "records.append",
+          "lineNumber": 389
+        },
+        {
+          "caller": "list_records",
+          "callee": "cursor.execute",
+          "lineNumber": 392
+        },
+        {
+          "caller": "list_records",
+          "callee": "cursor.fetchone",
+          "lineNumber": 393
+        },
+        {
+          "caller": "list_records",
+          "callee": "cursor.execute",
+          "lineNumber": 397
+        },
+        {
+          "caller": "list_records",
+          "callee": "cursor.fetchall",
+          "lineNumber": 401
+        },
+        {
+          "caller": "list_records",
+          "callee": "self._fetch_tool_calls",
+          "lineNumber": 404
+        },
+        {
+          "caller": "list_records",
+          "callee": "self._row_to_record",
+          "lineNumber": 405
+        },
+        {
+          "caller": "list_records",
+          "callee": "records.append",
+          "lineNumber": 406
+        },
+        {
+          "caller": "list_conversations",
+          "callee": "self._conn.cursor",
+          "lineNumber": 421
+        },
+        {
+          "caller": "list_conversations",
+          "callee": "cursor.execute",
+          "lineNumber": 422
+        },
+        {
+          "caller": "list_conversations",
+          "callee": "cursor.fetchall",
+          "lineNumber": 428
+        },
+        {
+          "caller": "list_conversations",
+          "callee": "self._get_first_user_content",
+          "lineNumber": 435
+        },
+        {
+          "caller": "list_conversations",
+          "callee": "query.strip",
+          "lineNumber": 437
+        },
+        {
+          "caller": "list_conversations",
+          "callee": "query.strip().casefold",
+          "lineNumber": 438
+        },
+        {
+          "caller": "list_conversations",
+          "callee": "query.strip",
+          "lineNumber": 438
+        },
+        {
+          "caller": "list_conversations",
+          "callee": "self._title_matches_query",
+          "lineNumber": 439
+        },
+        {
+          "caller": "list_conversations",
+          "callee": "summaries.append",
+          "lineNumber": 442
+        },
+        {
+          "caller": "list_conversations",
+          "callee": "len",
+          "lineNumber": 455
+        },
+        {
+          "caller": "get_messages",
+          "callee": "self._conn.cursor",
+          "lineNumber": 484
+        },
+        {
+          "caller": "get_messages",
+          "callee": "cursor.execute",
+          "lineNumber": 487
+        },
+        {
+          "caller": "get_messages",
+          "callee": "cursor.fetchall",
+          "lineNumber": 488
+        },
+        {
+          "caller": "get_messages",
+          "callee": "self._fetch_tool_calls",
+          "lineNumber": 491
+        },
+        {
+          "caller": "get_messages",
+          "callee": "self._row_to_record",
+          "lineNumber": 492
+        },
+        {
+          "caller": "get_messages",
+          "callee": "messages.append",
+          "lineNumber": 493
+        },
+        {
+          "caller": "get_messages",
+          "callee": "cursor.execute",
+          "lineNumber": 496
+        },
+        {
+          "caller": "get_messages",
+          "callee": "cursor.fetchone",
+          "lineNumber": 502
+        },
+        {
+          "caller": "get_messages",
+          "callee": "cursor.execute",
+          "lineNumber": 506
+        },
+        {
+          "caller": "get_messages",
+          "callee": "cursor.fetchall",
+          "lineNumber": 510
+        },
+        {
+          "caller": "get_messages",
+          "callee": "self._fetch_tool_calls",
+          "lineNumber": 513
+        },
+        {
+          "caller": "get_messages",
+          "callee": "self._row_to_record",
+          "lineNumber": 514
+        },
+        {
+          "caller": "get_messages",
+          "callee": "messages.append",
+          "lineNumber": 515
+        },
+        {
+          "caller": "get_first_user_message",
+          "callee": "self._conn.cursor",
+          "lineNumber": 525
+        },
+        {
+          "caller": "get_first_user_message",
+          "callee": "cursor.execute",
+          "lineNumber": 526
+        },
+        {
+          "caller": "get_first_user_message",
+          "callee": "cursor.fetchone",
+          "lineNumber": 533
+        },
+        {
+          "caller": "has_conversation_title",
+          "callee": "self._conn.cursor",
+          "lineNumber": 537
+        },
+        {
+          "caller": "has_conversation_title",
+          "callee": "cursor.execute",
+          "lineNumber": 538
+        },
+        {
+          "caller": "has_conversation_title",
+          "callee": "cursor.fetchone",
+          "lineNumber": 544
+        },
+        {
+          "caller": "search_messages",
+          "callee": "self._conn.cursor",
+          "lineNumber": 556
+        },
+        {
+          "caller": "search_messages",
+          "callee": "query.replace",
+          "lineNumber": 558
+        },
+        {
+          "caller": "search_messages",
+          "callee": "cursor.execute",
+          "lineNumber": 561
+        },
+        {
+          "caller": "search_messages",
+          "callee": "cursor.fetchall",
+          "lineNumber": 566
+        },
+        {
+          "caller": "search_messages",
+          "callee": "len",
+          "lineNumber": 567
+        },
+        {
+          "caller": "search_messages",
+          "callee": "list",
+          "lineNumber": 574
+        },
+        {
+          "caller": "search_messages",
+          "callee": "id_to_rank.keys",
+          "lineNumber": 574
+        },
+        {
+          "caller": "search_messages",
+          "callee": "\",\".join",
+          "lineNumber": 576
+        },
+        {
+          "caller": "search_messages",
+          "callee": "len",
+          "lineNumber": 576
+        },
+        {
+          "caller": "search_messages",
+          "callee": "cursor.execute",
+          "lineNumber": 577
+        },
+        {
+          "caller": "search_messages",
+          "callee": "list",
+          "lineNumber": 588
+        },
+        {
+          "caller": "search_messages",
+          "callee": "id_to_rank.keys",
+          "lineNumber": 588
+        },
+        {
+          "caller": "search_messages",
+          "callee": "cursor.fetchall",
+          "lineNumber": 590
+        },
+        {
+          "caller": "search_messages",
+          "callee": "self._fetch_tool_calls",
+          "lineNumber": 594
+        },
+        {
+          "caller": "search_messages",
+          "callee": "self._row_to_record",
+          "lineNumber": 595
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "str",
+          "lineNumber": 609
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "self._get_or_create_conversation",
+          "lineNumber": 610
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "self._now",
+          "lineNumber": 611
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "summary.get",
+          "lineNumber": 612
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "int",
+          "lineNumber": 613
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "summary.get",
+          "lineNumber": 613
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "self._visible_message_count",
+          "lineNumber": 613
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "self._conn.cursor",
+          "lineNumber": 614
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "cursor.execute",
+          "lineNumber": 615
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "self._sanitize_unicode_text",
+          "lineNumber": 629
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "str",
+          "lineNumber": 629
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "summary.get",
+          "lineNumber": 629
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "self._json_dumps",
+          "lineNumber": 630
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "summary.get",
+          "lineNumber": 630
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "self._json_dumps",
+          "lineNumber": 631
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "summary.get",
+          "lineNumber": 631
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "self._json_dumps",
+          "lineNumber": 632
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "summary.get",
+          "lineNumber": 632
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "self._sanitize_unicode_text",
+          "lineNumber": 633
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "str",
+          "lineNumber": 633
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "summary.get",
+          "lineNumber": 633
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "summary.get",
+          "lineNumber": 634
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "self._embedding_to_blob",
+          "lineNumber": 636
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "normalize_confidence",
+          "lineNumber": 637
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "summary.get",
+          "lineNumber": 637
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "summary.get",
+          "lineNumber": 638
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "int",
+          "lineNumber": 639
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "summary.get",
+          "lineNumber": 639
+        },
+        {
+          "caller": "insert_or_update_conversation_summary",
+          "callee": "self._conn.commit",
+          "lineNumber": 645
+        },
+        {
+          "caller": "list_conversation_summaries",
+          "callee": "self._conn.cursor",
+          "lineNumber": 652
+        },
+        {
+          "caller": "list_conversation_summaries",
+          "callee": "cursor.execute",
+          "lineNumber": 663
+        },
+        {
+          "caller": "list_conversation_summaries",
+          "callee": "self._summary_row_to_dict",
+          "lineNumber": 664
+        },
+        {
+          "caller": "list_conversation_summaries",
+          "callee": "cursor.fetchall",
+          "lineNumber": 664
+        },
+        {
+          "caller": "get_conversation_summary",
+          "callee": "self._conn.cursor",
+          "lineNumber": 667
+        },
+        {
+          "caller": "get_conversation_summary",
+          "callee": "cursor.execute",
+          "lineNumber": 668
+        },
+        {
+          "caller": "get_conversation_summary",
+          "callee": "cursor.fetchone",
+          "lineNumber": 675
+        },
+        {
+          "caller": "get_conversation_summary",
+          "callee": "self._summary_row_to_dict",
+          "lineNumber": 676
+        },
+        {
+          "caller": "mark_summary_accessed",
+          "callee": "self._conn.cursor",
+          "lineNumber": 679
+        },
+        {
+          "caller": "mark_summary_accessed",
+          "callee": "cursor.execute",
+          "lineNumber": 680
+        },
+        {
+          "caller": "mark_summary_accessed",
+          "callee": "self._now",
+          "lineNumber": 683
+        },
+        {
+          "caller": "mark_summary_accessed",
+          "callee": "self._conn.commit",
+          "lineNumber": 685
+        },
+        {
+          "caller": "upsert_user_preferences",
+          "callee": "self._now",
+          "lineNumber": 690
+        },
+        {
+          "caller": "upsert_user_preferences",
+          "callee": "self._conn.cursor",
+          "lineNumber": 691
+        },
+        {
+          "caller": "upsert_user_preferences",
+          "callee": "self._sanitize_unicode_text(str(pref.get(\"key\") or \"\")).strip",
+          "lineNumber": 693
+        },
+        {
+          "caller": "upsert_user_preferences",
+          "callee": "self._sanitize_unicode_text",
+          "lineNumber": 693
+        },
+        {
+          "caller": "upsert_user_preferences",
+          "callee": "str",
+          "lineNumber": 693
+        },
+        {
+          "caller": "upsert_user_preferences",
+          "callee": "pref.get",
+          "lineNumber": 693
+        },
+        {
+          "caller": "upsert_user_preferences",
+          "callee": "self._sanitize_unicode_text(\n                str(pref.get(\"preference_type\") or pref.get(\"type\") or \"general\")\n            ).strip",
+          "lineNumber": 696
+        },
+        {
+          "caller": "upsert_user_preferences",
+          "callee": "self._sanitize_unicode_text",
+          "lineNumber": 696
+        },
+        {
+          "caller": "upsert_user_preferences",
+          "callee": "str",
+          "lineNumber": 697
+        },
+        {
+          "caller": "upsert_user_preferences",
+          "callee": "pref.get",
+          "lineNumber": 697
+        },
+        {
+          "caller": "upsert_user_preferences",
+          "callee": "pref.get",
+          "lineNumber": 697
+        },
+        {
+          "caller": "upsert_user_preferences",
+          "callee": "self._sanitize_unicode_text",
+          "lineNumber": 699
+        },
+        {
+          "caller": "upsert_user_preferences",
+          "callee": "str",
+          "lineNumber": 699
+        },
+        {
+          "caller": "upsert_user_preferences",
+          "callee": "pref.get",
+          "lineNumber": 699
+        },
+        {
+          "caller": "upsert_user_preferences",
+          "callee": "normalize_confidence",
+          "lineNumber": 700
+        },
+        {
+          "caller": "upsert_user_preferences",
+          "callee": "pref.get",
+          "lineNumber": 700
+        },
+        {
+          "caller": "upsert_user_preferences",
+          "callee": "pref.get",
+          "lineNumber": 701
+        },
+        {
+          "caller": "upsert_user_preferences",
+          "callee": "pref.get",
+          "lineNumber": 702
+        },
+        {
+          "caller": "upsert_user_preferences",
+          "callee": "pref.get",
+          "lineNumber": 703
+        },
+        {
+          "caller": "upsert_user_preferences",
+          "callee": "self._stable_id",
+          "lineNumber": 703
+        },
+        {
+          "caller": "upsert_user_preferences",
+          "callee": "cursor.execute",
+          "lineNumber": 706
+        },
+        {
+          "caller": "upsert_user_preferences",
+          "callee": "self._sanitize_unicode_text",
+          "lineNumber": 731
+        },
+        {
+          "caller": "upsert_user_preferences",
+          "callee": "str",
+          "lineNumber": 731
+        },
+        {
+          "caller": "upsert_user_preferences",
+          "callee": "self._sanitize_unicode_text",
+          "lineNumber": 732
+        },
+        {
+          "caller": "upsert_user_preferences",
+          "callee": "str",
+          "lineNumber": 732
+        },
+        {
+          "caller": "upsert_user_preferences",
+          "callee": "self._conn.commit",
+          "lineNumber": 740
+        },
+        {
+          "caller": "get_user_preferences",
+          "callee": "self._conn.cursor",
+          "lineNumber": 743
+        },
+        {
+          "caller": "get_user_preferences",
+          "callee": "cursor.execute",
+          "lineNumber": 744
+        },
+        {
+          "caller": "get_user_preferences",
+          "callee": "dict",
+          "lineNumber": 752
+        },
+        {
+          "caller": "get_user_preferences",
+          "callee": "cursor.fetchall",
+          "lineNumber": 752
+        },
+        {
+          "caller": "upsert_knowledge_entities",
+          "callee": "self._now",
+          "lineNumber": 757
+        },
+        {
+          "caller": "upsert_knowledge_entities",
+          "callee": "self._conn.cursor",
+          "lineNumber": 758
+        },
+        {
+          "caller": "upsert_knowledge_entities",
+          "callee": "self._sanitize_unicode_text(str(entity.get(\"name\") or \"\")).strip",
+          "lineNumber": 760
+        },
+        {
+          "caller": "upsert_knowledge_entities",
+          "callee": "self._sanitize_unicode_text",
+          "lineNumber": 760
+        },
+        {
+          "caller": "upsert_knowledge_entities",
+          "callee": "str",
+          "lineNumber": 760
+        },
+        {
+          "caller": "upsert_knowledge_entities",
+          "callee": "entity.get",
+          "lineNumber": 760
+        },
+        {
+          "caller": "upsert_knowledge_entities",
+          "callee": "self._sanitize_unicode_text(\n                str(entity.get(\"entity_type\") or \"unknown\")\n            ).strip",
+          "lineNumber": 761
+        },
+        {
+          "caller": "upsert_knowledge_entities",
+          "callee": "self._sanitize_unicode_text",
+          "lineNumber": 761
+        },
+        {
+          "caller": "upsert_knowledge_entities",
+          "callee": "str",
+          "lineNumber": 762
+        },
+        {
+          "caller": "upsert_knowledge_entities",
+          "callee": "entity.get",
+          "lineNumber": 762
+        },
+        {
+          "caller": "upsert_knowledge_entities",
+          "callee": "name.casefold",
+          "lineNumber": 766
+        },
+        {
+          "caller": "upsert_knowledge_entities",
+          "callee": "entity.get",
+          "lineNumber": 767
+        },
+        {
+          "caller": "upsert_knowledge_entities",
+          "callee": "self._stable_id",
+          "lineNumber": 767
+        },
+        {
+          "caller": "upsert_knowledge_entities",
+          "callee": "cursor.execute",
+          "lineNumber": 770
+        },
+        {
+          "caller": "upsert_knowledge_entities",
+          "callee": "self._json_dumps",
+          "lineNumber": 786
+        },
+        {
+          "caller": "upsert_knowledge_entities",
+          "callee": "entity.get",
+          "lineNumber": 786
+        },
+        {
+          "caller": "upsert_knowledge_entities",
+          "callee": "self._conn.commit",
+          "lineNumber": 792
+        },
+        {
+          "caller": "upsert_knowledge_relations",
+          "callee": "self._now",
+          "lineNumber": 797
+        },
+        {
+          "caller": "upsert_knowledge_relations",
+          "callee": "self._conn.cursor",
+          "lineNumber": 798
+        },
+        {
+          "caller": "upsert_knowledge_relations",
+          "callee": "self._sanitize_unicode_text(str(relation.get(\"source\") or \"\")).strip",
+          "lineNumber": 800
+        },
+        {
+          "caller": "upsert_knowledge_relations",
+          "callee": "self._sanitize_unicode_text",
+          "lineNumber": 800
+        },
+        {
+          "caller": "upsert_knowledge_relations",
+          "callee": "str",
+          "lineNumber": 800
+        },
+        {
+          "caller": "upsert_knowledge_relations",
+          "callee": "relation.get",
+          "lineNumber": 800
+        },
+        {
+          "caller": "upsert_knowledge_relations",
+          "callee": "self._sanitize_unicode_text(str(relation.get(\"target\") or \"\")).strip",
+          "lineNumber": 801
+        },
+        {
+          "caller": "upsert_knowledge_relations",
+          "callee": "self._sanitize_unicode_text",
+          "lineNumber": 801
+        },
+        {
+          "caller": "upsert_knowledge_relations",
+          "callee": "str",
+          "lineNumber": 801
+        },
+        {
+          "caller": "upsert_knowledge_relations",
+          "callee": "relation.get",
+          "lineNumber": 801
+        },
+        {
+          "caller": "upsert_knowledge_relations",
+          "callee": "self._sanitize_unicode_text(\n                str(relation.get(\"relation_type\") or \"\")\n            ).strip",
+          "lineNumber": 802
+        },
+        {
+          "caller": "upsert_knowledge_relations",
+          "callee": "self._sanitize_unicode_text",
+          "lineNumber": 802
+        },
+        {
+          "caller": "upsert_knowledge_relations",
+          "callee": "str",
+          "lineNumber": 803
+        },
+        {
+          "caller": "upsert_knowledge_relations",
+          "callee": "relation.get",
+          "lineNumber": 803
+        },
+        {
+          "caller": "upsert_knowledge_relations",
+          "callee": "normalize_confidence",
+          "lineNumber": 807
+        },
+        {
+          "caller": "upsert_knowledge_relations",
+          "callee": "relation.get",
+          "lineNumber": 808
+        },
+        {
+          "caller": "upsert_knowledge_relations",
+          "callee": "relation.get",
+          "lineNumber": 809
+        },
+        {
+          "caller": "upsert_knowledge_relations",
+          "callee": "relation.get",
+          "lineNumber": 810
+        },
+        {
+          "caller": "upsert_knowledge_relations",
+          "callee": "cursor.execute",
+          "lineNumber": 812
+        },
+        {
+          "caller": "upsert_knowledge_relations",
+          "callee": "self._json_dumps",
+          "lineNumber": 830
+        },
+        {
+          "caller": "upsert_knowledge_relations",
+          "callee": "relation.get",
+          "lineNumber": 830
+        },
+        {
+          "caller": "upsert_knowledge_relations",
+          "callee": "self._conn.commit",
+          "lineNumber": 835
+        },
+        {
+          "caller": "get_knowledge_graph",
+          "callee": "self._conn.cursor",
+          "lineNumber": 838
+        },
+        {
+          "caller": "get_knowledge_graph",
+          "callee": "cursor.execute",
+          "lineNumber": 839
+        },
+        {
+          "caller": "get_knowledge_graph",
+          "callee": "cursor.fetchall",
+          "lineNumber": 845
+        },
+        {
+          "caller": "get_knowledge_graph",
+          "callee": "dict",
+          "lineNumber": 846
+        },
+        {
+          "caller": "get_knowledge_graph",
+          "callee": "self._json_loads",
+          "lineNumber": 847
+        },
+        {
+          "caller": "get_knowledge_graph",
+          "callee": "entities.append",
+          "lineNumber": 848
+        },
+        {
+          "caller": "get_knowledge_graph",
+          "callee": "cursor.execute",
+          "lineNumber": 849
+        },
+        {
+          "caller": "get_knowledge_graph",
+          "callee": "cursor.fetchall",
+          "lineNumber": 855
+        },
+        {
+          "caller": "get_knowledge_graph",
+          "callee": "dict",
+          "lineNumber": 856
+        },
+        {
+          "caller": "get_knowledge_graph",
+          "callee": "self._json_loads",
+          "lineNumber": 857
+        },
+        {
+          "caller": "get_knowledge_graph",
+          "callee": "relations.append",
+          "lineNumber": 858
+        },
+        {
+          "caller": "record_message_embedding",
+          "callee": "self._now",
+          "lineNumber": 864
+        },
+        {
+          "caller": "record_message_embedding",
+          "callee": "self._conn.cursor",
+          "lineNumber": 865
+        },
+        {
+          "caller": "record_message_embedding",
+          "callee": "cursor.execute",
+          "lineNumber": 866
+        },
+        {
+          "caller": "record_message_embedding",
+          "callee": "self._embedding_to_blob",
+          "lineNumber": 871
+        },
+        {
+          "caller": "record_message_embedding",
+          "callee": "self._conn.commit",
+          "lineNumber": 873
+        },
+        {
+          "caller": "get_message_embedding",
+          "callee": "self._conn.cursor",
+          "lineNumber": 876
+        },
+        {
+          "caller": "get_message_embedding",
+          "callee": "cursor.execute",
+          "lineNumber": 877
+        },
+        {
+          "caller": "get_message_embedding",
+          "callee": "cursor.fetchone",
+          "lineNumber": 881
+        },
+        {
+          "caller": "get_message_embedding",
+          "callee": "self._blob_to_embedding",
+          "lineNumber": 882
+        },
+        {
+          "caller": "record_offload_metadata",
+          "callee": "self._get_or_create_conversation",
+          "lineNumber": 892
+        },
+        {
+          "caller": "record_offload_metadata",
+          "callee": "self._now",
+          "lineNumber": 893
+        },
+        {
+          "caller": "record_offload_metadata",
+          "callee": "self._conn.cursor",
+          "lineNumber": 894
+        },
+        {
+          "caller": "record_offload_metadata",
+          "callee": "cursor.execute",
+          "lineNumber": 895
+        },
+        {
+          "caller": "record_offload_metadata",
+          "callee": "self._sanitize_unicode_text",
+          "lineNumber": 907
+        },
+        {
+          "caller": "record_offload_metadata",
+          "callee": "self._conn.commit",
+          "lineNumber": 911
+        },
+        {
+          "caller": "record_compression_event",
+          "callee": "self._get_or_create_conversation",
+          "lineNumber": 922
+        },
+        {
+          "caller": "record_compression_event",
+          "callee": "self._conn.cursor",
+          "lineNumber": 923
+        },
+        {
+          "caller": "record_compression_event",
+          "callee": "cursor.execute",
+          "lineNumber": 924
+        },
+        {
+          "caller": "record_compression_event",
+          "callee": "self._sanitize_unicode_text",
+          "lineNumber": 931
+        },
+        {
+          "caller": "record_compression_event",
+          "callee": "int",
+          "lineNumber": 932
+        },
+        {
+          "caller": "record_compression_event",
+          "callee": "self._sanitize_unicode_text",
+          "lineNumber": 933
+        },
+        {
+          "caller": "record_compression_event",
+          "callee": "self._now",
+          "lineNumber": 934
+        },
+        {
+          "caller": "record_compression_event",
+          "callee": "self._conn.commit",
+          "lineNumber": 937
+        },
+        {
+          "caller": "list_compression_events",
+          "callee": "self._conn.cursor",
+          "lineNumber": 942
+        },
+        {
+          "caller": "list_compression_events",
+          "callee": "params.append",
+          "lineNumber": 950
+        },
+        {
+          "caller": "list_compression_events",
+          "callee": "params.extend",
+          "lineNumber": 954
+        },
+        {
+          "caller": "list_compression_events",
+          "callee": "cursor.execute",
+          "lineNumber": 955
+        },
+        {
+          "caller": "list_compression_events",
+          "callee": "dict",
+          "lineNumber": 956
+        },
+        {
+          "caller": "list_compression_events",
+          "callee": "cursor.fetchall",
+          "lineNumber": 956
+        },
+        {
+          "caller": "record_skill_usage",
+          "callee": "self._sanitize_unicode_text(skill_name).strip",
+          "lineNumber": 967
+        },
+        {
+          "caller": "record_skill_usage",
+          "callee": "self._sanitize_unicode_text",
+          "lineNumber": 967
+        },
+        {
+          "caller": "record_skill_usage",
+          "callee": "self._now",
+          "lineNumber": 970
+        },
+        {
+          "caller": "record_skill_usage",
+          "callee": "self._conn.cursor",
+          "lineNumber": 975
+        },
+        {
+          "caller": "record_skill_usage",
+          "callee": "cursor.execute",
+          "lineNumber": 976
+        },
+        {
+          "caller": "record_skill_usage",
+          "callee": "self._json_dumps",
+          "lineNumber": 995
+        },
+        {
+          "caller": "record_skill_usage",
+          "callee": "cursor.execute",
+          "lineNumber": 1002
+        },
+        {
+          "caller": "record_skill_usage",
+          "callee": "self._sanitize_unicode_text",
+          "lineNumber": 1005
+        },
+        {
+          "caller": "record_skill_usage",
+          "callee": "int",
+          "lineNumber": 1005
+        },
+        {
+          "caller": "record_skill_usage",
+          "callee": "self._conn.commit",
+          "lineNumber": 1007
+        },
+        {
+          "caller": "list_skill_usage",
+          "callee": "self._conn.cursor",
+          "lineNumber": 1010
+        },
+        {
+          "caller": "list_skill_usage",
+          "callee": "cursor.execute",
+          "lineNumber": 1011
+        },
+        {
+          "caller": "list_skill_usage",
+          "callee": "cursor.fetchall",
+          "lineNumber": 1017
+        },
+        {
+          "caller": "list_skill_usage",
+          "callee": "dict",
+          "lineNumber": 1018
+        },
+        {
+          "caller": "list_skill_usage",
+          "callee": "self._json_loads",
+          "lineNumber": 1019
+        },
+        {
+          "caller": "list_skill_usage",
+          "callee": "rows.append",
+          "lineNumber": 1020
+        },
+        {
+          "caller": "record_tool_usage",
+          "callee": "self._sanitize_unicode_text(tool_name).strip",
+          "lineNumber": 1033
+        },
+        {
+          "caller": "record_tool_usage",
+          "callee": "self._sanitize_unicode_text",
+          "lineNumber": 1033
+        },
+        {
+          "caller": "record_tool_usage",
+          "callee": "self._now",
+          "lineNumber": 1036
+        },
+        {
+          "caller": "record_tool_usage",
+          "callee": "self._conn.cursor",
+          "lineNumber": 1039
+        },
+        {
+          "caller": "record_tool_usage",
+          "callee": "cursor.execute",
+          "lineNumber": 1040
+        },
+        {
+          "caller": "record_tool_usage",
+          "callee": "float",
+          "lineNumber": 1057
+        },
+        {
+          "caller": "record_tool_usage",
+          "callee": "self._sanitize_unicode_text",
+          "lineNumber": 1059
+        },
+        {
+          "caller": "record_tool_usage",
+          "callee": "self._json_dumps",
+          "lineNumber": 1060
+        },
+        {
+          "caller": "record_tool_usage",
+          "callee": "float",
+          "lineNumber": 1063
+        },
+        {
+          "caller": "record_tool_usage",
+          "callee": "cursor.execute",
+          "lineNumber": 1066
+        },
+        {
+          "caller": "record_tool_usage",
+          "callee": "int",
+          "lineNumber": 1072
+        },
+        {
+          "caller": "record_tool_usage",
+          "callee": "float",
+          "lineNumber": 1073
+        },
+        {
+          "caller": "record_tool_usage",
+          "callee": "self._sanitize_unicode_text",
+          "lineNumber": 1074
+        },
+        {
+          "caller": "record_tool_usage",
+          "callee": "self._conn.commit",
+          "lineNumber": 1078
+        },
+        {
+          "caller": "list_tool_usage_events",
+          "callee": "params.append",
+          "lineNumber": 1085
+        },
+        {
+          "caller": "list_tool_usage_events",
+          "callee": "dict",
+          "lineNumber": 1087
+        },
+        {
+          "caller": "list_tool_usage_events",
+          "callee": "self._conn.execute(sql, params).fetchall",
+          "lineNumber": 1087
+        },
+        {
+          "caller": "list_tool_usage_events",
+          "callee": "self._conn.execute",
+          "lineNumber": 1087
+        },
+        {
+          "caller": "list_skill_usage_events",
+          "callee": "params.append",
+          "lineNumber": 1094
+        },
+        {
+          "caller": "list_skill_usage_events",
+          "callee": "dict",
+          "lineNumber": 1096
+        },
+        {
+          "caller": "list_skill_usage_events",
+          "callee": "self._conn.execute(sql, params).fetchall",
+          "lineNumber": 1096
+        },
+        {
+          "caller": "list_skill_usage_events",
+          "callee": "self._conn.execute",
+          "lineNumber": 1096
+        },
+        {
+          "caller": "list_tool_usage_stats",
+          "callee": "self._conn.cursor",
+          "lineNumber": 1099
+        },
+        {
+          "caller": "list_tool_usage_stats",
+          "callee": "cursor.execute",
+          "lineNumber": 1100
+        },
+        {
+          "caller": "list_tool_usage_stats",
+          "callee": "cursor.fetchall",
+          "lineNumber": 1106
+        },
+        {
+          "caller": "list_tool_usage_stats",
+          "callee": "dict",
+          "lineNumber": 1107
+        },
+        {
+          "caller": "list_tool_usage_stats",
+          "callee": "self._json_loads",
+          "lineNumber": 1108
+        },
+        {
+          "caller": "list_tool_usage_stats",
+          "callee": "rows.append",
+          "lineNumber": 1113
+        },
+        {
+          "caller": "record_memory_config_snapshot",
+          "callee": "self._conn.cursor",
+          "lineNumber": 1117
+        },
+        {
+          "caller": "record_memory_config_snapshot",
+          "callee": "cursor.execute",
+          "lineNumber": 1118
+        },
+        {
+          "caller": "record_memory_config_snapshot",
+          "callee": "self._json_dumps",
+          "lineNumber": 1120
+        },
+        {
+          "caller": "record_memory_config_snapshot",
+          "callee": "self._now",
+          "lineNumber": 1120
+        },
+        {
+          "caller": "record_memory_config_snapshot",
+          "callee": "self._conn.commit",
+          "lineNumber": 1122
+        },
+        {
+          "caller": "delete_user_preference",
+          "callee": "self._conn.cursor",
+          "lineNumber": 1125
+        },
+        {
+          "caller": "delete_user_preference",
+          "callee": "cursor.execute",
+          "lineNumber": 1126
+        },
+        {
+          "caller": "delete_user_preference",
+          "callee": "self._conn.commit",
+          "lineNumber": 1130
+        },
+        {
+          "caller": "delete_knowledge_entity",
+          "callee": "self._conn.cursor",
+          "lineNumber": 1134
+        },
+        {
+          "caller": "delete_knowledge_entity",
+          "callee": "cursor.execute",
+          "lineNumber": 1135
+        },
+        {
+          "caller": "delete_knowledge_entity",
+          "callee": "self._conn.commit",
+          "lineNumber": 1139
+        },
+        {
+          "caller": "search_knowledge_entities",
+          "callee": "query.casefold().strip",
+          "lineNumber": 1143
+        },
+        {
+          "caller": "search_knowledge_entities",
+          "callee": "query.casefold",
+          "lineNumber": 1143
+        },
+        {
+          "caller": "search_knowledge_entities",
+          "callee": "self.get_knowledge_graph",
+          "lineNumber": 1145
+        },
+        {
+          "caller": "search_knowledge_entities",
+          "callee": "self.get_knowledge_graph",
+          "lineNumber": 1146
+        },
+        {
+          "caller": "search_knowledge_entities",
+          "callee": "f\"{item.get('name', '')} {item.get('entity_type', '')} {item.get('attributes', '')}\".casefold",
+          "lineNumber": 1149
+        },
+        {
+          "caller": "search_knowledge_entities",
+          "callee": "item.get",
+          "lineNumber": 1149
+        },
+        {
+          "caller": "search_knowledge_entities",
+          "callee": "item.get",
+          "lineNumber": 1149
+        },
+        {
+          "caller": "search_knowledge_entities",
+          "callee": "item.get",
+          "lineNumber": 1149
+        },
+        {
+          "caller": "search_knowledge_entities",
+          "callee": "sum",
+          "lineNumber": 1151
+        },
+        {
+          "caller": "search_knowledge_entities",
+          "callee": "query_text.split",
+          "lineNumber": 1151
+        },
+        {
+          "caller": "search_knowledge_entities",
+          "callee": "scored.append",
+          "lineNumber": 1153
+        },
+        {
+          "caller": "search_knowledge_entities",
+          "callee": "scored.sort",
+          "lineNumber": 1154
+        },
+        {
+          "caller": "forget_low_value_memories",
+          "callee": "self._conn.cursor",
+          "lineNumber": 1164
+        },
+        {
+          "caller": "forget_low_value_memories",
+          "callee": "cursor.execute",
+          "lineNumber": 1165
+        },
+        {
+          "caller": "forget_low_value_memories",
+          "callee": "int",
+          "lineNumber": 1169
+        },
+        {
+          "caller": "forget_low_value_memories",
+          "callee": "cursor.fetchone",
+          "lineNumber": 1169
+        },
+        {
+          "caller": "forget_low_value_memories",
+          "callee": "cursor.execute",
+          "lineNumber": 1170
+        },
+        {
+          "caller": "forget_low_value_memories",
+          "callee": "int",
+          "lineNumber": 1174
+        },
+        {
+          "caller": "forget_low_value_memories",
+          "callee": "cursor.fetchone",
+          "lineNumber": 1174
+        },
+        {
+          "caller": "forget_low_value_memories",
+          "callee": "cursor.execute",
+          "lineNumber": 1176
+        },
+        {
+          "caller": "forget_low_value_memories",
+          "callee": "cursor.execute",
+          "lineNumber": 1180
+        },
+        {
+          "caller": "forget_low_value_memories",
+          "callee": "self._conn.commit",
+          "lineNumber": 1184
+        },
+        {
+          "caller": "get_memory_stats",
+          "callee": "self._conn.cursor",
+          "lineNumber": 1188
+        },
+        {
+          "caller": "get_memory_stats",
+          "callee": "names.items",
+          "lineNumber": 1201
+        },
+        {
+          "caller": "get_memory_stats",
+          "callee": "cursor.execute",
+          "lineNumber": 1202
+        },
+        {
+          "caller": "get_memory_stats",
+          "callee": "int",
+          "lineNumber": 1203
+        },
+        {
+          "caller": "get_memory_stats",
+          "callee": "cursor.fetchone",
+          "lineNumber": 1203
+        },
+        {
+          "caller": "delete_conversation",
+          "callee": "self._conn.cursor",
+          "lineNumber": 1207
+        },
+        {
+          "caller": "delete_conversation",
+          "callee": "cursor.execute",
+          "lineNumber": 1209
+        },
+        {
+          "caller": "delete_conversation",
+          "callee": "cursor.fetchall",
+          "lineNumber": 1213
+        },
+        {
+          "caller": "delete_conversation",
+          "callee": "\",\".join",
+          "lineNumber": 1218
+        },
+        {
+          "caller": "delete_conversation",
+          "callee": "len",
+          "lineNumber": 1218
+        },
+        {
+          "caller": "delete_conversation",
+          "callee": "cursor.execute",
+          "lineNumber": 1219
+        },
+        {
+          "caller": "delete_conversation",
+          "callee": "cursor.execute",
+          "lineNumber": 1223
+        },
+        {
+          "caller": "delete_conversation",
+          "callee": "cursor.execute",
+          "lineNumber": 1227
+        },
+        {
+          "caller": "delete_conversation",
+          "callee": "cursor.execute",
+          "lineNumber": 1231
+        },
+        {
+          "caller": "delete_conversation",
+          "callee": "cursor.execute",
+          "lineNumber": 1235
+        },
+        {
+          "caller": "delete_conversation",
+          "callee": "cursor.execute",
+          "lineNumber": 1242
+        },
+        {
+          "caller": "delete_conversation",
+          "callee": "cursor.execute",
+          "lineNumber": 1247
+        },
+        {
+          "caller": "delete_conversation",
+          "callee": "cursor.fetchone",
+          "lineNumber": 1253
+        },
+        {
+          "caller": "delete_conversation",
+          "callee": "cursor.execute",
+          "lineNumber": 1255
+        },
+        {
+          "caller": "delete_conversation",
+          "callee": "cursor.execute",
+          "lineNumber": 1260
+        },
+        {
+          "caller": "delete_conversation",
+          "callee": "self._conn.commit",
+          "lineNumber": 1265
+        },
+        {
+          "caller": "_json_dumps",
+          "callee": "json.dumps",
+          "lineNumber": 1269
+        },
+        {
+          "caller": "_json_dumps",
+          "callee": "self._sanitize_unicode_data",
+          "lineNumber": 1269
+        },
+        {
+          "caller": "_json_loads",
+          "callee": "json.loads",
+          "lineNumber": 1275
+        },
+        {
+          "caller": "_embedding_to_blob",
+          "callee": "float",
+          "lineNumber": 1280
+        },
+        {
+          "caller": "_embedding_to_blob",
+          "callee": "array(\"f\", values).tobytes",
+          "lineNumber": 1281
+        },
+        {
+          "caller": "_embedding_to_blob",
+          "callee": "array",
+          "lineNumber": 1281
+        },
+        {
+          "caller": "_blob_to_embedding",
+          "callee": "array",
+          "lineNumber": 1286
+        },
+        {
+          "caller": "_blob_to_embedding",
+          "callee": "values.frombytes",
+          "lineNumber": 1287
+        },
+        {
+          "caller": "_blob_to_embedding",
+          "callee": "bytes",
+          "lineNumber": 1287
+        },
+        {
+          "caller": "_blob_to_embedding",
+          "callee": "round",
+          "lineNumber": 1288
+        },
+        {
+          "caller": "_blob_to_embedding",
+          "callee": "float",
+          "lineNumber": 1288
+        },
+        {
+          "caller": "_summary_row_to_dict",
+          "callee": "self._json_loads",
+          "lineNumber": 1294
+        },
+        {
+          "caller": "_summary_row_to_dict",
+          "callee": "self._json_loads",
+          "lineNumber": 1295
+        },
+        {
+          "caller": "_summary_row_to_dict",
+          "callee": "self._json_loads",
+          "lineNumber": 1296
+        },
+        {
+          "caller": "_summary_row_to_dict",
+          "callee": "self._blob_to_embedding",
+          "lineNumber": 1298
+        },
+        {
+          "caller": "_visible_message_count",
+          "callee": "self._conn.cursor",
+          "lineNumber": 1308
+        },
+        {
+          "caller": "_visible_message_count",
+          "callee": "cursor.execute",
+          "lineNumber": 1309
+        },
+        {
+          "caller": "_visible_message_count",
+          "callee": "int",
+          "lineNumber": 1315
+        },
+        {
+          "caller": "_visible_message_count",
+          "callee": "cursor.fetchone",
+          "lineNumber": 1315
+        },
+        {
+          "caller": "_stable_id",
+          "callee": "sha1(value.encode(\"utf-8\")).hexdigest",
+          "lineNumber": 1318
+        },
+        {
+          "caller": "_stable_id",
+          "callee": "sha1",
+          "lineNumber": 1318
+        },
+        {
+          "caller": "_stable_id",
+          "callee": "value.encode",
+          "lineNumber": 1318
+        },
+        {
+          "caller": "_fetch_tool_calls",
+          "callee": "cursor.execute",
+          "lineNumber": 1322
+        },
+        {
+          "caller": "_fetch_tool_calls",
+          "callee": "cursor.fetchall",
+          "lineNumber": 1327
+        },
+        {
+          "caller": "_fetch_tool_calls",
+          "callee": "result.append",
+          "lineNumber": 1332
+        },
+        {
+          "caller": "_get_first_user_content",
+          "callee": "cursor.execute",
+          "lineNumber": 1343
+        },
+        {
+          "caller": "_get_first_user_content",
+          "callee": "cursor.fetchone",
+          "lineNumber": 1350
+        },
+        {
+          "caller": "_title_matches_query",
+          "callee": "cursor.execute",
+          "lineNumber": 1356
+        },
+        {
+          "caller": "_title_matches_query",
+          "callee": "cursor.fetchone",
+          "lineNumber": 1362
+        },
+        {
+          "caller": "_title_matches_query",
+          "callee": "row[\"content\"].casefold",
+          "lineNumber": 1365
+        },
+        {
+          "caller": "close",
+          "callee": "self._conn.close",
+          "lineNumber": 1371
+        },
+        {
+          "caller": "__exit__",
+          "callee": "self.close",
+          "lineNumber": 1378
+        }
+      ],
+      "metrics": {
+        "importCount": 3,
+        "exportCount": 1,
+        "functionCount": 0,
+        "classCount": 1
+      }
+    }
+  ]
+}

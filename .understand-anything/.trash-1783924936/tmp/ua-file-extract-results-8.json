@@ -1,0 +1,513 @@
+{
+  "scriptCompleted": true,
+  "filesAnalyzed": 3,
+  "filesSkipped": [],
+  "results": [
+    {
+      "path": ".env.example",
+      "language": "config",
+      "fileCategory": "config",
+      "totalLines": 127,
+      "nonEmptyLines": 116,
+      "definitions": [
+        {
+          "name": "LLM_API_KEY",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 3,
+          "endLine": 3
+        },
+        {
+          "name": "LLM_MODEL",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 5,
+          "endLine": 5
+        },
+        {
+          "name": "LLM_API_BASE",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 7,
+          "endLine": 7
+        },
+        {
+          "name": "LLM_MAX_TOKENS",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 9,
+          "endLine": 9
+        },
+        {
+          "name": "LLM_TEMPERATURE",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 11,
+          "endLine": 11
+        },
+        {
+          "name": "LIFEOPS_CONTEXT_MAX_CONTEXT_TOKENS",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 15,
+          "endLine": 15
+        },
+        {
+          "name": "LIFEOPS_CONTEXT_L1_BUDGET_RATIO",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 17,
+          "endLine": 17
+        },
+        {
+          "name": "LIFEOPS_CONTEXT_L2_BUDGET_RATIO",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 19,
+          "endLine": 19
+        },
+        {
+          "name": "LIFEOPS_CONTEXT_L3_BUDGET_RATIO",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 21,
+          "endLine": 21
+        },
+        {
+          "name": "LIFEOPS_CONTEXT_RESERVE_RATIO",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 23,
+          "endLine": 23
+        },
+        {
+          "name": "LIFEOPS_SKILLS_ENABLED",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 27,
+          "endLine": 27
+        },
+        {
+          "name": "LIFEOPS_SKILLS_PROJECT_DIR",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 29,
+          "endLine": 29
+        },
+        {
+          "name": "LIFEOPS_SKILLS_USER_DIR",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 31,
+          "endLine": 31
+        },
+        {
+          "name": "LIFEOPS_SKILLS_IMPLICIT_MATCH_ENABLED",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 33,
+          "endLine": 33
+        },
+        {
+          "name": "LIFEOPS_SKILLS_MAX_ACTIVE",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 35,
+          "endLine": 35
+        },
+        {
+          "name": "LIFEOPS_RAG_ENABLED",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 39,
+          "endLine": 39
+        },
+        {
+          "name": "LIFEOPS_RAG_DATA_DIRS",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 41,
+          "endLine": 41
+        },
+        {
+          "name": "LIFEOPS_RAG_CHROMA_PATH",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 43,
+          "endLine": 43
+        },
+        {
+          "name": "LIFEOPS_RAG_COLLECTION",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 45,
+          "endLine": 45
+        },
+        {
+          "name": "LIFEOPS_RAG_MODEL_CACHE_DIR",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 47,
+          "endLine": 47
+        },
+        {
+          "name": "LIFEOPS_RAG_EMBEDDING_MODEL",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 49,
+          "endLine": 49
+        },
+        {
+          "name": "LIFEOPS_RAG_VECTOR_TOP_K",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 51,
+          "endLine": 51
+        },
+        {
+          "name": "LIFEOPS_RAG_BM25_TOP_K",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 53,
+          "endLine": 53
+        },
+        {
+          "name": "LIFEOPS_RAG_RRF_TOP_K",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 55,
+          "endLine": 55
+        },
+        {
+          "name": "LIFEOPS_RAG_RERANKER_MODEL",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 57,
+          "endLine": 57
+        },
+        {
+          "name": "LIFEOPS_RAG_FINAL_TOP_FILES",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 59,
+          "endLine": 59
+        },
+        {
+          "name": "LIFEOPS_RAG_RRF_K",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 61,
+          "endLine": 61
+        },
+        {
+          "name": "LIFEOPS_MEMORY_ENABLED",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 65,
+          "endLine": 65
+        },
+        {
+          "name": "LIFEOPS_MEMORY_SUMMARY_TOP_K",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 67,
+          "endLine": 67
+        },
+        {
+          "name": "LIFEOPS_MEMORY_PREFERENCE_MIN_CONFIDENCE",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 69,
+          "endLine": 69
+        },
+        {
+          "name": "LIFEOPS_MEMORY_OFFLOAD_DIR",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 71,
+          "endLine": 71
+        },
+        {
+          "name": "LIFEOPS_RUNTIME_ENABLED",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 75,
+          "endLine": 75
+        },
+        {
+          "name": "LIFEOPS_RUNTIME_TRACE_MAX_PAYLOAD_CHARS",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 77,
+          "endLine": 77
+        },
+        {
+          "name": "LIFEOPS_TOOL_POLICY_MODE",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 81,
+          "endLine": 81
+        },
+        {
+          "name": "LIFEOPS_TOOL_POLICY_PATH",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 83,
+          "endLine": 83
+        },
+        {
+          "name": "LIFEOPS_DEBUG",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 91,
+          "endLine": 91
+        },
+        {
+          "name": "LIFEOPS_LOG_LEVEL",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 93,
+          "endLine": 93
+        },
+        {
+          "name": "LIFEOPS_MCP_ENABLED",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 97,
+          "endLine": 97
+        },
+        {
+          "name": "LIFEOPS_MCP_SERVERS",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 99,
+          "endLine": 99
+        },
+        {
+          "name": "LIFEOPS_MCP_PRESETS",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 103,
+          "endLine": 103
+        },
+        {
+          "name": "LIFEOPS_FILESYSTEM_MCP_ROOTS",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 105,
+          "endLine": 105
+        },
+        {
+          "name": "GITHUB_PERSONAL_ACCESS_TOKEN",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 109,
+          "endLine": 109
+        },
+        {
+          "name": "GOOGLE_OAUTH_CLIENT_ID",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 113,
+          "endLine": 113
+        },
+        {
+          "name": "GOOGLE_OAUTH_CLIENT_SECRET",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 115,
+          "endLine": 115
+        },
+        {
+          "name": "OAUTHLIB_INSECURE_TRANSPORT",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 117,
+          "endLine": 117
+        },
+        {
+          "name": "GOOGLE_MCP_CREDENTIALS_DIR",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 119,
+          "endLine": 119
+        },
+        {
+          "name": "LIFEOPS_GOOGLE_WORKSPACE_MCP_PERMISSIONS",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 121,
+          "endLine": 121
+        },
+        {
+          "name": "LIFEOPS_GOOGLE_WORKSPACE_MCP_TOOL_TIER",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 123,
+          "endLine": 123
+        },
+        {
+          "name": "SERPAPI_API_KEY",
+          "kind": "variable",
+          "fields": [],
+          "startLine": 127,
+          "endLine": 127
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "definitionCount": 49
+      }
+    },
+    {
+      "path": "README.md",
+      "language": "markdown",
+      "fileCategory": "docs",
+      "totalLines": 198,
+      "nonEmptyLines": 127,
+      "sections": [
+        {
+          "heading": "功能亮点",
+          "level": 2,
+          "line": 21
+        },
+        {
+          "heading": "智能体",
+          "level": 2,
+          "line": 33
+        },
+        {
+          "heading": "ReAct 推理与工具执行",
+          "level": 3,
+          "line": 37
+        },
+        {
+          "heading": "Runtime Trace 与工具策略",
+          "level": 3,
+          "line": 45
+        },
+        {
+          "heading": "分层上下文",
+          "level": 3,
+          "line": 70
+        },
+        {
+          "heading": "RAG",
+          "level": 3,
+          "line": 80
+        },
+        {
+          "heading": "记忆管理",
+          "level": 3,
+          "line": 88
+        },
+        {
+          "heading": "Web 控制台",
+          "level": 2,
+          "line": 95
+        },
+        {
+          "heading": "对话与历史",
+          "level": 3,
+          "line": 100
+        },
+        {
+          "heading": "Skills",
+          "level": 3,
+          "line": 110
+        },
+        {
+          "heading": "Tools 与 MCP",
+          "level": 3,
+          "line": 118
+        },
+        {
+          "heading": "快速开始",
+          "level": 2,
+          "line": 130
+        },
+        {
+          "heading": "项目结构",
+          "level": 2,
+          "line": 165
+        },
+        {
+          "heading": "Star History",
+          "level": 2,
+          "line": 186
+        },
+        {
+          "heading": "License",
+          "level": 2,
+          "line": 196
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 15
+      }
+    },
+    {
+      "path": "pyproject.toml",
+      "language": "toml",
+      "fileCategory": "config",
+      "totalLines": 57,
+      "nonEmptyLines": 50,
+      "sections": [
+        {
+          "heading": "project",
+          "level": 1,
+          "line": 1
+        },
+        {
+          "heading": "project.optional-dependencies",
+          "level": 2,
+          "line": 21
+        },
+        {
+          "heading": "project.scripts",
+          "level": 2,
+          "line": 29
+        },
+        {
+          "heading": "build-system",
+          "level": 1,
+          "line": 32
+        },
+        {
+          "heading": "tool.hatch.build.targets.wheel",
+          "level": 5,
+          "line": 36
+        },
+        {
+          "heading": "tool.pytest.ini_options",
+          "level": 3,
+          "line": 39
+        },
+        {
+          "heading": "tool.ruff",
+          "level": 2,
+          "line": 47
+        },
+        {
+          "heading": "dependency-groups",
+          "level": 1,
+          "line": 51
+        }
+      ],
+      "metrics": {
+        "importCount": 0,
+        "exportCount": 0,
+        "functionCount": 0,
+        "classCount": 0,
+        "sectionCount": 8
+      }
+    }
+  ]
+}

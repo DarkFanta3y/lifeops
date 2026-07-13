@@ -1,0 +1,966 @@
+{
+  "scriptCompleted": true,
+  "entryPointCandidates": [
+    {
+      "id": "document:README.md",
+      "score": 5,
+      "name": "README.md",
+      "summary": "LifeOps 的项目总览与上手文档，介绍本地优先 AI 智能体的 ReAct 执行、运行时追踪、分层上下文、RAG、长期记忆、Web 控制台、Skills 和 MCP，并提供启动命令与目录结构。"
+    },
+    {
+      "id": "file:src/lifeops/web/api.py",
+      "score": 2,
+      "name": "api.py",
+      "summary": "提供 LifeOps 的 FastAPI Web API，整合会话、长期记忆、流式聊天、运行追踪、Skill、RAG 资源和 MCP 工具管理。"
+    },
+    {
+      "id": "file:src/lifeops/rag/retriever.py",
+      "score": 2,
+      "name": "retriever.py",
+      "summary": "实现并发向量与 BM25 混合检索、RRF 融合、CrossEncoder 重排和父文档聚合，同时格式化结果并安全改写本地 Markdown 图片链接。"
+    },
+    {
+      "id": "file:src/lifeops/rag/router.py",
+      "score": 2,
+      "name": "router.py",
+      "summary": "从知识目录层级发现可检索数据类型，并依据显式类型或中英文目录关键词为查询生成带路径前缀的 RAG 路由计划。"
+    },
+    {
+      "id": "file:tests/test_tool_policy.py",
+      "score": 2,
+      "name": "test_tool_policy.py",
+      "summary": "全面验证工具策略引擎对安全读取、危险 Bash、文件编辑、MCP 工具和不同策略模式的决策，并检查公开摘要不泄露敏感配置。"
+    }
+  ],
+  "fanInRanking": [
+    {
+      "id": "file:src/lifeops/utils/logging.py",
+      "fanIn": 23,
+      "name": "logging.py"
+    },
+    {
+      "id": "file:src/lifeops/tools/base.py",
+      "fanIn": 14,
+      "name": "base.py"
+    },
+    {
+      "id": "file:src/lifeops/core/config.py",
+      "fanIn": 13,
+      "name": "config.py"
+    },
+    {
+      "id": "file:src/lifeops/tools/registry.py",
+      "fanIn": 11,
+      "name": "registry.py"
+    },
+    {
+      "id": "file:src/lifeops/tools/mcp/types.py",
+      "fanIn": 10,
+      "name": "types.py"
+    },
+    {
+      "id": "file:src/lifeops/llm/types.py",
+      "fanIn": 7,
+      "name": "types.py"
+    },
+    {
+      "id": "file:src/lifeops/rag/types.py",
+      "fanIn": 7,
+      "name": "types.py"
+    },
+    {
+      "id": "file:src/lifeops/utils/text.py",
+      "fanIn": 7,
+      "name": "text.py"
+    },
+    {
+      "id": "file:src/lifeops/core/context_manager.py",
+      "fanIn": 5,
+      "name": "context_manager.py"
+    },
+    {
+      "id": "file:src/lifeops/skills/types.py",
+      "fanIn": 5,
+      "name": "types.py"
+    },
+    {
+      "id": "file:src/lifeops/runtime/policy_rules.py",
+      "fanIn": 4,
+      "name": "policy_rules.py"
+    },
+    {
+      "id": "file:src/lifeops/runtime/types.py",
+      "fanIn": 4,
+      "name": "types.py"
+    },
+    {
+      "id": "file:src/lifeops/storage/sqlite_store.py",
+      "fanIn": 4,
+      "name": "sqlite_store.py"
+    },
+    {
+      "id": "file:src/lifeops/tools/mcp/manager.py",
+      "fanIn": 4,
+      "name": "manager.py"
+    },
+    {
+      "id": "file:src/lifeops/tools/schema.py",
+      "fanIn": 4,
+      "name": "schema.py"
+    },
+    {
+      "id": "file:src/lifeops/llm/client.py",
+      "fanIn": 3,
+      "name": "client.py"
+    },
+    {
+      "id": "file:src/lifeops/rag/embeddings.py",
+      "fanIn": 3,
+      "name": "embeddings.py"
+    },
+    {
+      "id": "file:src/lifeops/runtime/policy.py",
+      "fanIn": 3,
+      "name": "policy.py"
+    },
+    {
+      "id": "file:src/lifeops/skills/loader.py",
+      "fanIn": 3,
+      "name": "loader.py"
+    },
+    {
+      "id": "file:src/lifeops/skills/manager.py",
+      "fanIn": 3,
+      "name": "manager.py"
+    }
+  ],
+  "fanOutRanking": [
+    {
+      "id": "file:src/lifeops/web/api.py",
+      "fanOut": 104,
+      "name": "api.py"
+    },
+    {
+      "id": "file:src/lifeops/agent.py",
+      "fanOut": 33,
+      "name": "agent.py"
+    },
+    {
+      "id": "file:src/lifeops/tools/schema.py",
+      "fanOut": 30,
+      "name": "schema.py"
+    },
+    {
+      "id": "file:src/lifeops/rag/retriever.py",
+      "fanOut": 25,
+      "name": "retriever.py"
+    },
+    {
+      "id": "file:src/lifeops/core/config.py",
+      "fanOut": 22,
+      "name": "config.py"
+    },
+    {
+      "id": "file:src/lifeops/tools/mcp/servers/presets.py",
+      "fanOut": 22,
+      "name": "presets.py"
+    },
+    {
+      "id": "file:web/src/api.js",
+      "fanOut": 19,
+      "name": "api.js"
+    },
+    {
+      "id": "file:src/lifeops/rag/router.py",
+      "fanOut": 17,
+      "name": "router.py"
+    },
+    {
+      "id": "file:src/lifeops/tools/builtin/file_write.py",
+      "fanOut": 17,
+      "name": "file_write.py"
+    },
+    {
+      "id": "file:src/lifeops/tools/mcp/types.py",
+      "fanOut": 17,
+      "name": "types.py"
+    },
+    {
+      "id": "file:src/lifeops/skills/loader.py",
+      "fanOut": 16,
+      "name": "loader.py"
+    },
+    {
+      "id": "file:tests/test_tool_policy.py",
+      "fanOut": 14,
+      "name": "test_tool_policy.py"
+    },
+    {
+      "id": "file:web/src/App.jsx",
+      "fanOut": 14,
+      "name": "App.jsx"
+    },
+    {
+      "id": "file:src/lifeops/rag/loader.py",
+      "fanOut": 13,
+      "name": "loader.py"
+    },
+    {
+      "id": "file:src/lifeops/rag/indexer.py",
+      "fanOut": 12,
+      "name": "indexer.py"
+    },
+    {
+      "id": "file:src/lifeops/rag/types.py",
+      "fanOut": 12,
+      "name": "types.py"
+    },
+    {
+      "id": "file:src/lifeops/skills/types.py",
+      "fanOut": 12,
+      "name": "types.py"
+    },
+    {
+      "id": "file:src/lifeops/rag/splitter.py",
+      "fanOut": 11,
+      "name": "splitter.py"
+    },
+    {
+      "id": "file:src/lifeops/storage/migration.py",
+      "fanOut": 11,
+      "name": "migration.py"
+    },
+    {
+      "id": "file:src/lifeops/tools/mcp/client.py",
+      "fanOut": 11,
+      "name": "client.py"
+    }
+  ],
+  "bfsTraversal": {
+    "startNode": "file:src/lifeops/web/api.py",
+    "order": [
+      "file:src/lifeops/web/api.py",
+      "file:src/lifeops/agent.py",
+      "file:src/lifeops/core/config.py",
+      "file:src/lifeops/core/context_manager.py",
+      "file:src/lifeops/llm/types.py",
+      "file:src/lifeops/memory/__init__.py",
+      "file:src/lifeops/rag/embeddings.py",
+      "file:src/lifeops/rag/indexer.py",
+      "file:src/lifeops/runtime/policy.py",
+      "file:src/lifeops/runtime/policy_rules.py",
+      "file:src/lifeops/runtime/store.py",
+      "file:src/lifeops/runtime/types.py",
+      "file:src/lifeops/skills/loader.py",
+      "file:src/lifeops/skills/manager.py",
+      "file:src/lifeops/storage/__init__.py",
+      "file:src/lifeops/tools/base.py",
+      "file:src/lifeops/tools/builtin/__init__.py",
+      "file:src/lifeops/tools/mcp/manager.py",
+      "file:src/lifeops/tools/mcp/types.py",
+      "file:src/lifeops/tools/registry.py",
+      "file:src/lifeops/tools/schema.py",
+      "file:src/lifeops/utils/logging.py",
+      "file:src/lifeops/web/title_summary.py",
+      "file:src/lifeops/core/compression_pipeline.py",
+      "file:src/lifeops/history.py",
+      "file:src/lifeops/llm/client.py",
+      "file:src/lifeops/runtime/errors.py",
+      "file:src/lifeops/skills/matcher.py",
+      "file:src/lifeops/skills/types.py",
+      "file:src/lifeops/utils/text.py",
+      "file:src/lifeops/rag/bm25.py",
+      "file:src/lifeops/rag/loader.py",
+      "file:src/lifeops/rag/splitter.py",
+      "file:src/lifeops/rag/types.py",
+      "file:src/lifeops/storage/migration.py",
+      "file:src/lifeops/storage/schema.py",
+      "file:src/lifeops/storage/sqlite_store.py",
+      "file:src/lifeops/tools/builtin/bash.py",
+      "file:src/lifeops/tools/builtin/file_edit.py",
+      "file:src/lifeops/tools/builtin/file_read.py",
+      "file:src/lifeops/tools/builtin/file_write.py",
+      "file:src/lifeops/tools/builtin/web_search.py",
+      "file:src/lifeops/rag/tokenizer.py",
+      "file:src/lifeops/memory/confidence.py"
+    ],
+    "depthMap": {
+      "file:src/lifeops/web/api.py": 0,
+      "file:src/lifeops/agent.py": 1,
+      "file:src/lifeops/core/config.py": 1,
+      "file:src/lifeops/core/context_manager.py": 1,
+      "file:src/lifeops/llm/types.py": 1,
+      "file:src/lifeops/memory/__init__.py": 1,
+      "file:src/lifeops/rag/embeddings.py": 1,
+      "file:src/lifeops/rag/indexer.py": 1,
+      "file:src/lifeops/runtime/policy.py": 1,
+      "file:src/lifeops/runtime/policy_rules.py": 1,
+      "file:src/lifeops/runtime/store.py": 1,
+      "file:src/lifeops/runtime/types.py": 1,
+      "file:src/lifeops/skills/loader.py": 1,
+      "file:src/lifeops/skills/manager.py": 1,
+      "file:src/lifeops/storage/__init__.py": 1,
+      "file:src/lifeops/tools/base.py": 1,
+      "file:src/lifeops/tools/builtin/__init__.py": 1,
+      "file:src/lifeops/tools/mcp/manager.py": 1,
+      "file:src/lifeops/tools/mcp/types.py": 1,
+      "file:src/lifeops/tools/registry.py": 1,
+      "file:src/lifeops/tools/schema.py": 1,
+      "file:src/lifeops/utils/logging.py": 1,
+      "file:src/lifeops/web/title_summary.py": 1,
+      "file:src/lifeops/core/compression_pipeline.py": 2,
+      "file:src/lifeops/history.py": 2,
+      "file:src/lifeops/llm/client.py": 2,
+      "file:src/lifeops/runtime/errors.py": 2,
+      "file:src/lifeops/skills/matcher.py": 2,
+      "file:src/lifeops/skills/types.py": 2,
+      "file:src/lifeops/utils/text.py": 2,
+      "file:src/lifeops/rag/bm25.py": 2,
+      "file:src/lifeops/rag/loader.py": 2,
+      "file:src/lifeops/rag/splitter.py": 2,
+      "file:src/lifeops/rag/types.py": 2,
+      "file:src/lifeops/storage/migration.py": 2,
+      "file:src/lifeops/storage/schema.py": 2,
+      "file:src/lifeops/storage/sqlite_store.py": 2,
+      "file:src/lifeops/tools/builtin/bash.py": 2,
+      "file:src/lifeops/tools/builtin/file_edit.py": 2,
+      "file:src/lifeops/tools/builtin/file_read.py": 2,
+      "file:src/lifeops/tools/builtin/file_write.py": 2,
+      "file:src/lifeops/tools/builtin/web_search.py": 2,
+      "file:src/lifeops/rag/tokenizer.py": 3,
+      "file:src/lifeops/memory/confidence.py": 3
+    },
+    "byDepth": {
+      "0": [
+        "file:src/lifeops/web/api.py"
+      ],
+      "1": [
+        "file:src/lifeops/agent.py",
+        "file:src/lifeops/core/config.py",
+        "file:src/lifeops/core/context_manager.py",
+        "file:src/lifeops/llm/types.py",
+        "file:src/lifeops/memory/__init__.py",
+        "file:src/lifeops/rag/embeddings.py",
+        "file:src/lifeops/rag/indexer.py",
+        "file:src/lifeops/runtime/policy.py",
+        "file:src/lifeops/runtime/policy_rules.py",
+        "file:src/lifeops/runtime/store.py",
+        "file:src/lifeops/runtime/types.py",
+        "file:src/lifeops/skills/loader.py",
+        "file:src/lifeops/skills/manager.py",
+        "file:src/lifeops/storage/__init__.py",
+        "file:src/lifeops/tools/base.py",
+        "file:src/lifeops/tools/builtin/__init__.py",
+        "file:src/lifeops/tools/mcp/manager.py",
+        "file:src/lifeops/tools/mcp/types.py",
+        "file:src/lifeops/tools/registry.py",
+        "file:src/lifeops/tools/schema.py",
+        "file:src/lifeops/utils/logging.py",
+        "file:src/lifeops/web/title_summary.py"
+      ],
+      "2": [
+        "file:src/lifeops/core/compression_pipeline.py",
+        "file:src/lifeops/history.py",
+        "file:src/lifeops/llm/client.py",
+        "file:src/lifeops/runtime/errors.py",
+        "file:src/lifeops/skills/matcher.py",
+        "file:src/lifeops/skills/types.py",
+        "file:src/lifeops/utils/text.py",
+        "file:src/lifeops/rag/bm25.py",
+        "file:src/lifeops/rag/loader.py",
+        "file:src/lifeops/rag/splitter.py",
+        "file:src/lifeops/rag/types.py",
+        "file:src/lifeops/storage/migration.py",
+        "file:src/lifeops/storage/schema.py",
+        "file:src/lifeops/storage/sqlite_store.py",
+        "file:src/lifeops/tools/builtin/bash.py",
+        "file:src/lifeops/tools/builtin/file_edit.py",
+        "file:src/lifeops/tools/builtin/file_read.py",
+        "file:src/lifeops/tools/builtin/file_write.py",
+        "file:src/lifeops/tools/builtin/web_search.py"
+      ],
+      "3": [
+        "file:src/lifeops/rag/tokenizer.py",
+        "file:src/lifeops/memory/confidence.py"
+      ]
+    }
+  },
+  "nonCodeFiles": {
+    "documentation": [
+      {
+        "id": "document:README.md",
+        "name": "README.md",
+        "type": "document",
+        "summary": "LifeOps 的项目总览与上手文档，介绍本地优先 AI 智能体的 ReAct 执行、运行时追踪、分层上下文、RAG、长期记忆、Web 控制台、Skills 和 MCP，并提供启动命令与目录结构。"
+      }
+    ],
+    "infrastructure": [],
+    "data": [],
+    "config": [
+      {
+        "id": "config:.env.example",
+        "name": ".env.example",
+        "type": "config",
+        "summary": "集中给出 LifeOps 的环境变量示例，覆盖 LLM、分层上下文、Skills、RAG、长期记忆、运行时追踪、工具策略及 MCP 集成等运行配置。"
+      },
+      {
+        "id": "config:pyproject.toml",
+        "name": "pyproject.toml",
+        "type": "config",
+        "summary": "定义 lifeops Python 包的元数据、运行与开发依赖、lifeops-web 命令入口和 Hatchling 构建方式，同时配置 pytest 异步测试、测试标记及 Ruff 规则。"
+      },
+      {
+        "id": "config:.understand-anything/config.json",
+        "name": "config.json",
+        "type": "config",
+        "summary": "配置 Understand Anything 的图谱文本输出语言，当前指定为中文。"
+      },
+      {
+        "id": "config:web/package.json",
+        "name": "package.json",
+        "type": "config",
+        "summary": "定义 LifeOps Web 控制台的 Vite 开发与构建脚本，以及 React、Ant Design 和 Markdown 渲染依赖。"
+      }
+    ]
+  },
+  "clusters": [],
+  "layers": {
+    "count": 10,
+    "list": [
+      {
+        "id": "layer:ui",
+        "name": "Web 控制台 UI 层",
+        "description": "承载 React/Vite 管理控制台的页面入口、交互组件、后端 API 客户端、滚动辅助与响应式样式。"
+      },
+      {
+        "id": "layer:api",
+        "name": "Web API 层",
+        "description": "提供 FastAPI 应用边界、SSE 对话流以及会话、记忆、RAG、Skill、Tool/MCP 和运行追踪接口。"
+      },
+      {
+        "id": "layer:agent-runtime",
+        "name": "Agent 编排与运行时层",
+        "description": "统筹 Agent 执行循环、分层上下文压缩、工具安全策略、错误模型与 trace 生命周期。"
+      },
+      {
+        "id": "layer:llm",
+        "name": "LLM 接入层",
+        "description": "封装 OpenAI 兼容的异步与流式调用，并定义消息、响应和工具调用协议模型。"
+      },
+      {
+        "id": "layer:extension",
+        "name": "工具与扩展集成层",
+        "description": "管理 Skill 的发现与匹配、内置工具注册执行，以及 MCP 客户端、适配器和外部 server 预设。"
+      },
+      {
+        "id": "layer:knowledge",
+        "name": "检索与长期记忆层",
+        "description": "实现 Markdown 知识索引与混合 RAG 检索，并负责跨会话摘要、偏好和知识图谱的学习与召回。"
+      },
+      {
+        "id": "layer:data",
+        "name": "数据持久化层",
+        "description": "维护 SQLite schema、综合数据访问、旧 JSONL 迁移与兼容历史存储，为会话和运行数据提供本地持久化。"
+      },
+      {
+        "id": "layer:utility",
+        "name": "共享工具层",
+        "description": "提供统一日志初始化与 Unicode 文本清洗等被多个后端子系统复用的基础能力。"
+      },
+      {
+        "id": "layer:project-support",
+        "name": "项目配置与文档层",
+        "description": "集中项目依赖、环境变量、Python 与 Vite 构建设置、图谱扫描配置及中文上手和架构说明。"
+      },
+      {
+        "id": "layer:test",
+        "name": "测试与可靠性评估层",
+        "description": "覆盖 Agent 降级、工具策略、运行追踪与存储、FastAPI SSE、安全脱敏和前端滚动边界行为。"
+      }
+    ]
+  },
+  "nodeSummaryIndex": {
+    "file:src/lifeops/agent.py": {
+      "name": "agent.py",
+      "type": "file",
+      "summary": "实现 LifeOps 核心 Agent 运行时，统筹上下文、LLM、工具、MCP、RAG、Skill、策略判断、历史持久化与 trace 记录，完成从用户输入到最终回答的完整编排。"
+    },
+    "file:src/lifeops/history.py": {
+      "name": "history.py",
+      "type": "file",
+      "summary": "提供基于 JSONL 的本地对话历史存储，负责消息与标题写入、容错读取、会话聚合搜索及删除。"
+    },
+    "file:src/lifeops/llm/__init__.py": {
+      "name": "__init__.py",
+      "type": "file",
+      "summary": "汇总并公开 LLM 客户端、消息、响应和工具调用等公共类型，作为 llm 包的统一导入入口。"
+    },
+    "file:src/lifeops/llm/client.py": {
+      "name": "client.py",
+      "type": "file",
+      "summary": "封装 OpenAI 兼容异步客户端，统一构造普通与流式聊天请求、筛选工具 schema，并解析增量工具调用事件。"
+    },
+    "file:src/lifeops/llm/types.py": {
+      "name": "types.py",
+      "type": "file",
+      "summary": "定义 LLM 交互所需的消息角色、工具调用、聊天响应与消息 dataclass，并负责 OpenAI 响应和请求字典之间的转换。"
+    },
+    "file:src/lifeops/skills/__init__.py": {
+      "name": "__init__.py",
+      "type": "file",
+      "summary": "集中重导出 Skill 加载、管理、匹配和类型定义，为 skills 包提供稳定的公共 API。"
+    },
+    "file:src/lifeops/skills/loader.py": {
+      "name": "loader.py",
+      "type": "file",
+      "summary": "发现项目级与用户级 Skill，读取 SKILL.md frontmatter，并用受限 YAML 解析器生成可校验的 Skill 元数据目录。"
+    },
+    "file:src/lifeops/skills/manager.py": {
+      "name": "manager.py",
+      "type": "file",
+      "summary": "管理 Skill 目录发现、上下文目录注入、按需正文加载与激活数量上限，使 Skill 内容分层进入 Agent 上下文。"
+    },
+    "file:src/lifeops/skills/matcher.py": {
+      "name": "matcher.py",
+      "type": "file",
+      "summary": "识别用户显式的 $Skill 调用，并可借助 LLM 从允许隐式触发的候选 Skill 中选择匹配项。"
+    },
+    "file:src/lifeops/skills/types.py": {
+      "name": "types.py",
+      "type": "file",
+      "summary": "定义 Skill 来源、元数据、完整定义、匹配结果与目录等不可变领域模型。"
+    },
+    "file:src/lifeops/utils/text.py": {
+      "name": "text.py",
+      "type": "file",
+      "summary": "提供 Unicode surrogate 清洗工具，并递归处理列表、元组和字典中的文本，保障 UTF-8 与 JSON 边界安全。"
+    },
+    "file:src/lifeops/web/title_summary.py": {
+      "name": "title_summary.py",
+      "type": "file",
+      "summary": "通过 LLM 为 Web 对话生成简短中文标题，并提供异常回退、格式去噪与长度截断。"
+    },
+    "file:src/lifeops/rag/loader.py": {
+      "name": "loader.py",
+      "type": "file",
+      "summary": "从知识目录读取 Markdown，解析受限 frontmatter 元数据，并生成带稳定标识和内容哈希的 KnowledgeDocument。"
+    },
+    "file:src/lifeops/rag/retriever.py": {
+      "name": "retriever.py",
+      "type": "file",
+      "summary": "实现并发向量与 BM25 混合检索、RRF 融合、CrossEncoder 重排和父文档聚合，同时格式化结果并安全改写本地 Markdown 图片链接。"
+    },
+    "file:src/lifeops/rag/router.py": {
+      "name": "router.py",
+      "type": "file",
+      "summary": "从知识目录层级发现可检索数据类型，并依据显式类型或中英文目录关键词为查询生成带路径前缀的 RAG 路由计划。"
+    },
+    "file:src/lifeops/rag/splitter.py": {
+      "name": "splitter.py",
+      "type": "file",
+      "summary": "按 Markdown 标题层级、段落和字符窗口切分知识文档，生成带标题面包屑、重叠上下文和父文档哈希的稳定分块。"
+    },
+    "file:src/lifeops/rag/tokenizer.py": {
+      "name": "tokenizer.py",
+      "type": "file",
+      "summary": "为 BM25 检索提供中英文混合分词，优先使用 jieba，并为连续中文词补充双字 gram 以改善匹配。"
+    },
+    "file:src/lifeops/rag/types.py": {
+      "name": "types.py",
+      "type": "file",
+      "summary": "定义 RAG 流程共享的不可变数据类，覆盖原始文档、分块、命中、文件结果、数据类型和查询路由计划。"
+    },
+    "file:src/lifeops/core/config.py": {
+      "name": "config.py",
+      "type": "file",
+      "summary": "集中定义 LifeOps 的环境驱动配置模型，覆盖 LLM、上下文、MCP、技能、RAG、记忆、运行时和工具策略，并提供旧历史路径的弃用提示。"
+    },
+    "file:src/lifeops/rag/bm25.py": {
+      "name": "bm25.py",
+      "type": "file",
+      "summary": "实现知识分块的 BM25 词法索引与筛选搜索，在 rank_bm25 不可用时回退到词项重合评分。"
+    },
+    "file:src/lifeops/rag/embeddings.py": {
+      "name": "embeddings.py",
+      "type": "file",
+      "summary": "定义向量嵌入提供者协议和 SentenceTransformer 实现，支持延迟加载、模型实例缓存及本地缓存路径优先解析。"
+    },
+    "file:src/lifeops/rag/fusion.py": {
+      "name": "fusion.py",
+      "type": "file",
+      "summary": "融合多路分块排名，并把命中证据聚合到文件或父文档层级，生成最终文件搜索结果。"
+    },
+    "file:src/lifeops/rag/index.py": {
+      "name": "index.py",
+      "type": "file",
+      "summary": "提供本地 RAG 索引命令行入口，校验 --rebuild 参数后加载应用配置并执行全量重建。"
+    },
+    "file:src/lifeops/rag/indexer.py": {
+      "name": "indexer.py",
+      "type": "file",
+      "summary": "编排 Markdown 知识库的全量与增量索引流程，同步维护父文档、分块、BM25 持久化和 Chroma 向量集合。"
+    },
+    "file:src/lifeops/core/compression_pipeline.py": {
+      "name": "compression_pipeline.py",
+      "type": "file",
+      "summary": "实现分阶段上下文压缩流水线，根据 token 压力执行告警、L3 卸载、裁剪、去重摘要或紧急清理，并把压缩与卸载元数据写入存储。"
+    },
+    "file:src/lifeops/core/context_manager.py": {
+      "name": "context_manager.py",
+      "type": "file",
+      "summary": "定义 L1/L2/L3 上下文层级、条目数据结构与预算管理器，提供内容增删、token 统计、压缩建议和按意图排序能力。"
+    },
+    "file:src/lifeops/memory/confidence.py": {
+      "name": "confidence.py",
+      "type": "file",
+      "summary": "把数值、字符串以及中英文置信度标签统一归一化到 0.0 至 1.0，并为无效输入提供默认值回退。"
+    },
+    "file:src/lifeops/memory/extractor.py": {
+      "name": "extractor.py",
+      "type": "file",
+      "summary": "提供长期记忆提取结果的轻量清洗器，从 LLM payload 中筛出合法的偏好、实体与关系字典列表。"
+    },
+    "file:src/lifeops/memory/retriever.py": {
+      "name": "retriever.py",
+      "type": "file",
+      "summary": "实现跨会话摘要的混合检索，将 BM25 文本相关度与可选 embedding 余弦相似度合并排序，并回写摘要访问状态。"
+    },
+    "file:src/lifeops/memory/service.py": {
+      "name": "service.py",
+      "type": "file",
+      "summary": "编排长期记忆的注入、会话结束学习、摘要检索、偏好与知识图谱维护，并对外提供统计、搜索、遗忘和使用记录接口。"
+    },
+    "file:src/lifeops/memory/summarizer.py": {
+      "name": "summarizer.py",
+      "type": "file",
+      "summary": "把对话转写为长期记忆提取提示词，调用 LLM 生成结构化摘要，并容忍 Markdown 代码围栏后解析 JSON payload。"
+    },
+    "file:src/lifeops/storage/__init__.py": {
+      "name": "__init__.py",
+      "type": "file",
+      "summary": "作为 storage 包的公开入口，集中重导出 SQLite 存储类、schema 常量以及 JSONL 迁移函数。"
+    },
+    "file:src/lifeops/storage/migration.py": {
+      "name": "migration.py",
+      "type": "file",
+      "summary": "提供从旧版 JSONL 会话历史迁移到 SQLite 的校验、试运行、自动检测和逐条写入流程，错误按行统计且不阻断应用启动。"
+    },
+    "file:src/lifeops/storage/schema.py": {
+      "name": "schema.py",
+      "type": "file",
+      "summary": "定义版本 4 的 SQLite DDL，覆盖会话消息、工具调用、长期摘要、偏好、知识图谱、embedding、压缩事件、Agent trace 与使用统计，并配置索引和 FTS5 同步触发器。"
+    },
+    "file:src/lifeops/storage/sqlite_store.py": {
+      "name": "sqlite_store.py",
+      "type": "file",
+      "summary": "实现项目的综合 SQLite 持久化层，管理 schema 升级、会话与工具记录、全文检索、长期记忆、embedding、压缩事件、运行轨迹和技能/工具统计。"
+    },
+    "file:src/lifeops/tools/__init__.py": {
+      "name": "__init__.py",
+      "type": "file",
+      "summary": "汇总并公开工具定义、执行结果、处理器类型与注册表，是工具子系统的包级入口。"
+    },
+    "file:src/lifeops/tools/base.py": {
+      "name": "base.py",
+      "type": "file",
+      "summary": "定义工具参数基类、工具元数据和统一执行结果，构成内置工具与 MCP 工具共享的核心契约。"
+    },
+    "file:src/lifeops/tools/builtin/__init__.py": {
+      "name": "__init__.py",
+      "type": "file",
+      "summary": "集中创建并注册命令执行、文件操作和网页搜索等全部内置工具。"
+    },
+    "file:src/lifeops/tools/builtin/bash.py": {
+      "name": "bash.py",
+      "type": "file",
+      "summary": "实现受参数约束和超时控制的异步 shell 命令工具，并以高风险、需审批的定义注册到工具表。"
+    },
+    "file:src/lifeops/tools/builtin/file_edit.py": {
+      "name": "file_edit.py",
+      "type": "file",
+      "summary": "提供兼容旧流程的复合文件编辑工具，支持创建、精确替换和追加三种写操作。"
+    },
+    "file:src/lifeops/tools/builtin/file_read.py": {
+      "name": "file_read.py",
+      "type": "file",
+      "summary": "实现文件分段读取和目录列举，返回带行号内容及总行数、展示行数等元数据。"
+    },
+    "file:src/lifeops/tools/builtin/file_write.py": {
+      "name": "file_write.py",
+      "type": "file",
+      "summary": "将新建、精确替换和末尾追加拆成三个职责单一的高风险文件写入工具。"
+    },
+    "file:src/lifeops/tools/builtin/web_search.py": {
+      "name": "web_search.py",
+      "type": "file",
+      "summary": "按应用配置创建 SerpApi 网页搜索工具，在线程中执行同步请求并格式化自然搜索结果与错误。"
+    },
+    "file:src/lifeops/tools/registry.py": {
+      "name": "registry.py",
+      "type": "file",
+      "summary": "维护工具定义与异步处理器的注册、复制、查询和执行，并生成 OpenAI 工具 schema。"
+    },
+    "file:src/lifeops/tools/schema.py": {
+      "name": "schema.py",
+      "type": "file",
+      "summary": "把 Pydantic 参数模型转换为 OpenAI 工具 schema，并依据风险、技能上下文和用户意图筛选排序可暴露工具。"
+    },
+    "file:src/lifeops/utils/logging.py": {
+      "name": "logging.py",
+      "type": "file",
+      "summary": "封装项目日志初始化和获取逻辑，使用 RichHandler 提供统一的控制台输出格式。"
+    },
+    "file:src/lifeops/tools/mcp/__init__.py": {
+      "name": "__init__.py",
+      "type": "file",
+      "summary": "MCP 工具子系统的公共入口，集中重导出客户端、管理器、注册适配器、数据模型与命名辅助函数。"
+    },
+    "file:src/lifeops/tools/mcp/adapter.py": {
+      "name": "adapter.py",
+      "type": "file",
+      "summary": "把远端 MCP 工具转换为本地 ToolRegistry 定义与异步处理器，并依据 JSON Schema 动态生成 Pydantic 参数模型。"
+    },
+    "file:src/lifeops/tools/mcp/client.py": {
+      "name": "client.py",
+      "type": "file",
+      "summary": "实现基于 stdio 子进程的异步 MCP 客户端，管理 JSON-RPC 会话、进程与内存流生命周期，并统一暴露工具、资源和提示词访问。"
+    },
+    "file:src/lifeops/tools/mcp/manager.py": {
+      "name": "manager.py",
+      "type": "file",
+      "summary": "集中管理 MCP server 配置、连接状态和客户端实例，支持批量连接、工具注册、断开、重注册以及资源和提示词代理访问。"
+    },
+    "file:src/lifeops/tools/mcp/servers/__init__.py": {
+      "name": "__init__.py",
+      "type": "file",
+      "summary": "MCP server 配置工厂的聚合入口，重导出 GitHub、Google Workspace、12306 与免密预设的创建和命名接口。"
+    },
+    "file:src/lifeops/tools/mcp/servers/github.py": {
+      "name": "github.py",
+      "type": "file",
+      "summary": "构造以 Docker stdio 模式运行的 GitHub MCP server 配置，校验访问令牌并透传受支持的可选环境变量。"
+    },
+    "file:src/lifeops/tools/mcp/servers/google_workspace.py": {
+      "name": "google_workspace.py",
+      "type": "file",
+      "summary": "构造通过 uvx 启动的 Google Workspace MCP server 配置，以最小 Gmail 草稿权限为默认值并支持 OAuth 与工具层级覆盖。"
+    },
+    "file:src/lifeops/tools/mcp/servers/mcp_12306.py": {
+      "name": "mcp_12306.py",
+      "type": "file",
+      "summary": "提供 12306 MCP server 的 npx stdio 默认配置与注册名称，用于列车、车站和中转换乘查询。"
+    },
+    "file:src/lifeops/tools/mcp/servers/presets.py": {
+      "name": "presets.py",
+      "type": "file",
+      "summary": "维护无需 API Key 的 MCP 预设目录，解析去重后的预设名称并为 Context7、Playwright、Memory、顺序思考和文件系统生成 npx 配置。"
+    },
+    "file:src/lifeops/tools/mcp/types.py": {
+      "name": "types.py",
+      "type": "file",
+      "summary": "定义 MCP server、工具、资源与提示词的 Pydantic 内部模型，并提供统一命名、资源 URI 构造和注册冲突检查函数。"
+    },
+    "file:src/lifeops/memory/__init__.py": {
+      "name": "__init__.py",
+      "type": "file",
+      "summary": "长期记忆包的公开入口，通过模块级延迟加载暴露 MemoryService，避免包导入时立即加载完整记忆实现。"
+    },
+    "file:src/lifeops/runtime/__init__.py": {
+      "name": "__init__.py",
+      "type": "file",
+      "summary": "运行时子系统的聚合入口，统一导出错误类型、工具策略、运行存储与追踪数据模型。"
+    },
+    "file:src/lifeops/runtime/errors.py": {
+      "name": "errors.py",
+      "type": "file",
+      "summary": "定义 Agent 运行时错误分类、结构化异常对象及追踪载荷转换，统一失败事件的序列化格式。"
+    },
+    "file:src/lifeops/runtime/policy.py": {
+      "name": "policy.py",
+      "type": "file",
+      "summary": "实现工具执行策略引擎，结合策略模式、工具风险与 Bash 规则决定允许、询问或拒绝。"
+    },
+    "file:src/lifeops/runtime/policy_rules.py": {
+      "name": "policy_rules.py",
+      "type": "file",
+      "summary": "集中声明工具策略动作、默认允许与需授权工具集合，以及 Bash 命令白名单和危险模式。"
+    },
+    "file:src/lifeops/runtime/store.py": {
+      "name": "store.py",
+      "type": "file",
+      "summary": "基于现有 SQLite 连接持久化 Agent 运行与追踪事件，支持状态更新、按序查询和超长载荷截断。"
+    },
+    "file:src/lifeops/runtime/types.py": {
+      "name": "types.py",
+      "type": "file",
+      "summary": "定义运行状态、追踪事件类型、运行记录与事件记录，并提供绑定 run_id 的轻量追踪记录器。"
+    },
+    "file:src/lifeops/web/api.py": {
+      "name": "api.py",
+      "type": "file",
+      "summary": "提供 LifeOps 的 FastAPI Web API，整合会话、长期记忆、流式聊天、运行追踪、Skill、RAG 资源和 MCP 工具管理。"
+    },
+    "file:web/src/App.jsx": {
+      "name": "App.jsx",
+      "type": "file",
+      "summary": "实现 LifeOps 管理控制台的主界面，统一编排对话、Skill、Tool/MCP 浏览、流式聊天、搜索与运行日志等交互。文件同时承载多个面向具体工作区和弹窗的 React 组件。"
+    },
+    "file:web/src/api.js": {
+      "name": "api.js",
+      "type": "file",
+      "summary": "封装控制台访问 LifeOps FastAPI 后端的 HTTP 接口，覆盖对话、搜索、Skill、Tool 与删除操作，并处理聊天 SSE 流。"
+    },
+    "file:web/src/main.jsx": {
+      "name": "main.jsx",
+      "type": "file",
+      "summary": "Vite 前端入口，将控制台挂载到 DOM，并配置 Ant Design 中文区域设置、主题 token 与 StrictMode。"
+    },
+    "file:web/src/scroll.js": {
+      "name": "scroll.js",
+      "type": "file",
+      "summary": "提供判断滚动容器是否接近底部的纯函数，供聊天流决定是否继续自动跟随新消息。"
+    },
+    "file:web/src/scroll.test.mjs": {
+      "name": "scroll.test.mjs",
+      "type": "file",
+      "summary": "使用 Node 内置测试框架验证默认滚动阈值的边界内外行为，以及自定义阈值覆盖逻辑。"
+    },
+    "config:.env.example": {
+      "name": ".env.example",
+      "type": "config",
+      "summary": "集中给出 LifeOps 的环境变量示例，覆盖 LLM、分层上下文、Skills、RAG、长期记忆、运行时追踪、工具策略及 MCP 集成等运行配置。"
+    },
+    "document:README.md": {
+      "name": "README.md",
+      "type": "document",
+      "summary": "LifeOps 的项目总览与上手文档，介绍本地优先 AI 智能体的 ReAct 执行、运行时追踪、分层上下文、RAG、长期记忆、Web 控制台、Skills 和 MCP，并提供启动命令与目录结构。"
+    },
+    "config:pyproject.toml": {
+      "name": "pyproject.toml",
+      "type": "config",
+      "summary": "定义 lifeops Python 包的元数据、运行与开发依赖、lifeops-web 命令入口和 Hatchling 构建方式，同时配置 pytest 异步测试、测试标记及 Ruff 规则。"
+    },
+    "file:.python-version": {
+      "name": ".python-version",
+      "type": "file",
+      "summary": "固定项目使用 Python 3.13，确保本地开发、依赖解析与测试运行采用一致的解释器版本。"
+    },
+    "file:.understand-anything/.understandignore": {
+      "name": ".understandignore",
+      "type": "file",
+      "summary": "为代码知识图谱扫描提供忽略规则模板，汇集仓库现有忽略项、测试文件模式与常见语言产物的可选排除建议。"
+    },
+    "config:.understand-anything/config.json": {
+      "name": "config.json",
+      "type": "config",
+      "summary": "配置 Understand Anything 的图谱文本输出语言，当前指定为中文。"
+    },
+    "file:src/lifeops/__init__.py": {
+      "name": "__init__.py",
+      "type": "file",
+      "summary": "定义 lifeops 顶层 Python 包，并公开当前软件版本 0.1.0。"
+    },
+    "file:src/lifeops/core/__init__.py": {
+      "name": "__init__.py",
+      "type": "file",
+      "summary": "声明 lifeops.core 核心包边界，为配置与上下文管理模块提供命名空间。"
+    },
+    "file:src/lifeops/memory/types.py": {
+      "name": "types.py",
+      "type": "file",
+      "summary": "定义对话摘要、用户偏好以及知识实体和关系的不可变数据模型，为记忆提取与知识表示提供统一结构。"
+    },
+    "file:src/lifeops/rag/__init__.py": {
+      "name": "__init__.py",
+      "type": "file",
+      "summary": "作为 RAG 包入口，通过模块级 __getattr__ 延迟加载索引器与检索器，避免导入包时立即加载其实现依赖。"
+    },
+    "file:src/lifeops/utils/__init__.py": {
+      "name": "__init__.py",
+      "type": "file",
+      "summary": "声明通用工具包命名空间，供项目级辅助函数模块组织与扩展。"
+    },
+    "file:src/lifeops/web/__init__.py": {
+      "name": "__init__.py",
+      "type": "file",
+      "summary": "声明 lifeops.web 后端 Web 包边界，为 FastAPI 应用与接口模块提供命名空间。"
+    },
+    "file:tests/evals/__init__.py": {
+      "name": "__init__.py",
+      "type": "file",
+      "summary": "将运行时可靠性评估组织为独立测试包，承载带 evals 标记的场景。"
+    },
+    "file:tests/evals/test_runtime_reliability.py": {
+      "name": "test_runtime_reliability.py",
+      "type": "file",
+      "summary": "评估 Agent 在纯文本回答和危险 Bash 请求场景中的运行时可靠性，验证运行状态、策略拒绝及追踪事件。"
+    },
+    "file:tests/fixtures/runtime_eval_cases.py": {
+      "name": "runtime_eval_cases.py",
+      "type": "file",
+      "summary": "定义运行时评估案例的数据结构与基础案例集，并校验案例名称唯一，便于数据驱动的可靠性评估。"
+    },
+    "file:tests/helpers/fake_runtime.py": {
+      "name": "fake_runtime.py",
+      "type": "file",
+      "summary": "提供脚本化 LLM 客户端与可记录调用的成功或失败工具处理器工厂，用于构造可预测的异步运行时测试。"
+    },
+    "file:tests/test_agent_failure_recovery.py": {
+      "name": "test_agent_failure_recovery.py",
+      "type": "file",
+      "summary": "验证 Agent 面对检索路由 JSON 解析失败和 RAG 检索异常时仍能降级处理，并记录可诊断的错误结果。"
+    },
+    "file:tests/test_agent_tool_policy.py": {
+      "name": "test_agent_tool_policy.py",
+      "type": "file",
+      "summary": "覆盖 Agent 层工具策略集成，确认危险命令在处理器执行前被拒绝，并在达到最大迭代次数时持久化失败状态。"
+    },
+    "file:tests/test_runtime_api.py": {
+      "name": "test_runtime_api.py",
+      "type": "file",
+      "summary": "测试 FastAPI 运行时接口的 SSE 完成事件、运行记录查询、缺失资源响应以及脱敏后的公开工具策略摘要。"
+    },
+    "file:tests/test_runtime_errors.py": {
+      "name": "test_runtime_errors.py",
+      "type": "file",
+      "summary": "验证运行时错误枚举可序列化，并确认 AgentRuntimeError 能转换为包含分类与上下文的追踪载荷。"
+    },
+    "file:tests/test_runtime_memory_context.py": {
+      "name": "test_runtime_memory_context.py",
+      "type": "file",
+      "summary": "验证上下文压缩事件以及工具和技能使用事件可按运行 ID 从持久化存储中查询。"
+    },
+    "file:tests/test_runtime_store.py": {
+      "name": "test_runtime_store.py",
+      "type": "file",
+      "summary": "覆盖运行时存储的运行创建、追踪事件排序、大载荷截断和会话运行列表查询行为。"
+    },
+    "file:tests/test_tool_policy.py": {
+      "name": "test_tool_policy.py",
+      "type": "file",
+      "summary": "全面验证工具策略引擎对安全读取、危险 Bash、文件编辑、MCP 工具和不同策略模式的决策，并检查公开摘要不泄露敏感配置。"
+    },
+    "file:web/index.html": {
+      "name": "index.html",
+      "type": "file",
+      "summary": "提供 LifeOps React 控制台的中文 HTML 外壳，设置图标与视口，并把前端入口挂载到 root 容器。"
+    },
+    "config:web/package.json": {
+      "name": "package.json",
+      "type": "config",
+      "summary": "定义 LifeOps Web 控制台的 Vite 开发与构建脚本，以及 React、Ant Design 和 Markdown 渲染依赖。"
+    },
+    "file:web/src/styles.css": {
+      "name": "styles.css",
+      "type": "file",
+      "summary": "集中定义 LifeOps 控制台的侧边栏、聊天、表格、Markdown、搜索与日志查看界面样式，并针对平板和移动端提供响应式布局。"
+    },
+    "file:web/vite.config.js": {
+      "name": "vite.config.js",
+      "type": "file",
+      "summary": "配置 Vite 使用 React 插件，并将本地开发服务器固定在 127.0.0.1:5173。"
+    }
+  },
+  "totalNodes": 96,
+  "totalEdges": 787
+}

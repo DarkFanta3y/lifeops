@@ -196,6 +196,26 @@ textarea {
   padding: 8px 0 12px;
 }
 
+.infinite-sentinel {
+  min-height: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 0;
+}
+
+.top-sentinel {
+  flex: 0 0 auto;
+  padding: 0;
+}
+
+.lazy-fallback {
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .sidebar-conversations > .ant-spin,
 .sidebar-conversations .ant-spin-nested-loading,
 .sidebar-conversations .ant-spin-container {

@@ -129,11 +129,28 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
         conversation_id: str,
         limit: int | None = Query(None, ge=1),
         offset: int | None = Query(None, ge=0),
+        latest: bool = False,
+        before_id: int | None = Query(None, ge=1),
     ) -> dict[str, Any]:
-        try:
-            all_messages = app.state.history_store.get_messages(
-                conversation_id, limit=limit, offset=offset
+        cursor_mode = latest or before_id is not None
+        if cursor_mode and offset is not None:
+            raise HTTPException(
+                status_code=422,
+                detail="before_id/latest 不能与 offset 同时使用",
             )
+        if cursor_mode and limit is not None and limit > 200:
+            raise HTTPException(status_code=422, detail="游标分页 limit 不能超过 200")
+        try:
+            if cursor_mode:
+                all_messages = app.state.history_store.get_messages_cursor(
+                    conversation_id,
+                    limit=limit or 50,
+                    before_id=before_id,
+                )
+            else:
+                all_messages = app.state.history_store.get_messages(
+                    conversation_id, limit=limit, offset=offset
+                )
         except Exception:
             logger.exception("获取会话详情失败")
             raise HTTPException(status_code=500, detail="获取会话详情时发生内部错误")
@@ -157,6 +174,8 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
             "total": all_messages["total"],
             "limit": all_messages["limit"],
             "offset": all_messages["offset"],
+            "has_more": all_messages.get("has_more", False),
+            "next_before_id": all_messages.get("next_before_id"),
         }
 
     @app.delete("/api/conversations/{conversation_id}")

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import json
 import pickle
 import shutil
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from lifeops.core.config import RAGConfig
 from lifeops.rag.bm25 import BM25ChunkIndex
@@ -38,6 +41,7 @@ class RAGIndexer:
         self._write_chunks_index(chunks)
         self._write_bm25(chunks)
         self._write_chroma(chunks)
+        self._write_index_state(len(documents), len(chunks))
         return {"documents": len(documents), "chunks": len(chunks)}
 
     def sync(self) -> dict[str, int | str]:
@@ -60,6 +64,19 @@ class RAGIndexer:
         changed_doc_ids = {document.doc_id for document in new_or_updated}
         affected_doc_ids = changed_doc_ids | set(deleted_doc_ids)
 
+        if not affected_doc_ids:
+            if not self._index_state_path().exists():
+                self._write_index_state(len(documents), len(old_chunks))
+            return {
+                "mode": "sync",
+                "documents": len(documents),
+                "chunks": len(old_chunks),
+                "new_documents": 0,
+                "updated_documents": 0,
+                "deleted_documents": 0,
+                "unchanged_documents": len(documents),
+            }
+
         if affected_doc_ids:
             self._delete_chroma_chunks(
                 [
@@ -81,6 +98,7 @@ class RAGIndexer:
         self._write_chunks_index(chunks)
         self._write_bm25(chunks)
         self._write_chroma(replacement_chunks)
+        self._write_index_state(len(documents), len(chunks))
 
         return {
             "mode": "sync",
@@ -188,6 +206,27 @@ class RAGIndexer:
 
     def _chunks_index_path(self) -> Path:
         return Path(self.config.chroma_path) / "chunks_index.pkl"
+
+    def _index_state_path(self) -> Path:
+        return Path(self.config.chroma_path) / "index_state.json"
+
+    def _write_index_state(self, document_count: int, chunk_count: int) -> None:
+        path = self._index_state_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "schema_version": 1,
+            "generation": uuid4().hex,
+            "collection": self.config.collection,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "document_count": document_count,
+            "chunk_count": chunk_count,
+        }
+        temporary_path = path.with_suffix(".json.tmp")
+        temporary_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        temporary_path.replace(path)
 
 
 def _chunk_embedding_text(chunk: KnowledgeChunk) -> str:

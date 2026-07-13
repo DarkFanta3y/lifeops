@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import posixpath
 import pickle
@@ -65,6 +66,12 @@ class RAGRetriever:
             config.reranker_model,
             cache_folder=config.model_cache_path,
         )
+        self._cache_lock = threading.RLock()
+        self._cache_signature: tuple[Any, ...] | None = None
+        self._bm25_index: BM25ChunkIndex | None = None
+        self._parent_documents: dict[str, KnowledgeDocument] = {}
+        self._chroma_client: Any | None = None
+        self._chroma_collection: Any | None = None
 
     def warm_up(self) -> None:
         """提前加载 embedding 与 reranker 模型，避免首次检索承担模型加载开销。"""
@@ -113,10 +120,12 @@ class RAGRetriever:
         top_files: int | None = None,
     ) -> list[FileSearchResult]:
         final_top_files = min(top_files or self.config.final_top_files, self.config.final_top_files, 3)
+        bm25_index, parent_documents, chroma_collection = self._cache_snapshot()
         vector_matches, bm25_matches = await asyncio.gather(
             asyncio.to_thread(
                 self._vector_search,
                 query,
+                collection=chroma_collection,
                 domain=domain,
                 category=category,
                 path_prefix=path_prefix,
@@ -124,6 +133,7 @@ class RAGRetriever:
             asyncio.to_thread(
                 self._bm25_search,
                 query,
+                index=bm25_index,
                 domain=domain,
                 category=category,
                 path_prefix=path_prefix,
@@ -135,7 +145,6 @@ class RAGRetriever:
             top_k=self.config.rrf_top_k,
         )
         ranked = self._rerank(query, fused)
-        parent_documents = self._load_parent_documents()
         return aggregate_parent_documents(
             ranked,
             parent_documents=parent_documents,
@@ -185,18 +194,12 @@ class RAGRetriever:
         self,
         query: str,
         *,
+        index: BM25ChunkIndex | None,
         domain: str | None,
         category: str | None,
         path_prefix: str | None,
     ) -> list[ChunkMatch]:
-        path = Path(self.config.chroma_path) / "bm25_index.pkl"
-        if not path.exists():
-            return []
-        try:
-            with path.open("rb") as file:
-                index: BM25ChunkIndex = pickle.load(file)
-        except Exception as exc:
-            logger.warning("RAG BM25 index load failed, fallback to vector only: %s", exc)
+        if index is None:
             return []
         return index.search(
             query,
@@ -210,15 +213,14 @@ class RAGRetriever:
         self,
         query: str,
         *,
+        collection: Any | None,
         domain: str | None,
         category: str | None,
         path_prefix: str | None,
     ) -> list[ChunkMatch]:
+        if collection is None:
+            return []
         try:
-            import chromadb
-
-            client = chromadb.PersistentClient(path=self.config.chroma_path)
-            collection = client.get_collection(self.config.collection)
             response = collection.query(
                 query_embeddings=[self.embedding_provider.embed_query(query)],
                 n_results=self.config.vector_top_k * 5 if path_prefix else self.config.vector_top_k,
@@ -244,17 +246,101 @@ class RAGRetriever:
             matches.append(ChunkMatch(chunk=chunk, score=score))
         return matches
 
-    def _load_parent_documents(self) -> dict[str, KnowledgeDocument]:
-        path = Path(self.config.chroma_path) / "parent_documents.pkl"
+    def _cache_snapshot(
+        self,
+    ) -> tuple[
+        BM25ChunkIndex | None,
+        dict[str, KnowledgeDocument],
+        Any | None,
+    ]:
+        signature = self._index_signature()
+        if signature != self._cache_signature:
+            with self._cache_lock:
+                signature = self._index_signature()
+                if signature != self._cache_signature:
+                    self._reload_cache(signature)
+        return self._bm25_index, self._parent_documents, self._chroma_collection
+
+    def _index_signature(self) -> tuple[Any, ...]:
+        state_path = Path(self.config.chroma_path) / "index_state.json"
+        if state_path.exists():
+            try:
+                payload = json.loads(state_path.read_text(encoding="utf-8"))
+                generation = str(payload["generation"])
+                collection = str(payload.get("collection") or self.config.collection)
+                return ("generation", generation, collection)
+            except (OSError, ValueError, KeyError, TypeError):
+                logger.warning("RAG index state is invalid; retaining the current cache")
+                if self._cache_signature is not None:
+                    return self._cache_signature
+
+        if self._cache_signature is not None and self._cache_signature[0] == "generation":
+            return self._cache_signature
+
+        paths = [
+            Path(self.config.chroma_path) / "bm25_index.pkl",
+            Path(self.config.chroma_path) / "parent_documents.pkl",
+            Path(self.config.chroma_path) / "chunks_index.pkl",
+        ]
+        legacy_signature = []
+        for path in paths:
+            try:
+                stat = path.stat()
+                legacy_signature.append((stat.st_mtime_ns, stat.st_size))
+            except OSError:
+                legacy_signature.append(None)
+        return ("legacy", *legacy_signature, self.config.collection)
+
+    def _reload_cache(self, signature: tuple[Any, ...]) -> None:
+        bm25_index = self._load_pickle_index(
+            Path(self.config.chroma_path) / "bm25_index.pkl",
+            BM25ChunkIndex,
+        )
+        parents = self._load_pickle_index(
+            Path(self.config.chroma_path) / "parent_documents.pkl",
+            dict,
+        )
+        parent_documents = parents if isinstance(parents, dict) else {}
+
+        chroma_client = None
+        chroma_collection = None
+        try:
+            import chromadb
+
+            collection_name = (
+                str(signature[2]) if signature[0] == "generation" else self.config.collection
+            )
+            chroma_client = chromadb.PersistentClient(path=self.config.chroma_path)
+            chroma_collection = chroma_client.get_collection(collection_name)
+        except Exception as exc:
+            logger.warning("RAG vector cache load failed, fallback to BM25 only: %s", exc)
+
+        has_existing_backend = self._bm25_index is not None or self._chroma_collection is not None
+        snapshot_complete = (
+            bm25_index is not None
+            and isinstance(parents, dict)
+            and chroma_collection is not None
+        )
+        if has_existing_backend and not snapshot_complete:
+            logger.warning("RAG index reload failed; retaining the previous cache snapshot")
+            return
+
+        self._bm25_index = bm25_index
+        self._parent_documents = parent_documents
+        self._chroma_client = chroma_client
+        self._chroma_collection = chroma_collection
+        self._cache_signature = signature
+
+    def _load_pickle_index(self, path: Path, expected_type: type) -> Any | None:
         if not path.exists():
-            return {}
+            return None
         try:
             with path.open("rb") as file:
-                parents: dict[str, KnowledgeDocument] = pickle.load(file)
+                value = pickle.load(file)
         except Exception as exc:
-            logger.warning("RAG parent document index load failed: %s", exc)
-            return {}
-        return parents
+            logger.warning("RAG cache load failed for %s: %s", path.name, exc)
+            return None
+        return value if isinstance(value, expected_type) else None
 
 
 def _run_coroutine_sync(coroutine):
