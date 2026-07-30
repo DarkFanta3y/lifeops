@@ -101,11 +101,16 @@ class LLMClient:
         buffers: dict[int, dict[str, str]] = {}
         started_indexes: set[int] = set()
         ready_indexes: set[int] = set()
+        reasoning_parts: list[str] = []
         try:
             async for chunk in response:
                 if not chunk.choices:
                     continue
                 delta = chunk.choices[0].delta
+
+                reasoning_delta = getattr(delta, "reasoning_content", None)
+                if isinstance(reasoning_delta, str) and reasoning_delta:
+                    reasoning_parts.append(reasoning_delta)
 
                 if delta.content:
                     yield {"type": "token", "data": delta.content}
@@ -166,5 +171,7 @@ class LLMClient:
                         "args": args,
                     },
                 }
+            if reasoning_parts:
+                yield {"type": "reasoning_content", "data": "".join(reasoning_parts)}
         except Exception as e:
             yield {"type": "error", "data": str(e)}

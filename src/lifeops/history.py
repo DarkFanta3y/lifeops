@@ -36,6 +36,7 @@ class ConversationHistoryStore:
         tool_call_id: str | None = None,
         tool_calls: list[dict[str, Any]] | None = None,
         intermediate: bool = False,
+        reasoning_content: str | None = None,
     ) -> dict[str, Any]:
         record: dict[str, Any] = {
             "conversation_id": conversation_id,
@@ -50,6 +51,8 @@ class ConversationHistoryStore:
             record["tool_call_id"] = sanitize_unicode_text(tool_call_id)
         if tool_calls is not None:
             record["tool_calls"] = sanitize_unicode_data(tool_calls)
+        if role == "assistant" and reasoning_content:
+            record["reasoning_content"] = sanitize_unicode_text(reasoning_content)
         if intermediate:
             record["intermediate"] = True
 

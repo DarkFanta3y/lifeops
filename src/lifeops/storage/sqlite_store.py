@@ -39,6 +39,7 @@ class ConversationHistoryStoreSQLite:
             self._backup_before_schema_upgrade(current_version)
         cursor.executescript(CREATE_TABLES_SQL)
         self._migrate_schema_v3(cursor)
+        self._migrate_schema_v5(cursor)
         cursor.execute(
             "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY)"
         )
@@ -159,6 +160,9 @@ class ConversationHistoryStoreSQLite:
             (now,),
         )
 
+    def _migrate_schema_v5(self, cursor: sqlite3.Cursor) -> None:
+        self._add_column_if_missing(cursor, "messages", "reasoning_content", "TEXT")
+
     def _add_column_if_missing(
         self, cursor: sqlite3.Cursor, table: str, column: str, definition: str
     ) -> None:
@@ -233,6 +237,8 @@ class ConversationHistoryStoreSQLite:
             record["tool_call_id"] = row["tool_call_id"]
         if tool_calls is not None:
             record["tool_calls"] = tool_calls
+        if row["reasoning_content"] is not None:
+            record["reasoning_content"] = row["reasoning_content"]
         if row["intermediate"]:
             record["intermediate"] = True
         if row["record_type"] is not None:
@@ -250,9 +256,15 @@ class ConversationHistoryStoreSQLite:
         tool_call_id: str | None = None,
         tool_calls: list[dict[str, Any]] | None = None,
         intermediate: bool = False,
+        reasoning_content: str | None = None,
     ) -> dict[str, Any]:
         ts = created_at or self._now()
         sanitized_content = self._sanitize_unicode_text(content)
+        sanitized_reasoning_content = (
+            self._sanitize_unicode_text(reasoning_content)
+            if role == "assistant" and reasoning_content
+            else None
+        )
 
         self._get_or_create_conversation(conversation_id, source)
 
@@ -260,8 +272,8 @@ class ConversationHistoryStoreSQLite:
         cursor.execute(
             "INSERT INTO messages "
             "(conversation_id, role, content, created_at, intermediate, "
-            "tool_name, tool_call_id, record_type) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "tool_name, tool_call_id, reasoning_content, record_type) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 conversation_id,
                 role,
@@ -270,6 +282,7 @@ class ConversationHistoryStoreSQLite:
                 1 if intermediate else 0,
                 self._sanitize_unicode_text(tool_name) if tool_name else None,
                 self._sanitize_unicode_text(tool_call_id) if tool_call_id else None,
+                sanitized_reasoning_content,
                 None,
             ),
         )
@@ -316,6 +329,8 @@ class ConversationHistoryStoreSQLite:
             record["tool_call_id"] = self._sanitize_unicode_text(tool_call_id)
         if tool_calls is not None:
             record["tool_calls"] = self._sanitize_unicode_data(tool_calls)
+        if sanitized_reasoning_content is not None:
+            record["reasoning_content"] = sanitized_reasoning_content
         if intermediate:
             record["intermediate"] = True
         return record
@@ -351,8 +366,8 @@ class ConversationHistoryStoreSQLite:
         cursor.execute(
             "INSERT INTO messages "
             "(conversation_id, role, content, created_at, intermediate, "
-            "tool_name, tool_call_id, record_type) "
-            "VALUES (?, ?, ?, ?, 0, NULL, NULL, ?)",
+            "tool_name, tool_call_id, reasoning_content, record_type) "
+            "VALUES (?, ?, ?, ?, 0, NULL, NULL, NULL, ?)",
             (conversation_id, "system", sanitized_title, ts, TITLE_RECORD_TYPE),
         )
         self._conn.commit()
@@ -374,7 +389,7 @@ class ConversationHistoryStoreSQLite:
         _REC_JOIN_SQL = (
             "SELECT m.id, m.conversation_id, c.source, m.role, m.content, "
             "m.created_at, m.tool_name, m.tool_call_id, m.intermediate, "
-            "m.record_type "
+            "m.reasoning_content, m.record_type "
             "FROM messages m "
             "JOIN conversations c ON m.conversation_id = c.conversation_id "
             "ORDER BY m.created_at ASC, m.id ASC"
@@ -541,7 +556,7 @@ class ConversationHistoryStoreSQLite:
         _MSG_JOIN_SQL = (
             "SELECT m.id, m.conversation_id, c.source, m.role, m.content, "
             "m.created_at, m.tool_name, m.tool_call_id, m.intermediate, "
-            "m.record_type "
+            "m.reasoning_content, m.record_type "
             "FROM messages m "
             "JOIN conversations c ON m.conversation_id = c.conversation_id "
             "WHERE m.conversation_id = ? "
@@ -644,7 +659,7 @@ class ConversationHistoryStoreSQLite:
         cursor.execute(
             f"SELECT m.id, m.conversation_id, c.source, m.role, m.content, "
             f"m.created_at, m.tool_name, m.tool_call_id, m.intermediate, "
-            f"m.record_type "
+            f"m.reasoning_content, m.record_type "
             f"FROM messages m "
             f"JOIN conversations c ON m.conversation_id = c.conversation_id "
             f"WHERE m.id IN ({placeholders}) "

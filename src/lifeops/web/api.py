@@ -160,8 +160,8 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
             intermediate_messages = [m for m in all_messages if _is_intermediate_message(m)]
             return {
                 "conversation_id": conversation_id,
-                "messages": messages,
-                "intermediate_messages": intermediate_messages,
+                "messages": _strip_private_message_fields(messages),
+                "intermediate_messages": _strip_private_message_fields(intermediate_messages),
             }
 
         items = all_messages["items"]
@@ -169,8 +169,8 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
         intermediate_messages = [m for m in items if _is_intermediate_message(m)]
         return {
             "conversation_id": conversation_id,
-            "messages": messages,
-            "intermediate_messages": intermediate_messages,
+            "messages": _strip_private_message_fields(messages),
+            "intermediate_messages": _strip_private_message_fields(intermediate_messages),
             "total": all_messages["total"],
             "limit": all_messages["limit"],
             "offset": all_messages["offset"],
@@ -195,7 +195,9 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
         offset: int = Query(0, ge=0),
     ) -> dict[str, Any]:
         try:
-            return app.state.history_store.search_messages(q, limit, offset)
+            return _strip_private_message_fields(
+                app.state.history_store.search_messages(q, limit, offset)
+            )
         except Exception:
             logger.exception("搜索消息失败")
             raise HTTPException(status_code=500, detail="搜索消息时发生内部错误")
@@ -565,6 +567,9 @@ def _get_or_create_web_agent(
         agent.run_id = run_id
         agent.trace_recorder = TraceRecorder(app.state.runtime_store) if run_id else None
         agent.tool_policy_engine = app.state.tool_policy_engine
+        agent.messages = _hydrate_messages(
+            app.state.history_store.get_messages(conversation_id)
+        )
         return agent
 
     agent = Agent(
@@ -600,9 +605,22 @@ def _hydrate_messages(records: list[dict[str, Any]]) -> list[Message]:
                 content=record.get("content"),
                 tool_call_id=record.get("tool_call_id"),
                 name=record.get("tool_name"),
+                reasoning_content=record.get("reasoning_content"),
             )
         )
     return messages
+
+
+def _strip_private_message_fields(value: Any) -> Any:
+    if isinstance(value, list):
+        return [_strip_private_message_fields(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            key: _strip_private_message_fields(item)
+            for key, item in value.items()
+            if key != "reasoning_content"
+        }
+    return value
 
 
 def _is_intermediate_message(record: dict[str, Any]) -> bool:
@@ -849,6 +867,11 @@ async def _generate_sse_messages(
                     )
                 except Exception:
                     logger.exception("记录 Web run 失败状态失败")
+            fallback = f"AI 响应异常：{exc}"
+            agent.messages.append(
+                Message(role=MessageRole.ASSISTANT, content=fallback)
+            )
+            agent._persist_message(MessageRole.ASSISTANT, fallback)
             line = make_sse("error", str(exc))
             if line is not None:
                 yield line

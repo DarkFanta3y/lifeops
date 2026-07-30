@@ -1,6 +1,6 @@
 """SQLite 数据库 schema 定义：对话历史存储的 DDL 与版本常量。"""
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 # fmt: off
 CREATE_TABLES_SQL = """
@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS messages (
     intermediate    INTEGER NOT NULL DEFAULT 0,   -- 0=false, 1=true
     tool_name       TEXT,                          -- 工具结果消息的工具名（可空）
     tool_call_id    TEXT,                          -- 工具结果消息的调用 ID（可空）
+    reasoning_content TEXT,                        -- assistant 思考模式回传字段（不展示）
     record_type     TEXT,                          -- 例: "conversation_title"
     FOREIGN KEY (conversation_id) REFERENCES conversations(conversation_id)
 );

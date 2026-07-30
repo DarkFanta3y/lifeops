@@ -467,6 +467,7 @@ class Agent:
                 response = first_response
             elif self.on_token is not None:
                 content_parts: list[str] = []
+                reasoning_parts: list[str] = []
                 stream_tool_calls: list[dict[str, Any]] = []
                 emitted_from_stream = False
                 stream = self.llm.chat_stream(
@@ -502,8 +503,14 @@ class Agent:
                             )
                         elif event["type"] == "tool_call":
                             stream_tool_calls.append(event["data"])
+                        elif event["type"] == "reasoning_content":
+                            reasoning_parts.append(event["data"])
                         elif event["type"] == "error":
-                            raise RuntimeError(f"LLM stream error: {event['data']}")
+                            logger.error(f"LLM stream error: {event['data']}")
+                            content_parts.clear()
+                            stream_tool_calls.clear()
+                            break
+                    reasoning_content = "".join(reasoning_parts) if reasoning_parts else None
                     if stream_tool_calls:
                         tc_results = [
                             ToolCallResult(
@@ -516,11 +523,13 @@ class Agent:
                         response = ChatResponse(
                             content="".join(content_parts) if content_parts else "",
                             tool_calls=tc_results,
+                            reasoning_content=reasoning_content,
                         )
                     else:
                         response = ChatResponse(
                             content="".join(content_parts) if content_parts else None,
                             tool_calls=None,
+                            reasoning_content=reasoning_content,
                         )
                 if (
                     not emitted_from_stream
@@ -545,14 +554,24 @@ class Agent:
 
             if response.content and not response.tool_calls:
                 response_content = sanitize_unicode_text(response.content)
-                self.messages.append(Message(role=MessageRole.ASSISTANT, content=response_content))
+                self.messages.append(
+                    Message(
+                        role=MessageRole.ASSISTANT,
+                        content=response_content,
+                        reasoning_content=response.reasoning_content,
+                    )
+                )
                 self.context.add_content(
                     f"assistant_{len(self.messages)}",
                     response_content,
                     ContextLayer.L1,
                     token_count=len(response_content) // 4,
                 )
-                self._persist_message(MessageRole.ASSISTANT, response_content)
+                self._persist_message(
+                    MessageRole.ASSISTANT,
+                    response_content,
+                    reasoning_content=response.reasoning_content,
+                )
                 self._record_trace(
                     TraceEventType.RUN_COMPLETED,
                     {"output_length": len(response_content)},
@@ -567,6 +586,7 @@ class Agent:
                         role=MessageRole.ASSISTANT,
                         content=response.content,
                         tool_calls=tool_calls,
+                        reasoning_content=response.reasoning_content,
                     )
                 )
                 self._persist_message(
@@ -574,6 +594,7 @@ class Agent:
                     response.content or "",
                     tool_calls=tool_calls,
                     intermediate=True,
+                    reasoning_content=response.reasoning_content,
                 )
 
                 for tc in response.tool_calls:
@@ -581,10 +602,28 @@ class Agent:
                     used_tool_names.append(tc.name)
 
             if not response.content and not response.tool_calls:
-                return "I couldn't generate a response. Please try again."
+                fallback = "I couldn't generate a response. Please try again."
+                if self.on_token is not None:
+                    await self.on_token(fallback)
+                self.messages.append(
+                    Message(role=MessageRole.ASSISTANT, content=fallback, reasoning_content="")
+                )
+                self._persist_message(MessageRole.ASSISTANT, fallback, reasoning_content="")
+                self._record_trace(
+                    TraceEventType.RUN_COMPLETED,
+                    {"output_length": len(fallback)},
+                )
+                self._update_run_status(RunStatus.COMPLETED, final_output=fallback)
+                return fallback
 
         self.context.compress_l3()
         message = "已达到最大迭代次数。请改写请求，或把任务拆成更小的步骤后重试。"
+        if self.on_token is not None:
+            await self.on_token(message)
+        self.messages.append(
+            Message(role=MessageRole.ASSISTANT, content=message, reasoning_content="")
+        )
+        self._persist_message(MessageRole.ASSISTANT, message, reasoning_content="")
         self._record_trace(
             TraceEventType.RUN_FAILED,
             {
@@ -769,6 +808,7 @@ class Agent:
                 role=MessageRole.ASSISTANT,
                 content=f"准备调用 {tool_name}",
                 tool_calls=tool_calls,
+                reasoning_content="",
             )
         )
         self._persist_message(
@@ -776,6 +816,7 @@ class Agent:
             f"准备调用 {tool_name}",
             tool_calls=tool_calls,
             intermediate=True,
+            reasoning_content="",
         )
         return await self._execute_tool_call_result(tool_call)
 
@@ -1023,6 +1064,7 @@ class Agent:
         tool_call_id: str | None = None,
         tool_calls: list[dict[str, Any]] | None = None,
         intermediate: bool = False,
+        reasoning_content: str | None = None,
     ) -> None:
         try:
             self.history_store.append_message(
@@ -1034,6 +1076,7 @@ class Agent:
                 tool_call_id=tool_call_id,
                 tool_calls=tool_calls,
                 intermediate=intermediate,
+                reasoning_content=reasoning_content,
             )
         except Exception:
             logger.exception("写入对话历史失败")

@@ -87,6 +87,12 @@ export async function sendChatMessage({ message, conversationId, onToken }) {
         if (event.type === "token") {
           const tokenData = event.data ?? event.content ?? "";
           onToken?.(tokenData);
+        } else if (event.type === "error") {
+          const errorMsg =
+            typeof event.data === "string"
+              ? event.data
+              : event.data?.message || "AI 响应出错";
+          throw new Error(errorMsg);
         } else if (event.type === "done") {
           result = { ...event };
           if (event.data && typeof event.data === "object" && !Array.isArray(event.data)) {
