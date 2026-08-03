@@ -78,6 +78,24 @@ def test_message_cursor_is_stable_when_new_messages_arrive(tmp_path):
         store.close()
 
 
+def test_message_cursor_preserves_assistant_reasoning_content(tmp_path):
+    store = ConversationHistoryStoreSQLite(tmp_path / "history.db")
+    try:
+        store.append_message(
+            "conv",
+            "web",
+            "assistant",
+            "done",
+            reasoning_content="内部推理",
+        )
+
+        page = store.get_messages_cursor("conv", limit=1)
+
+        assert page["items"][0]["reasoning_content"] == "内部推理"
+    finally:
+        store.close()
+
+
 @pytest.mark.asyncio
 async def test_conversation_cursor_api_splits_visible_and_intermediate_messages(tmp_path):
     config = AppConfig(
@@ -99,7 +117,13 @@ async def test_conversation_cursor_api_splits_visible_and_intermediate_messages(
         tool_call_id="tc-1",
         intermediate=True,
     )
-    store.append_message("conv", "web", "assistant", "done")
+    store.append_message(
+        "conv",
+        "web",
+        "assistant",
+        "done",
+        reasoning_content="内部推理",
+    )
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
@@ -118,6 +142,10 @@ async def test_conversation_cursor_api_splits_visible_and_intermediate_messages(
     assert payload["has_more"] is True
     assert payload["next_before_id"] is not None
     assert all("message_id" in item for item in [
+        *payload["messages"],
+        *payload["intermediate_messages"],
+    ])
+    assert all("reasoning_content" not in item for item in [
         *payload["messages"],
         *payload["intermediate_messages"],
     ])

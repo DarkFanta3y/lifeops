@@ -15,6 +15,7 @@ data/
 *.egg-info/
 dist/
 build/
+tests/
 web/node_modules/
 web/dist/
 docs/

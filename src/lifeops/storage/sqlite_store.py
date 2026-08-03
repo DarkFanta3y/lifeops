@@ -512,7 +512,8 @@ class ConversationHistoryStoreSQLite:
 
         sql = (
             "SELECT m.id, m.conversation_id, c.source, m.role, m.content, "
-            "m.created_at, m.tool_name, m.tool_call_id, m.intermediate, m.record_type "
+            "m.created_at, m.tool_name, m.tool_call_id, m.intermediate, "
+            "m.reasoning_content, m.record_type "
             "FROM messages m "
             "JOIN conversations c ON m.conversation_id = c.conversation_id "
             "WHERE m.conversation_id = ? "
