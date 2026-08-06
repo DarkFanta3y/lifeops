@@ -1,22 +1,23 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import inspect
 from dataclasses import dataclass
-from hashlib import sha1
+from datetime import datetime
 from time import perf_counter
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
+
+from pydantic import Field, model_validator
 
 from lifeops.core.compression_pipeline import CompressionPipeline
 from lifeops.core.config import AppConfig
 from lifeops.core.context_manager import ContextLayer, ContextManager
 from lifeops.history import ConversationHistoryStore, HistorySource
 from lifeops.llm.client import LLMClient
-from lifeops.llm.types import ChatResponse, Message, MessageRole, ToolCallResult
-from lifeops.runtime.errors import RuntimeErrorType
+from lifeops.llm.types import ChatResponse, LLMError, Message, MessageRole, ToolCallResult
+from lifeops.runtime.errors import AgentRuntimeError, RuntimeErrorType
 from lifeops.runtime.policy import ToolPolicyContext, ToolPolicyEngine
 from lifeops.runtime.policy_rules import PolicyAction
 from lifeops.runtime.types import RunStatus, TraceEventType, TraceRecorder
@@ -28,27 +29,27 @@ from lifeops.tools.builtin import register_all_builtin_tools
 from lifeops.tools.mcp.manager import MCPManager
 from lifeops.tools.mcp.types import MCPServerConfig
 from lifeops.tools.registry import ToolRegistry
-from lifeops.tools.schema import ToolSelectionContext, select_llm_tools
+from lifeops.tools.schema import ToolSelectionContext, openai_tool_schema, select_llm_tools
 from lifeops.utils.logging import get_logger
 from lifeops.utils.text import sanitize_unicode_text
 
 logger = get_logger(__name__)
 
 
-@dataclass(frozen=True)
-class RetrievalRouteDecision:
-    should_use_rag: bool
-    should_use_web: bool
-    rag_query: str | None
-    web_query: str | None
-    reason: str
+class _FinishTaskParams(ToolParams):
+    status: Literal["complete", "needs_user", "blocked"]
+    answer: str = Field(min_length=1, description="面向用户的最终答复")
+    missing_information: str | None = Field(
+        default=None,
+        description="需要用户补充的信息或当前阻塞原因",
+    )
 
-
-@dataclass(frozen=True)
-class RagSufficiencyDecision:
-    is_sufficient: bool
-    missing_information: str
-    web_query: str | None
+    @model_validator(mode="after")
+    def validate_completion_status(self) -> "_FinishTaskParams":
+        missing = (self.missing_information or "").strip()
+        if self.status in {"needs_user", "blocked"} and not missing:
+            raise ValueError("needs_user 或 blocked 必须说明缺失信息或阻塞原因")
+        return self
 
 
 @dataclass
@@ -56,52 +57,54 @@ class AgentServices:
     llm: LLMClient
     base_tool_registry: ToolRegistry
     mcp_manager: MCPManager
-    rag_retriever: Any | None = None
+    rag_router: Any | None = None
     skill_catalog: SkillCatalog | None = None
 
 DEFAULT_SYSTEM_PROMPT = """# 身份与目标
 
-你是 LifeOps，一个面向个人生活管理的 AI 助理。你帮助用户整理任务、日程、健康、财务、资料、长期目标和个人工作流，把模糊想法转化为可执行的下一步。
+你是 LifeOps，一个面向个人生活管理的 AI 助理。帮助用户整理任务、日程、健康、财务、资料、长期目标和个人工作流，把模糊想法转化为可执行的下一步。
 
 # 工作方式
 
-- 先判断用户意图和任务复杂度：简单问题直接回答；复杂任务先拆解关键步骤，再推进。
-- 信息不足且会影响结果时，先提出必要的澄清问题；可以基于合理假设继续时，明确说明假设。
-- 输出以行动为导向，优先给结论、步骤、清单或可直接使用的文本。
-- 解决复杂问题时按步骤思考，但不要暴露内部推理过程，只呈现必要依据和结果。
+- 简单问题直接回答；复杂任务先拆解关键步骤再推进。
+- 信息不足且会影响结果时先澄清；可基于合理假设继续时，说明假设。
+- 输出以行动为导向：结论、步骤、清单或可直接使用的文本。
 
 # 上下文使用
 
-- 优先利用当前对话历史、L1 常驻上下文、L2 已激活 Skill 和 L3 工具结果。
 - 不臆造上下文中没有的信息；不确定时说明不确定性，并给出可验证的下一步。
-- 当上下文之间冲突时，优先遵循用户最新明确指令；必要时指出冲突并请用户确认。
+- 上下文冲突时遵循用户最新明确指令；必要时指出冲突并请用户确认。
 
 # 工具使用策略
 
-- 需要读取或编辑本地文件、执行命令、搜索互联网、调用 MCP 或其他外部服务时，使用可用工具完成。
-- 检索类问题由系统在回答前按“结构化意图判断 → 本地知识库检索 → 充分性判断 → 必要时网络搜索”的顺序编排；回答阶段基于已注入上下文融合结果，不重复描述内部编排过程。
-- 当系统已提供本地知识库或网络搜索结果时，优先使用这些上下文；只有仍需读取文件、执行命令、调用 MCP 或其他非检索工具时，才继续调用对应工具。
-- 调用工具前明确目标；工具结果返回后综合判断，不机械复述原始输出。
-- 工具调用失败、信息缺失或权限受限时，说明限制、已尝试内容和下一步选择。
+- 需要读取或编辑文件、执行命令、搜索互联网或调用 MCP 时，使用对应工具。
+- 系统已提供检索结果时优先直接使用，不重复检索；仍缺信息或需操作时才继续调用工具。
+- 工具失败或权限受限时，说明限制、已尝试内容和下一步选择。
 - 不为可直接回答的常识性或低风险问题过度调用工具。
 
 # Skill 协作
 
-- 如果系统上下文中出现已激活 Skill，遵循 Skill 正文的工作流、约束和输出要求。
-- Skill 与用户最新指令冲突时，以用户最新指令为准；冲突会影响任务质量时，简要说明。
-- 不主动编造未激活或不存在的 Skill 内容。
+- 已激活 Skill 的正文优先于本提示词中的通用规则；与用户最新指令冲突时以用户指令为准。
+
+# 任务闭环
+
+- 工具执行后必须观察工具结果，再判断原始目标是否已经满足。
+- 每轮最多执行一个工具；不要在没有观察当前结果前预先执行下一步。
+- 如果目标已完成、需要用户补充信息或无法安全继续，调用 `finish_task` 明确结束。
+- 已执行过工具后，不要直接输出普通文本作为最终回答；只能调用下一工具或 `finish_task`。
+- 不要把工具调用成功误认为任务完成；工具结果只是观察信息。
 
 # 安全与边界
 
 - 不协助违法、危险、侵犯隐私、绕过安全控制、泄露凭证或滥用外部服务的请求。
-- 涉及健康、财务、法律等高风险事项时，提供一般性信息和决策框架，提示不确定性，并建议用户核验或咨询专业人士。
+- 健康、财务、法律等高风险事项只提供一般信息和决策框架，提示不确定性并建议核验。
 - 处理个人数据、账号、文件和外部服务时，只执行用户授权范围内的操作。
 
 # 语气与输出
 
 - 始终优先使用中文，表达清晰、详尽。
 - 需要计划时给计划；需要结果时给结论和行动项。
-- 保持稳定、可靠的语气，不夸大能力，不承诺无法验证的结果。"""
+- 保持稳定可靠，不夸大能力，不承诺无法验证的结果。"""
 
 
 class Agent:
@@ -146,7 +149,7 @@ class Agent:
         self.on_token: Any | None = None
         self.skill_manager: SkillManager | None = None
         self.skill_matcher: SkillMatcher | None = None
-        self.rag_retriever: Any | None = None
+        self.rag_router: Any | None = None
         self._mcp_tools_registered = services is not None
         self.history_store = history_store or ConversationHistoryStore(config.history_path)
         self.source = source
@@ -157,14 +160,17 @@ class Agent:
         self.tool_policy_engine = tool_policy_engine or ToolPolicyEngine(config.tool_policy)
 
         if services is not None:
-            self.rag_retriever = services.rag_retriever
+            self.rag_router = services.rag_router
         elif config.rag.enabled:
+            from lifeops.rag.router import RAGRouter, RecipeRetriever
             from lifeops.rag.retriever import RAGRetriever
 
-            self.rag_retriever = RAGRetriever(config.rag)
+            backend = RAGRetriever(config.rag)
+            self.rag_router = RAGRouter([RecipeRetriever(config.rag, backend)])
 
         if services is None:
             self._register_default_tools()
+        self._register_finish_task_tool()
         self._register_rag_tool()
 
         # MCP 静态配置加载
@@ -178,12 +184,6 @@ class Agent:
             if config.mcp.presets.strip() and not _should_skip_pytest_env_mcp(config.mcp.presets):
                 self.mcp_manager.load_presets(config.mcp.presets)
 
-        self.context.add_content(
-            "system_prompt",
-            self.system_prompt,
-            ContextLayer.L1,
-            token_count=len(self.system_prompt) // 4,
-        )
         if config.skills.enabled:
             self.skill_manager = self._create_skill_manager()
             self.skill_matcher = SkillMatcher(self.llm)
@@ -205,55 +205,63 @@ class Agent:
     def _register_default_tools(self) -> None:
         register_all_builtin_tools(self.tools, self.config)
 
+    def _register_finish_task_tool(self) -> None:
+        async def handler(params: dict[str, Any]) -> ToolResult:
+            validated = _FinishTaskParams.model_validate(params)
+            return ToolResult(
+                success=True,
+                output=validated.answer,
+                metadata={
+                    "task_status": validated.status,
+                    "missing_information": validated.missing_information,
+                },
+            )
+
+        self.tools.register(
+            ToolDefinition(
+                name="finish_task",
+                description=(
+                    "任务完成判断工具。执行过其他工具后必须使用它结束本轮任务。"
+                    "status=complete 表示目标已满足；needs_user 表示必须向用户补充信息；"
+                    "blocked 表示没有安全可行的下一步。"
+                ),
+                parameters_model=_FinishTaskParams,
+                category="internal",
+                canonical_name="internal.finish_task",
+                read_only=True,
+                risk_level="low",
+            ),
+            handler,
+        )
+
     def _register_rag_tool(self) -> None:
-        if not self.config.rag.enabled:
+        if not self.config.rag.enabled or self.rag_router is None:
             return
 
         from pydantic import Field
 
         class RetrieveKnowledgeParams(ToolParams):
             query: str = Field(min_length=1, description="要在本地知识库中检索的问题")
-            data_type: str | None = Field(
-                default=None,
+            source: str = Field(
                 min_length=1,
-                pattern=r".+",
-                description="可选数据类型范围，如 dishes、notes 或 recipes",
+                description="要检索的数据源标识，必须使用工具描述中列出的值",
             )
             top_files: int = Field(default=3, ge=1, le=10, description="最多返回的文件数量")
 
         async def handler(params: dict[str, Any]) -> ToolResult:
-            from lifeops.rag.router import discover_rag_data_types, route_rag_query
-
             validated = RetrieveKnowledgeParams.model_validate(params)
-            if self.rag_retriever is None:
-                return ToolResult(success=False, output="", error="RAG 检索器未初始化")
-
+            source = validated.source.strip()
+            if not source:
+                return ToolResult(success=False, output="", error="RAG 数据源不能为空")
             top_files = min(validated.top_files, 3)
-            data_types = discover_rag_data_types(self.config.rag)
-            route_plan = route_rag_query(
-                validated.query,
-                data_types,
-                data_type=validated.data_type,
-            )
             try:
-                retrieve_async = getattr(self.rag_retriever, "retrieve_async", None)
-                if callable(retrieve_async):
-                    results = await retrieve_async(
-                        validated.query,
-                        domain=route_plan.domain,
-                        category=route_plan.category,
-                        path_prefix=route_plan.path_prefix,
-                        top_files=top_files,
-                    )
-                else:
-                    results = await asyncio.to_thread(
-                        self.rag_retriever.retrieve,
-                        validated.query,
-                        domain=route_plan.domain,
-                        category=route_plan.category,
-                        path_prefix=route_plan.path_prefix,
-                        top_files=top_files,
-                    )
+                result = await self.rag_router.retrieve(
+                    validated.query,
+                    source=source,
+                    top_files=top_files,
+                )
+            except ValueError as exc:
+                return ToolResult(success=False, output="", error=str(exc))
             except Exception as exc:
                 logger.exception("本地知识库检索失败")
                 return ToolResult(
@@ -262,38 +270,23 @@ class Agent:
                     error=f"本地知识库检索失败：{str(exc)[:120]}",
                     metadata={"error_type": RuntimeErrorType.RAG_ERROR.value},
                 )
-            formatted = self.rag_retriever.format_results(results)
-            route_key = route_plan.data_type or route_plan.domain or "all"
-            query_hash = sha1(validated.query.encode("utf-8")).hexdigest()[:12]
-            self.context.add_content(
-                f"rag:{route_key}:{query_hash}",
-                formatted,
-                ContextLayer.L2,
-                token_count=len(formatted) // 4,
-            )
             return ToolResult(
                 success=True,
-                output=formatted,
+                output=result.output,
                 metadata={
-                    "selected_data_type": route_plan.data_type,
-                    "path_prefix": route_plan.path_prefix,
-                    "result_count": len(results),
+                    "source": source,
+                    "result_count": result.result_count,
                     "top_files": top_files,
-                    "route_reason": route_plan.reason,
                 },
             )
 
-        from lifeops.rag.router import discover_rag_data_types, format_data_type_catalog
-
-        catalog = format_data_type_catalog(discover_rag_data_types(self.config.rag))
+        catalog = self.rag_router.format_source_catalog()
         self.tools.register(
             ToolDefinition(
                 name="retrieve_knowledge",
                 description=(
-                    "知识库路由检索。何时调用：查询本地知识库、笔记、食谱、个人资料、已有文档或项目内沉淀内容。"
-                    "何时禁止：不要用于实时网络信息、新闻、政策、价格、公开网页事实或最新版本信息。"
-                    "会自动选择合适的数据类型和检索范围，最多返回文件级结果。"
-                    "可选 data_type 用于明确指定范围。\n"
+                    "本地知识库路由检索。仅在用户请求涉及下方本地数据源时调用；"
+                    "调用时必须传入匹配的 source。不要用于实时网络信息、新闻、政策、价格、公开网页事实或最新版本信息。\n"
                     f"{catalog}"
                 ),
                 parameters_model=RetrieveKnowledgeParams,
@@ -380,13 +373,18 @@ class Agent:
         self.mcp_manager.remove_server(name)
         self._mcp_tools_registered = False
 
-    def _build_messages(self) -> list[Message]:
-        result = [Message(role=MessageRole.SYSTEM, content=self._build_system_context())]
+    def _build_messages(self, task_instruction: str | None = None) -> list[Message]:
+        result = [
+            Message(
+                role=MessageRole.SYSTEM,
+                content=self._build_system_context(task_instruction),
+            )
+        ]
         result.extend(self.messages)
         return result
 
-    def _build_system_context(self) -> str:
-        sections: list[str] = []
+    def _build_system_context(self, task_instruction: str | None = None) -> str:
+        sections: list[str] = [f"## 当前信息\n当前日期：{datetime.now():%Y-%m-%d}"]
         for title, entries in (
             ("L1 常驻上下文", self.context.get_l1_content()),
             ("L2 按需上下文", self.context.get_l2_content()),
@@ -401,7 +399,252 @@ class Agent:
                 continue
             section = "\n\n".join(entry.content for entry in content_entries)
             sections.append(f"## {title}\n{section}")
-        return "\n\n".join(sections) if sections else self.system_prompt
+        if task_instruction:
+            sections.append(f"## 当前任务闭环\n{task_instruction}")
+        return "\n\n".join([self.system_prompt, *sections])
+
+    def _prepare_llm_messages(
+        self,
+        messages: list[Message],
+        tools: list[ToolDefinition] | None,
+        *,
+        run_message_start: int = 0,
+    ) -> tuple[list[Message], dict[str, int]]:
+        prepared = list(messages)
+        budget = self.config.context.max_context_tokens
+        tool_schema_tokens = self._estimate_tool_schema_tokens(tools)
+        system_tokens = self._estimate_message_tokens(prepared[0]) if prepared else 0
+        history_tokens = sum(self._estimate_message_tokens(message) for message in prepared[1:])
+        trimmed_message_count = 0
+        truncated_tool_output_count = 0
+
+        def total_tokens() -> int:
+            return (
+                sum(self._estimate_message_tokens(message) for message in prepared)
+                + tool_schema_tokens
+            )
+
+        historical_end = min(1 + run_message_start, len(prepared))
+        while total_tokens() > budget and len(prepared) > 1 and historical_end > 1:
+            prepared.pop(1)
+            historical_end -= 1
+            trimmed_message_count += 1
+
+        current_run_tool_indexes = [
+            index
+            for index, message in enumerate(prepared[historical_end:], start=historical_end)
+            if message.role == MessageRole.TOOL
+        ]
+        for index in current_run_tool_indexes:
+            if total_tokens() <= budget:
+                break
+            message = prepared[index]
+            if message.content is None:
+                continue
+            old_content = message.content
+            excess = total_tokens() - budget
+            new_length = max(0, len(old_content) - excess * 4)
+            if new_length == len(old_content):
+                new_length = max(0, len(old_content) - 1)
+            prepared[index] = Message(
+                role=message.role,
+                content=old_content[:new_length],
+                tool_calls=message.tool_calls,
+                tool_call_id=message.tool_call_id,
+                name=message.name,
+                reasoning_content=message.reasoning_content,
+            )
+            truncated_tool_output_count += 1
+
+        estimated_tokens = total_tokens()
+        stats = {
+            "system_tokens": system_tokens,
+            "history_tokens": history_tokens,
+            "tool_schema_tokens": tool_schema_tokens,
+            "estimated_tokens": estimated_tokens,
+            "context_budget": budget,
+            "trimmed_message_count": trimmed_message_count,
+            "truncated_tool_output_count": truncated_tool_output_count,
+        }
+        if estimated_tokens > budget:
+            raise AgentRuntimeError(
+                RuntimeErrorType.CONTEXT_ERROR,
+                "context_error",
+                details=stats,
+            )
+        return prepared, stats
+
+    def _estimate_message_tokens(self, message: Message) -> int:
+        return self.context.estimate_tokens(
+            json.dumps(message.to_dict(), ensure_ascii=False, separators=(",", ":"))
+        )
+
+    def _estimate_tool_schema_tokens(self, tools: list[ToolDefinition] | None) -> int:
+        if not tools:
+            return 0
+        return sum(
+            self.context.estimate_tokens(
+                json.dumps(openai_tool_schema(tool), ensure_ascii=False, separators=(",", ":"))
+            )
+            for tool in tools
+        )
+
+    def _record_llm_call_started(
+        self, budget: dict[str, int], payload: dict[str, Any]
+    ) -> None:
+        self._record_trace(
+            TraceEventType.LLM_CALL_STARTED,
+            {
+                **payload,
+                **budget,
+            },
+        )
+
+    async def _chat_stream_with_retry(
+        self,
+        messages: list[Message],
+        tools: list[ToolDefinition] | None,
+        *,
+        emit_content: bool = True,
+    ) -> tuple[ChatResponse, bool]:
+        for attempt in range(2):
+            content_parts: list[str] = []
+            reasoning_parts: list[str] = []
+            stream_tool_calls: list[dict[str, Any]] = []
+            stream = self.llm.chat_stream(messages, tools=tools)
+            if not hasattr(stream, "__aiter__"):
+                if inspect.iscoroutine(stream):
+                    stream.close()
+                try:
+                    return await self.llm.chat(messages, tools=tools), False
+                except LLMError as exc:
+                    self._fail_run(exc.error_type, exc.message)
+                    raise
+
+            stream_error: dict[str, Any] | None = None
+            async for event in stream:
+                event_type = event.get("type") if isinstance(event, dict) else None
+                data = event.get("data") if isinstance(event, dict) else None
+                if event_type == "token" and isinstance(data, str) and data:
+                    content_parts.append(data)
+                    if emit_content:
+                        await self.on_token(data)
+                elif event_type == "tool_call_start" and isinstance(data, dict):
+                    await self._prepare_tool_call(data.get("name", ""), None, status="started")
+                elif event_type == "tool_call_ready" and isinstance(data, dict):
+                    await self._prepare_tool_call(
+                        data.get("name", ""),
+                        data.get("args") if isinstance(data.get("args"), dict) else None,
+                        status="ready",
+                    )
+                elif event_type == "tool_call" and isinstance(data, dict):
+                    stream_tool_calls.append(data)
+                elif event_type == "reasoning_content" and isinstance(data, str):
+                    reasoning_parts.append(data)
+                elif event_type == "error":
+                    stream_error = self._stream_error_payload(data)
+                    break
+
+            emitted = bool(content_parts or reasoning_parts or stream_tool_calls)
+            if stream_error is not None:
+                retryable = self._stream_error_can_retry(stream_error, emitted, attempt)
+                self._record_trace(
+                    TraceEventType.LLM_ERROR,
+                    {**stream_error, "attempt": attempt + 1, "retrying": retryable},
+                )
+                if retryable:
+                    continue
+                self._fail_run(
+                    stream_error.get("error_type") or RuntimeErrorType.LLM_ERROR.value,
+                    stream_error.get("message") or "LLM 流式调用失败",
+                )
+                raise AgentRuntimeError(
+                    RuntimeErrorType.LLM_ERROR,
+                    stream_error.get("message") or "LLM 流式调用失败",
+                    details=stream_error,
+                )
+
+            reasoning_content = "".join(reasoning_parts) if reasoning_parts else None
+            if stream_tool_calls:
+                tool_call_results = [
+                    ToolCallResult(
+                        id=tc.get("id") or f"tc_{index}",
+                        name=tc["name"],
+                        arguments=json.dumps(tc.get("args") or {}, ensure_ascii=False),
+                    )
+                    for index, tc in enumerate(stream_tool_calls)
+                ]
+                return (
+                    ChatResponse(
+                        content="".join(content_parts),
+                        tool_calls=tool_call_results,
+                        reasoning_content=reasoning_content,
+                    ),
+                    bool((content_parts and emit_content) or stream_tool_calls),
+                )
+            return (
+                ChatResponse(
+                    content="".join(content_parts) if content_parts else None,
+                    tool_calls=None,
+                    reasoning_content=reasoning_content,
+                ),
+                bool(content_parts and emit_content),
+            )
+
+        raise AssertionError("stream retry loop exhausted")
+
+    def _stream_error_payload(self, data: Any) -> dict[str, Any]:
+        if isinstance(data, dict):
+            return {
+                "message": str(data.get("message") or "LLM 流式调用失败"),
+                "error_type": str(data.get("error_type") or RuntimeErrorType.LLM_ERROR.value),
+                "retryable": bool(data.get("retryable")),
+                "status_code": data.get("status_code"),
+            }
+        return {
+            "message": str(data or "LLM 流式调用失败"),
+            "error_type": RuntimeErrorType.LLM_ERROR.value,
+            "retryable": False,
+            "status_code": None,
+        }
+
+    def _stream_error_can_retry(
+        self, error: dict[str, Any], emitted: bool, attempt: int
+    ) -> bool:
+        if attempt or emitted or not error.get("retryable"):
+            return False
+        if error.get("status_code") in {400, 401, 403, 422}:
+            return False
+        return error.get("error_type") not in {
+            "auth_error",
+            "authentication_error",
+            "authorization_error",
+            "tool_schema_error",
+            "reasoning_content_protocol_error",
+            "reasoning_protocol_error",
+        }
+
+    def _fail_run(self, error_type: str, message: str) -> None:
+        self._record_trace(
+            TraceEventType.RUN_FAILED,
+            {"error_type": error_type, "message": message},
+        )
+        self._update_run_status(
+            RunStatus.FAILED,
+            error_type=error_type,
+            error_message=message,
+        )
+
+    def _return_context_error(
+        self, message: str, details: dict[str, Any] | None = None
+    ) -> str:
+        if details:
+            self._record_trace(
+                TraceEventType.LLM_CALL_STARTED,
+                {**details, "context_error": True, "stage": "context_budget"},
+            )
+        self._fail_run(RuntimeErrorType.CONTEXT_ERROR.value, message or "context_error")
+        return "context_error"
 
     async def run(self, user_input: str) -> str:
         user_input = sanitize_unicode_text(user_input)
@@ -428,6 +671,7 @@ class Agent:
             self.skill_matcher.llm = self.llm
         await self._activate_skills_for_input(user_input)
         await self._ensure_mcp_tools_registered()
+        run_message_start = len(self.messages)
         self.messages.append(Message(role=MessageRole.USER, content=user_input))
         self._persist_message(MessageRole.USER, user_input)
         self.context.add_content(
@@ -437,11 +681,19 @@ class Agent:
             token_count=len(user_input) // 4,
         )
 
-        first_response = await self._orchestrate_retrieval_before_answer(user_input)
         used_tool_names: list[str] = []
+        completion_violations = 0
 
         for iteration in range(self.max_iterations):
-            all_messages = self._build_messages()
+            requires_explicit_finish = bool(used_tool_names)
+            task_instruction = None
+            if requires_explicit_finish:
+                task_instruction = (
+                    "已经执行过工具。请先观察工具结果并重新判断原始目标："
+                    "只能调用一个下一步工具，或调用 finish_task 结束；禁止直接输出普通最终文本。"
+                )
+                if completion_violations:
+                    task_instruction += "上一次没有遵守该协议，请本轮必须调用工具或 finish_task。"
             tool_defs = self.tools.list_definitions()
             selection_context = self._build_tool_selection_context(user_input, used_tool_names)
             exposed_tool_defs = select_llm_tools(tool_defs, context=selection_context)
@@ -451,8 +703,18 @@ class Agent:
                 if tool.category == "mcp"
                 and all(exposed_tool.name != tool.name for exposed_tool in exposed_tool_defs)
             )
-            self._record_trace(
-                TraceEventType.LLM_CALL_STARTED,
+            try:
+                all_messages, budget = self._prepare_llm_messages(
+                    self._build_messages(task_instruction),
+                    exposed_tool_defs,
+                    run_message_start=run_message_start,
+                )
+            except AgentRuntimeError as exc:
+                if exc.error_type == RuntimeErrorType.CONTEXT_ERROR:
+                    return self._return_context_error(exc.message, exc.details)
+                raise
+            self._record_llm_call_started(
+                budget,
                 {
                     "message_count": len(all_messages),
                     "tool_count": len(exposed_tool_defs),
@@ -460,89 +722,34 @@ class Agent:
                     "exposed_tool_count": len(exposed_tool_defs),
                     "dropped_mcp_count": dropped_mcp_count,
                     "iteration": iteration,
+                    "stage": "answer",
                 },
             )
 
-            if iteration == 0 and first_response is not None:
-                response = first_response
-            elif self.on_token is not None:
-                content_parts: list[str] = []
-                reasoning_parts: list[str] = []
-                stream_tool_calls: list[dict[str, Any]] = []
-                emitted_from_stream = False
-                stream = self.llm.chat_stream(
+            emitted_from_stream = False
+            if self.on_token is not None:
+                response, emitted_from_stream = await self._chat_stream_with_retry(
                     all_messages,
-                    tools=exposed_tool_defs if exposed_tool_defs else None,
+                    exposed_tool_defs if exposed_tool_defs else None,
+                    emit_content=not requires_explicit_finish,
                 )
-                if not hasattr(stream, "__aiter__"):
-                    if inspect.iscoroutine(stream):
-                        stream.close()
-                    response = await self.llm.chat(
-                        all_messages,
-                        tools=exposed_tool_defs if exposed_tool_defs else None,
-                    )
-                else:
-                    async for event in stream:
-                        if event["type"] == "token":
-                            content_parts.append(event["data"])
-                            emitted_from_stream = True
-                            await self.on_token(event["data"])
-                        elif event["type"] == "tool_call_start":
-                            data = event["data"]
-                            await self._prepare_tool_call(
-                                data.get("name", ""),
-                                None,
-                                status="started",
-                            )
-                        elif event["type"] == "tool_call_ready":
-                            data = event["data"]
-                            await self._prepare_tool_call(
-                                data.get("name", ""),
-                                data.get("args") if isinstance(data.get("args"), dict) else None,
-                                status="ready",
-                            )
-                        elif event["type"] == "tool_call":
-                            stream_tool_calls.append(event["data"])
-                        elif event["type"] == "reasoning_content":
-                            reasoning_parts.append(event["data"])
-                        elif event["type"] == "error":
-                            logger.error(f"LLM stream error: {event['data']}")
-                            content_parts.clear()
-                            stream_tool_calls.clear()
-                            break
-                    reasoning_content = "".join(reasoning_parts) if reasoning_parts else None
-                    if stream_tool_calls:
-                        tc_results = [
-                            ToolCallResult(
-                                id=tc.get("id") or f"tc_{i}",
-                                name=tc["name"],
-                                arguments=json.dumps(tc["args"], ensure_ascii=False),
-                            )
-                            for i, tc in enumerate(stream_tool_calls)
-                        ]
-                        response = ChatResponse(
-                            content="".join(content_parts) if content_parts else "",
-                            tool_calls=tc_results,
-                            reasoning_content=reasoning_content,
-                        )
-                    else:
-                        response = ChatResponse(
-                            content="".join(content_parts) if content_parts else None,
-                            tool_calls=None,
-                            reasoning_content=reasoning_content,
-                        )
                 if (
-                    not emitted_from_stream
+                    not requires_explicit_finish
+                    and not emitted_from_stream
                     and response.content
                     and not response.tool_calls
                     and self.on_token is not None
                 ):
                     await self.on_token(response.content)
             else:
-                response = await self.llm.chat(
-                    all_messages,
-                    tools=exposed_tool_defs if exposed_tool_defs else None,
-                )
+                try:
+                    response = await self.llm.chat(
+                        all_messages,
+                        tools=exposed_tool_defs if exposed_tool_defs else None,
+                    )
+                except LLMError as exc:
+                    self._fail_run(exc.error_type, exc.message)
+                    raise
             self._record_trace(
                 TraceEventType.LLM_CALL_FINISHED,
                 {
@@ -552,32 +759,25 @@ class Agent:
                 },
             )
 
+            if response.content and not response.tool_calls and requires_explicit_finish:
+                completion_violations += 1
+                self._record_trace(
+                    TraceEventType.LLM_PARSE_ERROR,
+                    {
+                        "stage": "task_completion",
+                        "reason": "工具执行后必须调用下一工具或 finish_task",
+                        "iteration": iteration,
+                    },
+                )
+                continue
+
             if response.content and not response.tool_calls:
                 response_content = sanitize_unicode_text(response.content)
-                self.messages.append(
-                    Message(
-                        role=MessageRole.ASSISTANT,
-                        content=response_content,
-                        reasoning_content=response.reasoning_content,
-                    )
-                )
-                self.context.add_content(
-                    f"assistant_{len(self.messages)}",
-                    response_content,
-                    ContextLayer.L1,
-                    token_count=len(response_content) // 4,
-                )
-                self._persist_message(
-                    MessageRole.ASSISTANT,
+                return await self._complete_response(
                     response_content,
                     reasoning_content=response.reasoning_content,
+                    emit_token=not emitted_from_stream,
                 )
-                self._record_trace(
-                    TraceEventType.RUN_COMPLETED,
-                    {"output_length": len(response_content)},
-                )
-                self._update_run_status(RunStatus.COMPLETED, final_output=response_content)
-                return response_content
 
             if response.tool_calls:
                 tool_calls = [self._tool_call_to_dict(tc) for tc in response.tool_calls]
@@ -597,11 +797,52 @@ class Agent:
                     reasoning_content=response.reasoning_content,
                 )
 
-                for tc in response.tool_calls:
-                    await self._execute_tool_call_result(tc)
-                    used_tool_names.append(tc.name)
+                first_tool_call = response.tool_calls[0]
+                result = await self._execute_tool_call_result(first_tool_call)
+                if first_tool_call.name == "finish_task" and result.success:
+                    status = str(result.metadata.get("task_status") or "complete")
+                    self._record_trace(
+                        TraceEventType.TASK_COMPLETION_DECIDED,
+                        {
+                            "status": status,
+                            "iteration": iteration,
+                            "executed_tool_count": len(used_tool_names),
+                            "has_missing_information": bool(
+                                result.metadata.get("missing_information")
+                            ),
+                        },
+                    )
+                    return await self._complete_response(
+                        result.output,
+                        reasoning_content=response.reasoning_content,
+                        emit_token=True,
+                    )
+                used_tool_names.append(first_tool_call.name)
+
+                for skipped_call in response.tool_calls[1:]:
+                    await self._record_tool_result(
+                        skipped_call,
+                        ToolResult(
+                            success=False,
+                            output="",
+                            error="本轮仅执行一个动作，请观察当前结果后重新决定。",
+                            metadata={"skipped": True},
+                        ),
+                        0,
+                    )
 
             if not response.content and not response.tool_calls:
+                if requires_explicit_finish:
+                    completion_violations += 1
+                    self._record_trace(
+                        TraceEventType.LLM_PARSE_ERROR,
+                        {
+                            "stage": "task_completion",
+                            "reason": "工具执行后未返回下一步动作",
+                            "iteration": iteration,
+                        },
+                    )
+                    continue
                 fallback = "I couldn't generate a response. Please try again."
                 if self.on_token is not None:
                     await self.on_token(fallback)
@@ -638,44 +879,39 @@ class Agent:
         )
         return message
 
-    async def _orchestrate_retrieval_before_answer(
-        self, user_input: str
-    ) -> ChatResponse | None:
-        route_decision, fallback_response = await self._plan_retrieval_route(user_input)
-        if route_decision is None:
-            return fallback_response
-
-        rag_result: ToolResult | None = None
-        rag_was_requested = route_decision.should_use_rag
-        rag_is_available = self.tools.get_definition("retrieve_knowledge") is not None
-        if rag_was_requested and rag_is_available:
-            rag_query = route_decision.rag_query or user_input
-            rag_result = await self._execute_pre_answer_tool(
-                "retrieve_knowledge",
-                {"query": rag_query},
+    async def _complete_response(
+        self,
+        response_content: str,
+        *,
+        reasoning_content: str | None = None,
+        emit_token: bool = False,
+    ) -> str:
+        if emit_token and self.on_token is not None:
+            await self.on_token(response_content)
+        self.messages.append(
+            Message(
+                role=MessageRole.ASSISTANT,
+                content=response_content,
+                reasoning_content=reasoning_content,
             )
-
-        should_use_web = route_decision.should_use_web
-        web_query = route_decision.web_query
-        if rag_result is not None and rag_result.success:
-            sufficiency_decision = await self._evaluate_rag_sufficiency(user_input, rag_result)
-            if sufficiency_decision is not None and not sufficiency_decision.is_sufficient:
-                should_use_web = True
-                web_query = sufficiency_decision.web_query or web_query
-        elif rag_was_requested and not rag_is_available:
-            should_use_web = True
-            web_query = web_query or route_decision.rag_query or user_input
-        elif rag_result is not None and not rag_result.success:
-            should_use_web = True
-            web_query = web_query or route_decision.rag_query or user_input
-
-        if should_use_web and self.tools.get_definition("web_search") is not None:
-            await self._execute_pre_answer_tool(
-                "web_search",
-                {"query": web_query or user_input},
-            )
-
-        return None
+        )
+        self.context.add_content(
+            f"assistant_{len(self.messages)}",
+            response_content,
+            ContextLayer.L1,
+            token_count=len(response_content) // 4,
+        )
+        self._persist_message(
+            MessageRole.ASSISTANT,
+            response_content,
+            reasoning_content=reasoning_content,
+        )
+        self._record_trace(
+            TraceEventType.RUN_COMPLETED,
+            {"output_length": len(response_content)},
+        )
+        self._update_run_status(RunStatus.COMPLETED, final_output=response_content)
+        return response_content
 
     def _build_tool_selection_context(
         self, user_input: str, used_tool_names: list[str] | None = None
@@ -705,120 +941,6 @@ class Agent:
             active_skill_allowed_tools=allowed_tools,
             used_tool_names=tuple(used_tool_names or ()),
         )
-
-    async def _plan_retrieval_route(
-        self, user_input: str
-    ) -> tuple[RetrievalRouteDecision | None, ChatResponse | None]:
-        prompt = (
-            "请判断回答用户问题前是否需要检索。只输出 JSON 对象，不要输出 Markdown。\n"
-            "字段：should_use_rag(boolean), should_use_web(boolean), "
-            "rag_query(string|null), web_query(string|null), reason(string)。\n"
-            "判断原则：\n"
-            "- 涉及用户本地知识库、已有文档、食谱、笔记、个人资料时 should_use_rag=true。\n"
-            "- 涉及最新信息、外部事实、价格、政策、新闻、网页资料时 should_use_web=true。\n"
-            "- 常识、闲聊、无需额外资料的任务两个字段都为 false。\n\n"
-            f"用户问题：{user_input}"
-        )
-        response = await self.llm.chat(
-            self._build_messages() + [Message(role=MessageRole.USER, content=prompt)],
-            tools=None,
-        )
-        if response.tool_calls:
-            return None, response
-
-        payload = self._parse_json_object(response.content)
-        if payload is None:
-            self._record_trace(
-                TraceEventType.LLM_PARSE_ERROR,
-                {"stage": "retrieval_route", "content_length": len(response.content or "")},
-            )
-            return None, None
-
-        try:
-            decision = RetrievalRouteDecision(
-                should_use_rag=self._coerce_bool(payload.get("should_use_rag")),
-                should_use_web=self._coerce_bool(payload.get("should_use_web")),
-                rag_query=self._optional_text(payload.get("rag_query")),
-                web_query=self._optional_text(payload.get("web_query")),
-                reason=str(payload.get("reason") or ""),
-            )
-            self._record_trace(
-                TraceEventType.RETRIEVAL_ROUTE_DECIDED,
-                {
-                    "should_use_rag": decision.should_use_rag,
-                    "should_use_web": decision.should_use_web,
-                    "has_rag_query": decision.rag_query is not None,
-                    "has_web_query": decision.web_query is not None,
-                },
-            )
-            return (decision, None)
-        except Exception:
-            logger.exception("检索路由结构化结果解析失败")
-            self._record_trace(
-                TraceEventType.LLM_PARSE_ERROR,
-                {"stage": "retrieval_route", "error": "结构化结果解析失败"},
-            )
-            return None, None
-
-    async def _evaluate_rag_sufficiency(
-        self, user_input: str, rag_result: ToolResult
-    ) -> RagSufficiencyDecision | None:
-        prompt = (
-            "请判断以下本地知识库检索结果是否足够回答用户问题。只输出 JSON 对象，"
-            "不要输出 Markdown。\n"
-            "字段：is_sufficient(boolean), missing_information(string), web_query(string|null)。\n"
-            "如果本地资料不足且需要外部补充，请给出适合网络搜索的 web_query。\n\n"
-            f"用户问题：{user_input}\n\n"
-            f"本地知识库结果：\n{rag_result.output}"
-        )
-        response = await self.llm.chat(
-            self._build_messages() + [Message(role=MessageRole.USER, content=prompt)],
-            tools=None,
-        )
-        payload = self._parse_json_object(response.content)
-        if payload is None:
-            self._record_trace(
-                TraceEventType.LLM_PARSE_ERROR,
-                {"stage": "rag_sufficiency", "content_length": len(response.content or "")},
-            )
-            return None
-
-        try:
-            return RagSufficiencyDecision(
-                is_sufficient=self._coerce_bool(payload.get("is_sufficient")),
-                missing_information=str(payload.get("missing_information") or ""),
-                web_query=self._optional_text(payload.get("web_query")),
-            )
-        except Exception:
-            logger.exception("RAG 充分性结构化结果解析失败")
-            return None
-
-    async def _execute_pre_answer_tool(
-        self, tool_name: str, params: dict[str, Any]
-    ) -> ToolResult:
-        tool_call = ToolCallResult(
-            id=f"pre_{uuid4().hex}",
-            name=tool_name,
-            arguments=json.dumps(params, ensure_ascii=False),
-            type="function",
-        )
-        tool_calls = [self._tool_call_to_dict(tool_call)]
-        self.messages.append(
-            Message(
-                role=MessageRole.ASSISTANT,
-                content=f"准备调用 {tool_name}",
-                tool_calls=tool_calls,
-                reasoning_content="",
-            )
-        )
-        self._persist_message(
-            MessageRole.ASSISTANT,
-            f"准备调用 {tool_name}",
-            tool_calls=tool_calls,
-            intermediate=True,
-            reasoning_content="",
-        )
-        return await self._execute_tool_call_result(tool_call)
 
     async def _execute_tool_call_result(self, tc: ToolCallResult) -> ToolResult:
         try:
@@ -1014,38 +1136,6 @@ class Agent:
         except Exception:
             logger.exception("上下文压缩管道执行失败")
 
-    def _parse_json_object(self, content: str | None) -> dict[str, Any] | None:
-        if not content:
-            return None
-        text = content.strip()
-        if text.startswith("```"):
-            lines = text.splitlines()
-            if lines and lines[0].startswith("```"):
-                lines = lines[1:]
-            if lines and lines[-1].startswith("```"):
-                lines = lines[:-1]
-            text = "\n".join(lines).strip()
-        try:
-            payload = json.loads(text)
-        except json.JSONDecodeError:
-            return None
-        if not isinstance(payload, dict):
-            return None
-        return payload
-
-    def _optional_text(self, value: Any) -> str | None:
-        if value is None:
-            return None
-        text = str(value).strip()
-        return text or None
-
-    def _coerce_bool(self, value: Any) -> bool:
-        if isinstance(value, bool):
-            return value
-        if isinstance(value, str):
-            return value.strip().lower() in {"true", "1", "yes", "y"}
-        return bool(value)
-
     def _tool_call_to_dict(self, tc: ToolCallResult) -> dict:
         return {
             "id": tc.id,
@@ -1096,12 +1186,6 @@ class Agent:
             l2_budget_ratio=self.config.context.l2_budget_ratio,
             l3_budget_ratio=self.config.context.l3_budget_ratio,
             reserve_ratio=self.config.context.reserve_ratio,
-        )
-        self.context.add_content(
-            "system_prompt",
-            self.system_prompt,
-            ContextLayer.L1,
-            token_count=len(self.system_prompt) // 4,
         )
         if self.config.skills.enabled:
             self.skill_manager = self._create_skill_manager()

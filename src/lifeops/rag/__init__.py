@@ -1,4 +1,4 @@
-__all__ = ["RAGIndexer", "RAGRetriever"]
+__all__ = ["RAGIndexer", "RAGRetriever", "RAGRouter", "RecipeRetriever"]
 
 
 def __getattr__(name: str):
@@ -10,4 +10,8 @@ def __getattr__(name: str):
         from lifeops.rag.retriever import RAGRetriever
 
         return RAGRetriever
+    if name in {"RAGRouter", "RecipeRetriever"}:
+        from lifeops.rag.router import RAGRouter, RecipeRetriever
+
+        return {"RAGRouter": RAGRouter, "RecipeRetriever": RecipeRetriever}[name]
     raise AttributeError(name)

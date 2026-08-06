@@ -36,9 +36,9 @@ LifeOps 是一个本地优先的 AI 生活助手智能体。它把流式对话�
 
 ### ReAct 推理与工具执行
 
-每次输入都会进入 Agent 调度器。Agent 会先加载必要上下文和相关 Skill，再按“检索预编排 → LLM 推理 → 工具调用 → 继续推理 → 最终回答”的流程迭代运行，最多 10 轮。
+每次输入都会进入 Agent 调度器。Agent 会先加载必要上下文和相关 Skill，再按“LLM 推理 → 执行一个工具 → 观察结果 → 继续行动或显式完成”的流程迭代运行，最多 10 轮。简单问答可以直接回答；一旦执行过工具，必须调用下一工具或内部 `finish_task`，不能把普通文本直接视为完成。
 
-工具结果不会简单拼接到回答里，而是进入上下文管理器和历史记录。这样模型可以基于真实执行结果继续推理，前端也能完整展示调用轨迹。
+工具结果不会简单拼接到回答里，而是进入上下文管理器和历史记录。这样模型可以基于真实执行结果重新判断目标是否满足；每轮最多执行一个工具，前端也能通过 Runtime Trace 观察完成决策。
 
 LLM 流式输出工具调用时，Agent 会监听工具名和参数增量：识别工具名后只做无副作用预热，参数可解析为 JSON 后补齐参数元数据；真正执行仍必须等完整 tool call 进入现有策略网关和工具执行流程。
 
@@ -83,7 +83,7 @@ curl http://127.0.0.1:8081/api/tools/policy
 
 ![本地 Markdown RAG](assets/rag.png)
 
-RAG 系统会把本地 Markdown 知识库索引到 ChromaDB 与 BM25。回答前，Agent 会判断是否需要调用 `retrieve_knowledge`，并根据问题路由到合适的数据目录；检索时会并行执行向量检索与 BM25，再进行 RRF 融合和 reranker 精排；本地资料不足时，仍可继续补充网页搜索。
+RAG 系统会把本地 Markdown 知识库索引到 ChromaDB 与 BM25。主 LLM 需要本地资料时调用唯一公开工具 `retrieve_knowledge`，传入工具描述中的顶级 `source`（当前为 `recipes` 菜谱）；工具内部再由 `RAGRouter` 分发到对应 Retriever，菜谱 Retriever 负责 `dishes/` 下的细分类路由。检索时会并行执行向量检索与 BM25，再进行 RRF 融合和 reranker 精排；本地资料不足时，主 LLM 可根据结果自行决定是否继续调用网页搜索。
 
 返回结果按父 Markdown 文件聚合，并保留证据片段。Markdown 中的本地图片会通过只读资源接口安全展示在前端消息里。
 
@@ -124,6 +124,8 @@ Skill 系统启用时，Agent 会额外暴露只读低风险内部工具 `activa
 Agent 运行时不需要区分工具来源。内置工具、MCP 工具和内部 Skill 伪工具都会注册到统一工具表中，执行层始终保留完整 registry，执行结果再写入上下文和 Logging。`/api/tools` 仍返回完整工具清单，便于管理和调试。
 
 发送给 LLM 的 `tools` 数组会在每轮请求前动态裁剪到最多 20 个：核心内置工具优先保留，MCP 工具会按用户输入、已激活 Skill、Skill `allowed-tools`、工具名/描述和常见 server 领域词做确定性匹配，只暴露本轮相关的 MCP 工具。这样可以在保留完整 MCP 能力的同时减少模型工具选择噪声。
+
+每轮 LLM 请求还会估算 system、历史消息和工具 schema 的 token 预算，超限时裁剪最旧历史并压缩当前运行中的工具输出；无法安全压缩时返回 `context_error` 并将运行标记为失败。MCP 发送给模型的 function name 只使用合法 wire name（例如 `mcp_github_search_repositories`），策略、日志和路由仍保留 `mcp.github.search_repositories` canonical name。
 
 除了手写 `LIFEOPS_MCP_SERVERS` JSON，LifeOps 也支持 `LIFEOPS_MCP_PRESETS` 启用无需 API Key 的基础 MCP 能力。推荐基础组合是 `context7,playwright,memory,sequential_thinking,filesystem`，分别用于库文档查询、浏览器自动化、本地记忆、结构化推理和受限文件访问。已有同名手写 Server 会优先于预设，不会被覆盖。
 

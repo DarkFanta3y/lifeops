@@ -10,6 +10,7 @@ class PolicyAction(str, Enum):
 
 
 DEFAULT_ALLOW_TOOLS = {
+    "internal.finish_task",
     "builtin.file_read",
     "builtin.retrieve_knowledge",
     "builtin.web_search",

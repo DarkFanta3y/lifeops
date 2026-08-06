@@ -7,6 +7,39 @@ from typing import Any
 from lifeops.utils.text import sanitize_unicode_data, sanitize_unicode_text
 
 
+@dataclass(frozen=True)
+class LLMErrorInfo:
+    message: str
+    error_type: str = "llm_error"
+    retryable: bool = False
+    status_code: int | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "message": self.message,
+            "error_type": self.error_type,
+            "retryable": self.retryable,
+            "status_code": self.status_code,
+        }
+
+
+class LLMError(Exception):
+    def __init__(self, info: LLMErrorInfo):
+        self.message = info.message
+        self.error_type = info.error_type
+        self.retryable = info.retryable
+        self.status_code = info.status_code
+        super().__init__(self.message)
+
+    def to_dict(self) -> dict[str, Any]:
+        return LLMErrorInfo(
+            message=self.message,
+            error_type=self.error_type,
+            retryable=self.retryable,
+            status_code=self.status_code,
+        ).to_dict()
+
+
 class MessageRole(str, Enum):
     SYSTEM = "system"
     USER = "user"

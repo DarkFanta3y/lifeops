@@ -71,3 +71,17 @@ class RAGRoutePlan:
     category: str | None
     path_prefix: str | None
     reason: str
+
+
+@dataclass(frozen=True)
+class RAGSourceDefinition:
+    id: str
+    label: str
+    description: str
+    call_when: str
+
+
+@dataclass(frozen=True)
+class RAGSourceResult:
+    output: str
+    result_count: int

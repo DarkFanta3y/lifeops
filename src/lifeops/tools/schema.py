@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import re
 
 from lifeops.tools.base import ToolDefinition, ToolParams
 from lifeops.utils.logging import get_logger
@@ -8,8 +9,11 @@ from lifeops.utils.logging import get_logger
 logger = get_logger(__name__)
 
 MAX_LLM_TOOLS = 20
+TOOL_NAME_MAX_LENGTH = 64
+_TOOL_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 
 CORE_TOOL_ORDER = {
+    "finish_task": -20,
     "activate_skill": -10,
     "retrieve_knowledge": 0,
     "web_search": 1,
@@ -76,6 +80,7 @@ def parameters_schema_from_model(parameters_model: type[ToolParams]) -> dict:
 
 
 def openai_tool_schema(tool_def: ToolDefinition) -> dict:
+    validate_tool_name(tool_def.name)
     return {
         "type": "function",
         "function": {
@@ -84,6 +89,15 @@ def openai_tool_schema(tool_def: ToolDefinition) -> dict:
             "parameters": parameters_schema_from_model(tool_def.parameters_model),
         },
     }
+
+
+def validate_tool_name(name: str) -> str:
+    """验证发送给 LLM 的 function name。"""
+    if not isinstance(name, str) or not 1 <= len(name) <= TOOL_NAME_MAX_LENGTH:
+        raise ValueError(f"工具名称不合法：长度必须为 1-{TOOL_NAME_MAX_LENGTH} 个字符")
+    if _TOOL_NAME_PATTERN.fullmatch(name) is None:
+        raise ValueError("工具名称不合法：只能包含字母、数字、下划线和短横线")
+    return name
 
 
 def tool_exposure_priority(tool_def: ToolDefinition) -> int:

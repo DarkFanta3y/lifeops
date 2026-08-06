@@ -6,7 +6,12 @@ from pydantic import create_model
 
 from lifeops.tools.base import ToolDefinition, ToolHandler, ToolParams, ToolResult
 from lifeops.tools.mcp.client import MCPClient
-from lifeops.tools.mcp.types import MCPToolInfo, is_conflicting_name
+from lifeops.tools.mcp.types import (
+    MCPToolInfo,
+    make_disambiguated_mcp_tool_name,
+    make_mcp_canonical_name,
+    is_conflicting_name,
+)
 from lifeops.tools.registry import ToolRegistry
 from lifeops.utils.logging import get_logger
 
@@ -27,8 +32,16 @@ class MCPRegistryAdapter:
         """
         registered: list[str] = []
 
+        wire_name_counts: dict[str, int] = {}
+        for tool_info in tools:
+            wire_name_counts[tool_info.full_name] = wire_name_counts.get(tool_info.full_name, 0) + 1
+
         for tool_info in tools:
             full_name = tool_info.full_name
+            if wire_name_counts[full_name] > 1:
+                full_name = make_disambiguated_mcp_tool_name(
+                    tool_info.server_name, tool_info.original_name
+                )
 
             if is_conflicting_name(full_name, self._registry):
                 logger.warning(f"跳过 MCP 工具 '{full_name}'：与已注册工具冲突")
@@ -42,7 +55,9 @@ class MCPRegistryAdapter:
                 description=tool_info.description,
                 parameters_model=params_model,
                 category="mcp",
-                canonical_name=f"mcp.{tool_info.server_name}.{tool_info.original_name}",
+                canonical_name=make_mcp_canonical_name(
+                    tool_info.server_name, tool_info.original_name
+                ),
                 requires_approval=True,
             )
 

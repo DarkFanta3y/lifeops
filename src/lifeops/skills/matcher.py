@@ -52,6 +52,7 @@ class SkillMatcher:
                 Message(role=MessageRole.USER, content=prompt),
             ],
             tools=None,
+            temperature=0.1,
         )
         names = _parse_name_array(response.content)
         matches = [

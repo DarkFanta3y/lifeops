@@ -22,6 +22,7 @@ class TraceEventType(str, Enum):
     LLM_CALL_FINISHED = "llm_call_finished"
     LLM_PARSE_ERROR = "llm_parse_error"
     LLM_ERROR = "llm_error"
+    TASK_COMPLETION_DECIDED = "task_completion_decided"
     RETRIEVAL_ROUTE_DECIDED = "retrieval_route_decided"
     TOOL_REQUESTED = "tool_requested"
     TOOL_POLICY_DECISION = "tool_policy_decision"

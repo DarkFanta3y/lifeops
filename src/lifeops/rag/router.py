@@ -1,11 +1,19 @@
 from __future__ import annotations
 
+import asyncio
 from collections import defaultdict
 from pathlib import Path
+from typing import Protocol
 
 from lifeops.core.config import RAGConfig
 from lifeops.rag.loader import load_markdown_document
-from lifeops.rag.types import KnowledgeDocument, RAGDataType, RAGRoutePlan
+from lifeops.rag.types import (
+    KnowledgeDocument,
+    RAGDataType,
+    RAGRoutePlan,
+    RAGSourceDefinition,
+    RAGSourceResult,
+)
 
 _ALIASES: dict[str, tuple[str, ...]] = {
     "breakfast": ("早餐", "早饭", "早点", "早上", "明早"),
@@ -15,6 +23,86 @@ _ALIASES: dict[str, tuple[str, ...]] = {
     "condiment": ("酱料", "调料", "蘸料", "汁"),
     "vegetable_dish": ("素菜", "蔬菜", "青菜"),
 }
+
+
+class SourceRetriever(Protocol):
+    definition: RAGSourceDefinition
+
+    async def retrieve(self, query: str, *, top_files: int) -> RAGSourceResult: ...
+
+
+class RAGRouter:
+    def __init__(self, retrievers: list[SourceRetriever]):
+        source_ids = [retriever.definition.id for retriever in retrievers]
+        if len(source_ids) != len(set(source_ids)):
+            raise ValueError("RAG 数据源标识不能重复")
+        self._retrievers = {retriever.definition.id: retriever for retriever in retrievers}
+
+    async def retrieve(
+        self, query: str, *, source: str, top_files: int
+    ) -> RAGSourceResult:
+        retriever = self._retrievers.get(source.strip())
+        if retriever is None:
+            available = ", ".join(self._retrievers) or "无"
+            raise ValueError(f"未知 RAG 数据源：{source}；可用数据源：{available}")
+        return await retriever.retrieve(query, top_files=top_files)
+
+    def format_source_catalog(self) -> str:
+        if not self._retrievers:
+            return "当前未配置可用的本地知识库数据源。"
+
+        lines = ["当前可用的本地知识库数据源："]
+        for retriever in self._retrievers.values():
+            definition = retriever.definition
+            lines.append(
+                f"- {definition.id}（{definition.label}）：{definition.description}；"
+                f"符合以下请求时调用：{definition.call_when}"
+            )
+        return "\n".join(lines)
+
+
+class RecipeRetriever:
+    definition = RAGSourceDefinition(
+        id="recipes",
+        label="菜谱",
+        description="本地菜品做法、食材、烹饪步骤和相关烹饪资料",
+        call_when="用户询问已有菜谱、菜品做法、食材搭配或烹饪步骤",
+    )
+
+    def __init__(self, config: RAGConfig, backend):
+        self.config = config
+        self.backend = backend
+
+    async def retrieve(self, query: str, *, top_files: int) -> RAGSourceResult:
+        data_types = [
+            item
+            for item in discover_rag_data_types(self.config)
+            if item.id == "dishes" or item.id.startswith("dishes/")
+        ]
+        route_plan = route_rag_query(query, data_types)
+        path_prefix = route_plan.path_prefix or "dishes/"
+        retrieve_async = getattr(self.backend, "retrieve_async", None)
+        if callable(retrieve_async):
+            results = await retrieve_async(
+                query,
+                domain=route_plan.domain,
+                category=route_plan.category,
+                path_prefix=path_prefix,
+                top_files=min(top_files, 3),
+            )
+        else:
+            results = await asyncio.to_thread(
+                self.backend.retrieve,
+                query,
+                domain=route_plan.domain,
+                category=route_plan.category,
+                path_prefix=path_prefix,
+                top_files=min(top_files, 3),
+            )
+        return RAGSourceResult(
+            output=self.backend.format_results(results),
+            result_count=len(results),
+        )
 
 
 def discover_rag_data_types(config: RAGConfig) -> list[RAGDataType]:

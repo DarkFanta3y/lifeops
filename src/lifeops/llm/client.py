@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-from httpx import Timeout
-from openai import AsyncOpenAI
+import json
 
-from lifeops.llm.types import ChatResponse, Message
+import httpx
+from httpx import Timeout
+from openai import APIConnectionError, APITimeoutError, AsyncOpenAI
+
+from lifeops.llm.types import ChatResponse, LLMError, LLMErrorInfo, Message
 from lifeops.tools.base import ToolDefinition
 from lifeops.tools.schema import openai_tool_schema, select_llm_tools
 from lifeops.utils.logging import get_logger
@@ -11,6 +14,34 @@ from lifeops.utils.text import sanitize_unicode_data
 
 
 logger = get_logger(__name__)
+
+
+def _status_code(error: BaseException) -> int | None:
+    status_code = getattr(error, "status_code", None)
+    return status_code if isinstance(status_code, int) else None
+
+
+def _classify_error(error: BaseException) -> LLMErrorInfo:
+    status_code = _status_code(error)
+    message = str(error)
+    normalized_message = message.lower()
+    protocol_error = "reasoning_content" in normalized_message or "reasoning content" in normalized_message
+    transient_error = isinstance(
+        error,
+        (APIConnectionError, APITimeoutError, httpx.RequestError, TimeoutError, ConnectionError),
+    )
+    retryable = not protocol_error and (
+        transient_error or status_code == 429 or (status_code is not None and status_code >= 500)
+    )
+    return LLMErrorInfo(
+        message=message,
+        retryable=retryable,
+        status_code=status_code,
+    )
+
+
+def _error_event(info: LLMErrorInfo) -> dict[str, object]:
+    return {"type": "error", "data": info.to_dict()}
 
 
 class LLMClient:
@@ -42,31 +73,44 @@ class LLMClient:
         tools: list[ToolDefinition] | None = None,
         **kwargs: object,
     ) -> ChatResponse:
-        msg_dicts = sanitize_unicode_data([m.to_dict() for m in messages])
-        request_kwargs: dict[str, object] = {
-            "model": self.model,
-            "messages": msg_dicts,
-            "max_tokens": self.max_tokens,
-            "temperature": self.temperature,
-            **kwargs,
-        }
-        if tools:
-            request_kwargs["tools"] = self._build_tool_schemas(tools)
+        try:
+            msg_dicts = sanitize_unicode_data([m.to_dict() for m in messages])
+            request_kwargs: dict[str, object] = {
+                "model": self.model,
+                "messages": msg_dicts,
+                "max_tokens": self.max_tokens,
+                "temperature": self.temperature,
+                **kwargs,
+            }
+            if tools:
+                request_kwargs["tools"] = self._build_tool_schemas(tools)
+        except Exception as error:
+            raise LLMError(_classify_error(error)) from error
 
         logger.debug(f"LLM request: {len(messages)} messages, {len(tools or [])} tools")
 
-        response = await self._client.chat.completions.create(**request_kwargs)
+        for attempt in range(2):
+            try:
+                response = await self._client.chat.completions.create(**request_kwargs)
 
-        tc_count = (
-            len(response.choices[0].message.tool_calls)
-            if response.choices[0].message.tool_calls
-            else 0
-        )
-        logger.debug(
-            f"LLM response: content={'yes' if response.choices[0].message.content else 'no'}, tool_calls={tc_count}"
-        )
+                tc_count = (
+                    len(response.choices[0].message.tool_calls)
+                    if response.choices[0].message.tool_calls
+                    else 0
+                )
+                logger.debug(
+                    f"LLM response: content={'yes' if response.choices[0].message.content else 'no'}, tool_calls={tc_count}"
+                )
 
-        return ChatResponse.from_openai_response(response)
+                return ChatResponse.from_openai_response(response)
+            except Exception as error:
+                info = _classify_error(error)
+                if info.retryable and attempt == 0:
+                    logger.warning("Transient LLM error; retrying once: %s", info.message)
+                    continue
+                raise LLMError(info) from error
+
+        raise AssertionError("unreachable")
 
     async def chat_stream(
         self,
@@ -74,35 +118,28 @@ class LLMClient:
         tools: list[ToolDefinition] | None = None,
         **kwargs: object,
     ):
-        import json
-
-        msg_dicts = sanitize_unicode_data([m.to_dict() for m in messages])
-        request_kwargs: dict[str, object] = {
-            "model": self.model,
-            "messages": msg_dicts,
-            "max_tokens": self.max_tokens,
-            "temperature": self.temperature,
-            "stream": True,
-            **kwargs,
-        }
-        if tools:
-            request_kwargs["tools"] = self._build_tool_schemas(tools)
-
-        logger.debug(
-            f"LLM stream request: {len(messages)} messages, {len(tools or [])} tools"
-        )
-
         try:
+            msg_dicts = sanitize_unicode_data([m.to_dict() for m in messages])
+            request_kwargs: dict[str, object] = {
+                "model": self.model,
+                "messages": msg_dicts,
+                "max_tokens": self.max_tokens,
+                "temperature": self.temperature,
+                "stream": True,
+                **kwargs,
+            }
+            if tools:
+                request_kwargs["tools"] = self._build_tool_schemas(tools)
+
+            logger.debug(
+                f"LLM stream request: {len(messages)} messages, {len(tools or [])} tools"
+            )
+
             response = await self._client.chat.completions.create(**request_kwargs)
-        except Exception as e:
-            yield {"type": "error", "data": str(e)}
-            return
-
-        buffers: dict[int, dict[str, str]] = {}
-        started_indexes: set[int] = set()
-        ready_indexes: set[int] = set()
-        reasoning_parts: list[str] = []
-        try:
+            buffers: dict[int, dict[str, str]] = {}
+            started_indexes: set[int] = set()
+            ready_indexes: set[int] = set()
+            reasoning_parts: list[str] = []
             async for chunk in response:
                 if not chunk.choices:
                     continue
@@ -161,7 +198,16 @@ class LLMClient:
 
             for idx in sorted(buffers):
                 buf = buffers[idx]
-                args = json.loads(buf["arguments"]) if buf["arguments"] else {}
+                try:
+                    args = json.loads(buf["arguments"]) if buf["arguments"] else {}
+                except json.JSONDecodeError:
+                    yield _error_event(
+                        LLMErrorInfo(
+                            message="工具调用参数 JSON 无效",
+                            retryable=False,
+                        )
+                    )
+                    return
                 yield {
                     "type": "tool_call",
                     "data": {
@@ -173,5 +219,5 @@ class LLMClient:
                 }
             if reasoning_parts:
                 yield {"type": "reasoning_content", "data": "".join(reasoning_parts)}
-        except Exception as e:
-            yield {"type": "error", "data": str(e)}
+        except Exception as error:
+            yield _error_event(_classify_error(error))

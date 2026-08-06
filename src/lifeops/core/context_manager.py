@@ -209,3 +209,6 @@ class ContextManager:
 
     def _estimate_tokens(self, text: str) -> int:
         return max(1, len(text) // 4)
+
+    def estimate_tokens(self, text: str) -> int:
+        return self._estimate_tokens(text)

@@ -517,9 +517,11 @@ async def _ensure_services_initialized(app: FastAPI, *, include_mcp: bool = True
 
             try:
                 from lifeops.rag.retriever import RAGRetriever
+                from lifeops.rag.router import RAGRouter, RecipeRetriever
 
-                services.rag_retriever = RAGRetriever(config.rag)
-                services.rag_retriever.warm_up()
+                backend = RAGRetriever(config.rag)
+                backend.warm_up()
+                services.rag_router = RAGRouter([RecipeRetriever(config.rag, backend)])
                 logger.info("Web 启动 RAG 模型预热完成")
             except Exception as exc:
                 logger.warning("Web 启动 RAG 模型预热失败，继续启动: %s", exc)

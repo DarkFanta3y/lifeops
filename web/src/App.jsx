@@ -108,7 +108,7 @@ function App() {
   );
 
   useEffect(() => {
-    refreshConversations();
+    refreshConversations({ autoSelect: false });
   }, []);
 
   useEffect(() => {
