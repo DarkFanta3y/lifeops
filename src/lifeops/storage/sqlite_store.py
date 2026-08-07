@@ -40,6 +40,8 @@ class ConversationHistoryStoreSQLite:
         cursor.executescript(CREATE_TABLES_SQL)
         self._migrate_schema_v3(cursor)
         self._migrate_schema_v5(cursor)
+        self._migrate_schema_v6(cursor, current_version)
+        self._migrate_schema_v7(cursor)
         cursor.execute(
             "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY)"
         )
@@ -162,6 +164,46 @@ class ConversationHistoryStoreSQLite:
 
     def _migrate_schema_v5(self, cursor: sqlite3.Cursor) -> None:
         self._add_column_if_missing(cursor, "messages", "reasoning_content", "TEXT")
+
+    def _migrate_schema_v6(self, cursor: sqlite3.Cursor, current_version: int | None) -> None:
+        if current_version is not None and current_version >= 6:
+            return
+        now = self._now()
+        cursor.executemany(
+            "INSERT OR IGNORE INTO rag_sources "
+            "(source_id, name, description, call_when, path_prefix, enabled, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                (
+                    "recipes",
+                    "菜谱",
+                    "本地菜品做法、食材、烹饪步骤和相关烹饪资料",
+                    "用户询问已有菜谱、菜品做法、食材搭配或烹饪步骤",
+                    "dishes/",
+                    1,
+                    now,
+                    now,
+                ),
+                (
+                    "islamic_culture",
+                    "伊斯兰文化知识库",
+                    "伊斯兰文化知识库中的本地资料",
+                    "用户询问伊斯兰文化、宗教历史或相关知识时",
+                    "伊斯兰文化知识库/",
+                    1,
+                    now,
+                    now,
+                ),
+            ],
+        )
+
+    def _migrate_schema_v7(self, cursor: sqlite3.Cursor) -> None:
+        self._add_column_if_missing(
+            cursor, "rag_sources", "chunk_strategy", "TEXT NOT NULL DEFAULT 'heading'"
+        )
+        self._add_column_if_missing(
+            cursor, "rag_sources", "chunk_size", "INTEGER NOT NULL DEFAULT 900"
+        )
 
     def _add_column_if_missing(
         self, cursor: sqlite3.Cursor, table: str, column: str, definition: str
@@ -1446,6 +1488,108 @@ class ConversationHistoryStoreSQLite:
         if row is None:
             return False
         return normalized_query in row["content"].casefold()
+
+    # -- RAG source configuration --
+
+    def _rag_source_from_row(self, row: sqlite3.Row) -> dict[str, Any]:
+        source = dict(row)
+        source["enabled"] = bool(source["enabled"])
+        return source
+
+    def list_rag_sources(self, *, enabled_only: bool = False) -> list[dict[str, Any]]:
+        query = "SELECT * FROM rag_sources"
+        if enabled_only:
+            query += " WHERE enabled = 1"
+        query += " ORDER BY created_at ASC, source_id ASC"
+        rows = self._conn.execute(query).fetchall()
+        return [self._rag_source_from_row(row) for row in rows]
+
+    def get_rag_source(self, source_id: str) -> dict[str, Any] | None:
+        row = self._conn.execute(
+            "SELECT * FROM rag_sources WHERE source_id = ?", (source_id,)
+        ).fetchone()
+        return self._rag_source_from_row(row) if row else None
+
+    def create_rag_source(self, source: dict[str, Any]) -> dict[str, Any]:
+        now = self._now()
+        self._conn.execute(
+            "INSERT INTO rag_sources "
+            "(source_id, name, description, call_when, path_prefix, enabled, "
+            "chunk_strategy, chunk_size, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                source["source_id"],
+                source["name"],
+                source["description"],
+                source["call_when"],
+                source["path_prefix"],
+                int(source.get("enabled", True)),
+                source.get("chunk_strategy", "heading"),
+                int(source.get("chunk_size", 900)),
+                now,
+                now,
+            ),
+        )
+        self._conn.commit()
+        return self.get_rag_source(source["source_id"])
+
+    def upsert_rag_source(self, source: dict[str, Any]) -> dict[str, Any]:
+        now = self._now()
+        self._conn.execute(
+            "INSERT INTO rag_sources "
+            "(source_id, name, description, call_when, path_prefix, enabled, "
+            "chunk_strategy, chunk_size, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(source_id) DO UPDATE SET "
+            "name = excluded.name, description = excluded.description, "
+            "call_when = excluded.call_when, path_prefix = excluded.path_prefix, "
+            "enabled = excluded.enabled, chunk_strategy = excluded.chunk_strategy, "
+            "chunk_size = excluded.chunk_size, updated_at = excluded.updated_at",
+            (
+                source["source_id"],
+                source["name"],
+                source["description"],
+                source["call_when"],
+                source["path_prefix"],
+                int(source.get("enabled", True)),
+                source.get("chunk_strategy", "heading"),
+                int(source.get("chunk_size", 900)),
+                now,
+                now,
+            ),
+        )
+        self._conn.commit()
+        return self.get_rag_source(source["source_id"])
+
+    def update_rag_source(
+        self, source_id: str, fields: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        allowed = {
+            "name", "description", "call_when", "path_prefix", "enabled",
+            "chunk_strategy", "chunk_size",
+        }
+        updates = {key: value for key, value in fields.items() if key in allowed}
+        if not updates:
+            return self.get_rag_source(source_id)
+        assignments = ", ".join(f"{key} = ?" for key in updates)
+        values = [
+            int(value) if key in {"enabled", "chunk_size"} else value
+            for key, value in updates.items()
+        ]
+        values.extend([self._now(), source_id])
+        cursor = self._conn.execute(
+            f"UPDATE rag_sources SET {assignments}, updated_at = ? WHERE source_id = ?",
+            values,
+        )
+        self._conn.commit()
+        return self.get_rag_source(source_id) if cursor.rowcount else None
+
+    def delete_rag_source(self, source_id: str) -> bool:
+        cursor = self._conn.execute(
+            "DELETE FROM rag_sources WHERE source_id = ?", (source_id,)
+        )
+        self._conn.commit()
+        return cursor.rowcount > 0
 
     # -- Connection lifecycle --
 

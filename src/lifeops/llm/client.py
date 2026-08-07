@@ -22,16 +22,27 @@ def _status_code(error: BaseException) -> int | None:
 
 
 def _classify_error(error: BaseException) -> LLMErrorInfo:
+    if isinstance(error, LLMError):
+        return LLMErrorInfo(
+            message=error.message,
+            error_type=error.error_type,
+            retryable=error.retryable,
+            status_code=error.status_code,
+        )
     status_code = _status_code(error)
     message = str(error)
     normalized_message = message.lower()
+    tool_arguments_error = isinstance(error, json.JSONDecodeError) or message == "工具调用参数 JSON 无效"
     protocol_error = "reasoning_content" in normalized_message or "reasoning content" in normalized_message
     transient_error = isinstance(
         error,
         (APIConnectionError, APITimeoutError, httpx.RequestError, TimeoutError, ConnectionError),
     )
     retryable = not protocol_error and (
-        transient_error or status_code == 429 or (status_code is not None and status_code >= 500)
+        tool_arguments_error
+        or transient_error
+        or status_code == 429
+        or (status_code is not None and status_code >= 500)
     )
     return LLMErrorInfo(
         message=message,
@@ -102,11 +113,23 @@ class LLMClient:
                     f"LLM response: content={'yes' if response.choices[0].message.content else 'no'}, tool_calls={tc_count}"
                 )
 
-                return ChatResponse.from_openai_response(response)
+                parsed_response = ChatResponse.from_openai_response(response)
+                for tool_call in parsed_response.tool_calls or []:
+                    try:
+                        arguments = json.loads(tool_call.arguments) if tool_call.arguments else {}
+                    except (json.JSONDecodeError, TypeError) as error:
+                        raise LLMError(
+                            LLMErrorInfo(message="工具调用参数 JSON 无效", retryable=True)
+                        ) from error
+                    if not isinstance(arguments, dict):
+                        raise LLMError(
+                            LLMErrorInfo(message="工具调用参数 JSON 无效", retryable=True)
+                        )
+                return parsed_response
             except Exception as error:
                 info = _classify_error(error)
                 if info.retryable and attempt == 0:
-                    logger.warning("Transient LLM error; retrying once: %s", info.message)
+                    logger.warning("Retryable LLM error; retrying once: %s", info.message)
                     continue
                 raise LLMError(info) from error
 
@@ -204,7 +227,15 @@ class LLMClient:
                     yield _error_event(
                         LLMErrorInfo(
                             message="工具调用参数 JSON 无效",
-                            retryable=False,
+                            retryable=True,
+                        )
+                    )
+                    return
+                if not isinstance(args, dict):
+                    yield _error_event(
+                        LLMErrorInfo(
+                            message="工具调用参数 JSON 无效",
+                            retryable=True,
                         )
                     )
                     return

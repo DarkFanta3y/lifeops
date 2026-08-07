@@ -443,6 +443,236 @@ textarea {
   overflow: visible;
 }
 
+.database-workspace {
+  position: relative;
+  background: transparent;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+.database-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 24px 24px;
+}
+
+.database-loading {
+  display: block;
+  min-height: 100%;
+}
+
+.database-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+
+.database-source-card.ant-card {
+  height: 280px;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+
+.database-source-card.ant-card:hover {
+  transform: translateY(-2px);
+}
+
+.database-source-card.ant-card:focus-visible {
+  outline: 2px solid #1677ff;
+  outline-offset: 2px;
+}
+
+.database-source-card .ant-card-body {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 18px;
+}
+
+.database-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.database-card-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.database-card-field {
+  display: grid;
+  gap: 6px;
+  margin-top: 18px;
+}
+
+.database-card-label {
+  font-size: 12px;
+}
+
+.database-card-summary {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.6;
+}
+
+.database-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.database-import-alert {
+  margin: 16px 0;
+}
+
+.database-import-format {
+  display: block;
+  margin-top: 16px;
+  color: #9ca3af;
+}
+
+.database-import-columns {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.8fr) minmax(420px, 1.2fr);
+  gap: 24px;
+  margin-top: 16px;
+  min-height: 420px;
+}
+
+.database-import-form,
+.database-import-upload-panel,
+.database-import-preview-panel {
+  min-width: 0;
+}
+
+.database-import-upload-panel {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.database-import-upload-icon,
+.database-import-file-icon {
+  display: block;
+  margin: 18px auto 8px;
+  color: #2563eb;
+  font-size: 42px;
+}
+
+.database-import-tree {
+  margin-top: 16px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.database-import-tree .ant-tree {
+  margin-top: 8px;
+  overflow: auto;
+}
+
+.database-preview-columns {
+  min-height: 480px;
+}
+
+.database-import-file-card {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 16px;
+  background: #fafafa;
+}
+
+.database-import-file-card .database-import-file-icon {
+  margin-top: 16px;
+}
+
+.database-import-file-card pre {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 16px 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.database-import-preview-panel {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.database-strategy-buttons {
+  margin-bottom: 12px;
+}
+
+.database-chunk-control {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.database-chunk-control .ant-slider {
+  flex: 1 1 auto;
+}
+
+.database-chunk-list {
+  display: grid;
+  gap: 10px;
+  max-height: 390px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.database-import-processing {
+  display: flex;
+  min-height: 360px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+}
+
+@media (max-width: 1100px) {
+  .database-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .database-body {
+    padding: 12px;
+  }
+
+  .database-card-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .database-import-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
 .workspace-pagination-overlay {
   position: absolute;
   right: 0;

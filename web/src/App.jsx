@@ -15,6 +15,7 @@ import {
 } from "antd";
 import {
   AppstoreOutlined,
+  DatabaseOutlined,
   DeleteOutlined,
   DownOutlined,
   FileTextOutlined,
@@ -27,12 +28,16 @@ import {
 } from "@ant-design/icons";
 
 import {
+  createRagSource,
   createSkill,
+  deleteRagSource,
   deleteConversation,
   fetchConversationCursor,
   fetchConversations,
+  fetchRagSources,
   fetchSkills,
   fetchTools,
+  updateRagSource,
   sendChatMessage,
 } from "./api.js";
 import MarkdownRenderer from "./MarkdownRenderer.jsx";
@@ -47,6 +52,7 @@ import { isNearBottom } from "./scroll.js";
 import useInfiniteSentinel from "./useInfiniteSentinel.js";
 
 const SkillsWorkspace = lazy(() => import("./workspaces/SkillsWorkspace.jsx"));
+const DatabaseWorkspace = lazy(() => import("./workspaces/DatabaseWorkspace.jsx"));
 const ToolsWorkspace = lazy(() => import("./workspaces/ToolsWorkspace.jsx"));
 const LoggingModal = lazy(() => import("./modals/LoggingModal.jsx"));
 const SkillModal = lazy(() => import("./modals/SkillModal.jsx"));
@@ -76,6 +82,7 @@ function App() {
   const [messageBeforeId, setMessageBeforeId] = useState(null);
   const [messagesLoadingOlder, setMessagesLoadingOlder] = useState(false);
   const [skills, setSkills] = useState([]);
+  const [ragSources, setRagSources] = useState([]);
   const [tools, setTools] = useState([]);
   const [mcpServers, setMcpServers] = useState([]);
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
@@ -113,8 +120,9 @@ function App() {
 
   useEffect(() => {
     if (activeView === "skills" && skills.length === 0) loadSkills();
+    if (activeView === "database" && ragSources.length === 0) loadRagSources();
     if (activeView === "tools" && tools.length === 0) loadTools();
-  }, [activeView, skills.length, tools.length]);
+  }, [activeView, ragSources.length, skills.length, tools.length]);
 
   useEffect(() => {
     if (!searchOpen) return undefined;
@@ -289,6 +297,52 @@ function App() {
     }
   }
 
+  async function loadRagSources() {
+    setWorkspaceLoading(true);
+    setError("");
+    try {
+      const payload = await fetchRagSources();
+      setRagSources(payload.sources || []);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setWorkspaceLoading(false);
+    }
+  }
+
+  async function handleCreateRagSource(source) {
+    try {
+      await createRagSource(source);
+      message.success("数据源已保存，重启 LifeOps 后生效");
+      await loadRagSources();
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  }
+
+  async function handleEditRagSource(sourceId, fields) {
+    try {
+      await updateRagSource(sourceId, fields);
+      message.success("数据源已保存，重启 LifeOps 后生效");
+      await loadRagSources();
+    } catch (err) {
+      setError(err.message);
+      throw err;
+    }
+  }
+
+  async function handleDeleteRagSource(sourceId) {
+    setError("");
+    try {
+      await deleteRagSource(sourceId);
+      message.success("数据源配置已删除，重启 LifeOps 后生效；本地文件未删除");
+      await loadRagSources();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   async function handleCreateSkill() {
     setSavingSkill(true);
     setError("");
@@ -442,6 +496,11 @@ function App() {
         loading={workspaceLoading} onRefresh={loadSkills} onAdd={() => setSkillModalOpen(true)} />
       </Suspense>;
     }
+    if (activeView === "database") {
+      return <Suspense fallback={<LoadingFallback />}><DatabaseWorkspace sources={ragSources}
+        loading={workspaceLoading} onRefresh={loadRagSources} onAdd={handleCreateRagSource}
+        onEdit={handleEditRagSource} onDelete={handleDeleteRagSource} /></Suspense>;
+    }
     return <Suspense fallback={<LoadingFallback />}><ToolsWorkspace tools={tools}
       mcpServers={mcpServers} loading={workspaceLoading} onRefresh={loadTools} /></Suspense>;
   }
@@ -461,6 +520,8 @@ function App() {
             onClick={() => setActiveView("skills")}><AppstoreOutlined /><span>SKILLS</span></button>
           <button type="button" className={`sidebar-nav-item${activeView === "tools" ? " active" : ""}`}
             onClick={() => setActiveView("tools")}><ToolOutlined /><span>TOOLS</span></button>
+          <button type="button" className={`sidebar-nav-item${activeView === "database" ? " active" : ""}`}
+            onClick={() => setActiveView("database")}><DatabaseOutlined /><span>DATABASE</span></button>
         </nav>
         <section className="sidebar-conversations">
           <button type="button" className="conversation-group-toggle"

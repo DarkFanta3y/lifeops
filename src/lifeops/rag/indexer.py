@@ -13,7 +13,7 @@ from lifeops.rag.bm25 import BM25ChunkIndex
 from lifeops.rag.embeddings import EmbeddingProvider, SentenceTransformerEmbeddingProvider
 from lifeops.rag.loader import load_markdown_documents
 from lifeops.rag.splitter import split_markdown
-from lifeops.rag.types import KnowledgeChunk, KnowledgeDocument
+from lifeops.rag.types import KnowledgeChunk, KnowledgeDocument, RAGSourceConfig
 
 
 class RAGIndexer:
@@ -21,12 +21,14 @@ class RAGIndexer:
         self,
         config: RAGConfig,
         embedding_provider: EmbeddingProvider | None = None,
+        source_configs: list[RAGSourceConfig] | None = None,
     ):
         self.config = config
         self.embedding_provider = embedding_provider or SentenceTransformerEmbeddingProvider(
             config.embedding_model,
             cache_folder=config.model_cache_path,
         )
+        self.source_configs = source_configs or []
 
     def rebuild(self) -> dict[str, int]:
         chroma_path = Path(self.config.chroma_path)
@@ -150,6 +152,7 @@ class RAGIndexer:
     def _split_documents(self, documents: list[KnowledgeDocument]) -> list[KnowledgeChunk]:
         chunks: list[KnowledgeChunk] = []
         for document in documents:
+            strategy, target_chars, overlap_chars = self._chunking_for(document.path)
             chunks.extend(
                 split_markdown(
                     doc_id=document.doc_id,
@@ -160,9 +163,23 @@ class RAGIndexer:
                     tags=document.tags,
                     content=document.content,
                     parent_content_hash=document.content_hash,
+                    target_chars=target_chars,
+                    overlap_chars=overlap_chars,
+                    strategy=strategy,
                 )
             )
         return chunks
+
+    def _chunking_for(self, path: str) -> tuple[str, int, int]:
+        for source in sorted(self.source_configs, key=lambda item: len(item.path_prefix), reverse=True):
+            prefix = source.path_prefix.rstrip("/") + "/"
+            if not source.enabled or not path.startswith(prefix):
+                continue
+            if source.chunk_strategy == "fixed":
+                size = max(150, min(900, source.chunk_size))
+                return "fixed", size, max(1, size // 6)
+            return "heading", 900, 150
+        return "heading", 900, 150
 
     def _delete_chroma_chunks(self, chunk_ids: list[str]) -> None:
         if not chunk_ids:

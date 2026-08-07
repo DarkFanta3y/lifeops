@@ -1,8 +1,9 @@
 export const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8081";
 
 async function request(path, options = {}) {
+  const isFormData = options.body instanceof FormData;
   const response = await fetch(`${API_BASE}${path}`, {
-    headers: {
+    headers: isFormData ? { ...(options.headers || {}) } : {
       "Content-Type": "application/json",
       ...(options.headers || {}),
     },
@@ -121,6 +122,64 @@ export function createSkill(skill) {
     method: "POST",
     body: JSON.stringify(skill),
   });
+}
+
+export function fetchRagSources() {
+  return request("/api/rag/sources");
+}
+
+export function createRagSource(source) {
+  return request("/api/rag/sources", {
+    method: "POST",
+    body: JSON.stringify(source),
+  });
+}
+
+export function updateRagSource(sourceId, fields) {
+  return request(`/api/rag/sources/${sourceId}`, {
+    method: "PATCH",
+    body: JSON.stringify(fields),
+  });
+}
+
+export function deleteRagSource(sourceId) {
+  return request(`/api/rag/sources/${sourceId}`, {
+    method: "DELETE",
+  });
+}
+
+export function checkRagImportConflict(sourceId) {
+  return request(`/api/rag/imports/conflict?source_id=${encodeURIComponent(sourceId)}`);
+}
+
+export function uploadRagImport(sourceId, archive, overwrite = false) {
+  const body = new FormData();
+  body.append("source_id", sourceId);
+  body.append("overwrite", String(overwrite));
+  body.append("archive", archive);
+  return request("/api/rag/imports", { method: "POST", body });
+}
+
+export function previewRagImport(importId, strategy, chunkSize) {
+  return request(`/api/rag/imports/${importId}/preview`, {
+    method: "POST",
+    body: JSON.stringify({ strategy, chunk_size: chunkSize }),
+  });
+}
+
+export function startRagImport(importId, source, strategy, chunkSize) {
+  return request(`/api/rag/imports/${importId}/start`, {
+    method: "POST",
+    body: JSON.stringify({ ...source, strategy, chunk_size: chunkSize }),
+  });
+}
+
+export function fetchRagImport(importId) {
+  return request(`/api/rag/imports/${importId}`);
+}
+
+export function deleteRagImport(importId) {
+  return request(`/api/rag/imports/${importId}`, { method: "DELETE" });
 }
 
 export function fetchTools() {

@@ -82,6 +82,18 @@ class RAGSourceDefinition:
 
 
 @dataclass(frozen=True)
+class RAGSourceConfig:
+    source_id: str
+    name: str
+    description: str
+    call_when: str
+    path_prefix: str
+    enabled: bool
+    chunk_strategy: str = "heading"
+    chunk_size: int = 900
+
+
+@dataclass(frozen=True)
 class RAGSourceResult:
     output: str
     result_count: int

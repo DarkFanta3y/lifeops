@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections import defaultdict
 from pathlib import Path
-from typing import Protocol
+from typing import Any, Protocol
 
 from lifeops.core.config import RAGConfig
 from lifeops.rag.loader import load_markdown_document
@@ -11,6 +11,7 @@ from lifeops.rag.types import (
     KnowledgeDocument,
     RAGDataType,
     RAGRoutePlan,
+    RAGSourceConfig,
     RAGSourceDefinition,
     RAGSourceResult,
 )
@@ -35,7 +36,7 @@ class RAGRouter:
     def __init__(self, retrievers: list[SourceRetriever]):
         source_ids = [retriever.definition.id for retriever in retrievers]
         if len(source_ids) != len(set(source_ids)):
-            raise ValueError("RAG 数据源标识不能重复")
+            raise ValueError("本地知识库标识不能重复")
         self._retrievers = {retriever.definition.id: retriever for retriever in retrievers}
 
     async def retrieve(
@@ -44,7 +45,7 @@ class RAGRouter:
         retriever = self._retrievers.get(source.strip())
         if retriever is None:
             available = ", ".join(self._retrievers) or "无"
-            raise ValueError(f"未知 RAG 数据源：{source}；可用数据源：{available}")
+            raise ValueError(f"未知本地知识库：{source}；可用数据源：{available}")
         return await retriever.retrieve(query, top_files=top_files)
 
     def format_source_catalog(self) -> str:
@@ -69,9 +70,16 @@ class RecipeRetriever:
         call_when="用户询问已有菜谱、菜品做法、食材搭配或烹饪步骤",
     )
 
-    def __init__(self, config: RAGConfig, backend):
+    def __init__(
+        self,
+        config: RAGConfig,
+        backend,
+        *,
+        definition: RAGSourceDefinition | None = None,
+    ):
         self.config = config
         self.backend = backend
+        self.definition = definition or type(self).definition
 
     async def retrieve(self, query: str, *, top_files: int) -> RAGSourceResult:
         data_types = [
@@ -103,6 +111,98 @@ class RecipeRetriever:
             output=self.backend.format_results(results),
             result_count=len(results),
         )
+
+
+class DirectoryRetriever:
+    def __init__(
+        self,
+        config: RAGConfig,
+        backend: Any,
+        *,
+        source_id: str,
+        label: str,
+        path_prefix: str,
+        description: str,
+        call_when: str,
+    ):
+        self.config = config
+        self.backend = backend
+        self.path_prefix = path_prefix.rstrip("/") + "/"
+        self.definition = RAGSourceDefinition(
+            id=source_id,
+            label=label,
+            description=description,
+            call_when=call_when,
+        )
+
+    async def retrieve(self, query: str, *, top_files: int) -> RAGSourceResult:
+        retrieve_async = getattr(self.backend, "retrieve_async", None)
+        kwargs = {
+            "domain": None,
+            "category": None,
+            "path_prefix": self.path_prefix,
+            "top_files": min(top_files, 3),
+        }
+        if callable(retrieve_async):
+            results = await retrieve_async(query, **kwargs)
+        else:
+            results = await asyncio.to_thread(self.backend.retrieve, query, **kwargs)
+        return RAGSourceResult(
+            output=self.backend.format_results(results),
+            result_count=len(results),
+        )
+
+
+def build_default_rag_router(
+    config: RAGConfig,
+    backend: Any | None = None,
+    sources: list[RAGSourceConfig] | None = None,
+) -> RAGRouter:
+    if backend is None:
+        from lifeops.rag.retriever import RAGRetriever
+
+        backend = RAGRetriever(config)
+    if sources is None:
+        return RAGRouter(
+            [
+                RecipeRetriever(config, backend),
+                DirectoryRetriever(
+                    config,
+                    backend,
+                    source_id="islamic_culture",
+                    label="伊斯兰文化知识库",
+                    path_prefix="伊斯兰文化知识库/",
+                    description="伊斯兰文化知识库中的本地资料",
+                    call_when="用户询问伊斯兰文化、宗教历史或相关知识时",
+                ),
+            ]
+        )
+
+    retrievers: list[SourceRetriever] = []
+    for source in sources:
+        if not source.enabled:
+            continue
+        definition = RAGSourceDefinition(
+            id=source.source_id,
+            label=source.name,
+            description=source.description,
+            call_when=source.call_when,
+        )
+        if source.source_id == "recipes":
+            retrievers.append(RecipeRetriever(config, backend, definition=definition))
+        else:
+            retrievers.append(
+                DirectoryRetriever(
+                    config,
+                    backend,
+                    source_id=source.source_id,
+                    label=source.name,
+                    path_prefix=source.path_prefix,
+                    description=source.description,
+                    call_when=source.call_when,
+                )
+            )
+    return RAGRouter(retrievers)
 
 
 def discover_rag_data_types(config: RAGConfig) -> list[RAGDataType]:

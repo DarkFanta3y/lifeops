@@ -4,15 +4,18 @@ import asyncio
 import inspect
 import json
 import os
+import re
+import shutil
+import sqlite3
 from contextlib import asynccontextmanager
 from pathlib import Path, PurePosixPath
 from typing import Any
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, Query, status
+from fastapi import File, FastAPI, Form, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from lifeops.agent import Agent, AgentServices
 from lifeops.core.config import PROJECT_ROOT, AppConfig, clear_proxy_env
@@ -20,7 +23,9 @@ from lifeops.core.context_manager import ContextManager
 from lifeops.llm.types import Message, MessageRole
 from lifeops.memory import MemoryService
 from lifeops.rag.embeddings import SentenceTransformerEmbeddingProvider
+from lifeops.rag.importer import extract_zip_archive, preview_markdown
 from lifeops.rag.indexer import RAGIndexer
+from lifeops.rag.types import RAGSourceConfig
 from lifeops.runtime.policy import ToolPolicyEngine
 from lifeops.runtime.policy_rules import default_policy_summary
 from lifeops.runtime.store import RuntimeStore
@@ -41,6 +46,8 @@ from lifeops.web.title_summary import fallback_conversation_title, summarize_con
 logger = get_logger(__name__)
 
 _RAG_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".svg"}
+_RAG_IMPORT_PENDING = ".lifeops-import-pending.json"
+_RAG_IMPORT_COMPLETE = ".lifeops-import-complete.json"
 
 
 class ChatRequest(BaseModel):
@@ -59,6 +66,56 @@ class CreateSkillRequest(BaseModel):
     description: str = Field(min_length=1)
     metadata: str = ""
     content: str = Field(min_length=1)
+
+
+class CreateRAGSourceRequest(BaseModel):
+    source_id: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")
+    name: str = Field(min_length=1, max_length=100)
+    description: str = Field(min_length=1, max_length=1000)
+    call_when: str = Field(min_length=1, max_length=1000)
+    enabled: bool = True
+
+    model_config = {"str_strip_whitespace": True}
+
+    @field_validator("name", "description", "call_when")
+    @classmethod
+    def validate_single_line_text(cls, value: str) -> str:
+        return _validate_rag_source_text(value)
+
+
+class UpdateRAGSourceRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    description: str | None = Field(default=None, min_length=1, max_length=1000)
+    call_when: str | None = Field(default=None, min_length=1, max_length=1000)
+    enabled: bool | None = None
+
+    model_config = {"str_strip_whitespace": True}
+
+    @field_validator("name", "description", "call_when")
+    @classmethod
+    def validate_single_line_text(cls, value: str | None) -> str | None:
+        return _validate_rag_source_text(value) if value is not None else None
+
+
+class RAGImportPreviewRequest(BaseModel):
+    strategy: str = Field(pattern=r"^(fixed|heading)$")
+    chunk_size: int = Field(default=900, ge=150, le=900)
+
+
+class RAGImportStartRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    description: str = Field(min_length=1, max_length=1000)
+    call_when: str = Field(min_length=1, max_length=1000)
+    strategy: str = Field(pattern=r"^(fixed|heading)$")
+    chunk_size: int = Field(default=900, ge=150, le=900)
+    enabled: bool = True
+
+    model_config = {"str_strip_whitespace": True}
+
+    @field_validator("name", "description", "call_when")
+    @classmethod
+    def validate_single_line_text(cls, value: str) -> str:
+        return _validate_rag_source_text(value)
 
 
 class MemorySearchRequest(BaseModel):
@@ -101,6 +158,8 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
     app.state.tool_registry = app.state.services.base_tool_registry
     app.state.mcp_manager = app.state.services.mcp_manager
     app.state.background_tasks = set()
+    app.state.rag_imports = {}
+    app.state.rag_import_lock = asyncio.Lock()
     app.state.services_started = False
     app.state.mcp_started = False
 
@@ -401,6 +460,170 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
         _refresh_global_skill_catalog(app)
         return {"name": request.name, "path": str(skill_file)}
 
+    @app.get("/api/rag/sources")
+    async def list_rag_sources() -> dict[str, Any]:
+        return {"sources": app.state.history_store.list_rag_sources()}
+
+    @app.post("/api/rag/sources", status_code=status.HTTP_201_CREATED)
+    async def create_rag_source(request: CreateRAGSourceRequest) -> dict[str, Any]:
+        source = request.model_dump()
+        source["path_prefix"] = _normalize_rag_source_path(
+            app.state.config, request.source_id
+        )
+        try:
+            created = app.state.history_store.create_rag_source(source)
+        except sqlite3.IntegrityError as exc:
+            raise HTTPException(status_code=409, detail="数据源标识或对应目录已存在。") from exc
+        return {"source": created, "restart_required": True}
+
+    @app.patch("/api/rag/sources/{source_id}")
+    async def update_rag_source(
+        source_id: str, request: UpdateRAGSourceRequest
+    ) -> dict[str, Any]:
+        source = app.state.history_store.get_rag_source(source_id)
+        if source is None:
+            raise HTTPException(status_code=404, detail="本地知识库不存在。")
+        updated = app.state.history_store.update_rag_source(
+            source_id, request.model_dump(exclude_unset=True)
+        )
+        return {"source": updated, "restart_required": True}
+
+    @app.delete("/api/rag/sources/{source_id}")
+    async def delete_rag_source(source_id: str) -> dict[str, Any]:
+        if not app.state.history_store.delete_rag_source(source_id):
+            raise HTTPException(status_code=404, detail="本地知识库不存在。")
+        return {"deleted": True, "restart_required": True}
+
+    @app.get("/api/rag/imports/conflict")
+    async def rag_import_conflict(source_id: str = Query(...)) -> dict[str, Any]:
+        source_id = _validate_rag_source_id(source_id)
+        return {"source_id": source_id, "conflict": _rag_import_conflicts(app, source_id)}
+
+    @app.post("/api/rag/imports", status_code=status.HTTP_201_CREATED)
+    async def upload_rag_import(
+        source_id: str = Form(...),
+        overwrite: bool = Form(False),
+        archive: UploadFile = File(...),
+    ) -> dict[str, Any]:
+        source_id = _validate_rag_source_id(source_id)
+        if not archive.filename or not archive.filename.lower().endswith(".zip"):
+            raise HTTPException(status_code=415, detail="暂时只支持 ZIP 压缩包。")
+        if _rag_import_conflicts(app, source_id) and not overwrite:
+            raise HTTPException(
+                status_code=409,
+                detail="知识库已存在，继续上传会覆盖已有知识库，请确认后重试。",
+            )
+
+        root = _rag_import_root(app, source_id)
+        root.mkdir(parents=True, exist_ok=True)
+        import_id = uuid4().hex
+        import_dir = root / ".imports" / import_id
+        import_dir.mkdir(parents=True, exist_ok=False)
+        archive_path = import_dir / "archive.zip"
+        extract_dir = import_dir / _archive_stem(archive.filename)
+        try:
+            await _save_upload(archive, archive_path)
+            manifest = extract_zip_archive(archive_path, extract_dir)
+        except HTTPException:
+            shutil.rmtree(import_dir, ignore_errors=True)
+            raise
+        except ValueError as exc:
+            shutil.rmtree(import_dir, ignore_errors=True)
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except OSError as exc:
+            shutil.rmtree(import_dir, ignore_errors=True)
+            raise HTTPException(status_code=500, detail="上传文件暂存失败。") from exc
+        finally:
+            await archive.close()
+
+        record = {
+            "import_id": import_id,
+            "source_id": source_id,
+            "extract_dir": str(extract_dir),
+            "import_dir": str(import_dir),
+            "root": str(root),
+            "existing_path": str(_rag_existing_path(app, source_id, root)),
+            "overwrite": bool(overwrite),
+            "status": "uploaded",
+            "markdown_files": manifest["markdown_files"],
+            "files": manifest["files"],
+        }
+        app.state.rag_imports[import_id] = record
+        return {
+            "import_id": import_id,
+            "source_id": source_id,
+            "tree": _build_import_tree(extract_dir),
+            "markdown_files": manifest["markdown_files"],
+            "ignored_files": manifest["ignored_files"],
+        }
+
+    @app.post("/api/rag/imports/{import_id}/preview")
+    async def preview_rag_import(
+        import_id: str, request: RAGImportPreviewRequest
+    ) -> dict[str, Any]:
+        record = _get_rag_import(app, import_id)
+        if record["status"] not in {"uploaded", "previewed"}:
+            raise HTTPException(status_code=409, detail="当前导入状态不支持预览。")
+        relative_path = record["markdown_files"][0]
+        preview = preview_markdown(
+            Path(record["extract_dir"]) / Path(*PurePosixPath(relative_path).parts),
+            strategy=request.strategy,
+            chunk_size=request.chunk_size,
+        )
+        preview["path"] = relative_path
+        app.state.rag_imports[import_id] = {
+            **record,
+            "status": "previewed",
+            "strategy": request.strategy,
+            "chunk_size": request.chunk_size,
+        }
+        return preview
+
+    @app.post("/api/rag/imports/{import_id}/start", status_code=status.HTTP_202_ACCEPTED)
+    async def start_rag_import(
+        import_id: str, request: RAGImportStartRequest
+    ) -> dict[str, Any]:
+        record = _get_rag_import(app, import_id)
+        if record["status"] not in {"uploaded", "previewed"}:
+            raise HTTPException(status_code=409, detail="当前导入任务不能开始处理。")
+        if any(item.get("status") == "processing" for item in app.state.rag_imports.values()):
+            raise HTTPException(status_code=409, detail="已有知识库正在处理中，请稍后重试。")
+        if record["status"] == "uploaded":
+            raise HTTPException(status_code=409, detail="请先完成切片预览。")
+
+        task_record = {
+            **record,
+            **request.model_dump(),
+            "status": "processing",
+        }
+        app.state.rag_imports[import_id] = task_record
+        _schedule_background_task(
+            app.state.background_tasks,
+            _process_rag_import(app, task_record),
+            name=f"rag-import-{import_id}",
+        )
+        return {"import_id": import_id, "status": "processing"}
+
+    @app.get("/api/rag/imports/{import_id}")
+    async def get_rag_import(import_id: str) -> dict[str, Any]:
+        record = _get_rag_import(app, import_id)
+        return {
+            key: record[key]
+            for key in (
+                "import_id", "source_id", "status", "strategy", "chunk_size", "summary", "error"
+            )
+            if key in record
+        }
+
+    @app.delete("/api/rag/imports/{import_id}")
+    async def delete_rag_import(import_id: str) -> dict[str, Any]:
+        record = _get_rag_import(app, import_id)
+        if record["status"] == "processing":
+            raise HTTPException(status_code=409, detail="知识库正在处理中，不能删除。")
+        shutil.rmtree(record["import_dir"], ignore_errors=True)
+        app.state.rag_imports.pop(import_id, None)
+        return {"deleted": True}
+
     @app.get("/api/rag/assets/{asset_path:path}")
     async def get_rag_asset(asset_path: str) -> FileResponse:
         asset_file = _resolve_rag_asset(app.state.config, asset_path)
@@ -508,20 +731,33 @@ async def _ensure_services_initialized(app: FastAPI, *, include_mcp: bool = True
         except Exception as exc:
             logger.warning("Web 启动 JSONL 迁移失败，继续启动: %s", exc)
 
+        try:
+            _recover_rag_imports(app)
+        except Exception as exc:
+            logger.warning("Web 启动清理本地知识库导入残留失败，继续启动: %s", exc)
+
+        source_configs = _rag_source_configs(app.state.history_store)
         if config.rag.enabled:
             try:
-                summary = RAGIndexer(config.rag).sync()
+                summary = RAGIndexer(config.rag, source_configs=source_configs).sync()
                 logger.info("Web 启动 RAG 索引同步完成: %s", summary)
             except Exception as exc:
                 logger.warning("Web 启动 RAG 索引同步失败，继续启动: %s", exc)
 
             try:
                 from lifeops.rag.retriever import RAGRetriever
-                from lifeops.rag.router import RAGRouter, RecipeRetriever
+                from lifeops.rag.router import build_default_rag_router
 
                 backend = RAGRetriever(config.rag)
                 backend.warm_up()
-                services.rag_router = RAGRouter([RecipeRetriever(config.rag, backend)])
+                enabled_source_configs = _rag_source_configs(
+                    app.state.history_store, enabled_only=True
+                )
+                services.rag_router = build_default_rag_router(
+                    config.rag,
+                    backend,
+                    sources=enabled_source_configs,
+                )
                 logger.info("Web 启动 RAG 模型预热完成")
             except Exception as exc:
                 logger.warning("Web 启动 RAG 模型预热失败，继续启动: %s", exc)
@@ -1011,6 +1247,233 @@ def _refresh_global_skill_catalog(app: FastAPI) -> None:
     app.state.services.skill_catalog = manager.catalog
 
 
+async def _process_rag_import(app: FastAPI, record: dict[str, Any]) -> None:
+    import_id = record["import_id"]
+    try:
+        summary = await asyncio.to_thread(_process_rag_import_sync, app, record)
+    except Exception as exc:
+        logger.exception("本地知识库导入失败: %s", import_id)
+        app.state.rag_imports[import_id] = {
+            **record,
+            "status": "failed",
+            "error": str(exc),
+        }
+        return
+    app.state.rag_imports[import_id] = {
+        **record,
+        "status": "completed",
+        "summary": summary,
+    }
+
+
+def _process_rag_import_sync(app: FastAPI, record: dict[str, Any]) -> dict[str, Any]:
+    root = Path(record["root"])
+    import_dir = Path(record["import_dir"])
+    extract_dir = Path(record["extract_dir"])
+    target = root / record["source_id"]
+    old_target = Path(record["existing_path"])
+    backup = import_dir / "backup"
+    source = {
+        "source_id": record["source_id"],
+        "name": record["name"],
+        "description": record["description"],
+        "call_when": record["call_when"],
+        "path_prefix": f"{record['source_id']}/",
+        "enabled": record["enabled"],
+        "chunk_strategy": record["strategy"],
+        "chunk_size": record["chunk_size"],
+    }
+    manifest = {
+        "source": source,
+        "target_path": str(target),
+        "old_path": str(old_target),
+        "backup_path": str(backup),
+        "import_dir": str(import_dir),
+    }
+    pending_path = import_dir / "pending.json"
+    pending_path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+    target_replaced = False
+
+    try:
+        if target.exists() and target != old_target:
+            raise ValueError("目标知识库目录已存在，请重新确认覆盖")
+        if old_target.exists():
+            old_target.rename(backup)
+        extract_dir.rename(target)
+        target_replaced = True
+        (target / _RAG_IMPORT_PENDING).write_text(
+            json.dumps(manifest, ensure_ascii=False), encoding="utf-8"
+        )
+
+        source_configs = _rag_source_configs(app.state.history_store)
+        source_configs = [
+            item for item in source_configs if item.source_id != source["source_id"]
+        ] + [RAGSourceConfig(**source)]
+        summary = RAGIndexer(
+            app.state.config.rag,
+            source_configs=source_configs,
+        ).sync()
+        (target / _RAG_IMPORT_COMPLETE).write_text(
+            json.dumps(source, ensure_ascii=False), encoding="utf-8"
+        )
+        (target / _RAG_IMPORT_PENDING).unlink(missing_ok=True)
+        app.state.history_store.upsert_rag_source(source)
+        shutil.rmtree(import_dir, ignore_errors=True)
+        return summary
+    except Exception:
+        if target_replaced and target.exists():
+            shutil.rmtree(target, ignore_errors=True)
+        if backup.exists() and not old_target.exists():
+            backup.rename(old_target)
+        try:
+            RAGIndexer(
+                app.state.config.rag,
+                source_configs=_rag_source_configs(app.state.history_store),
+            ).sync()
+        except Exception:
+            logger.exception("恢复本地知识库旧索引失败，将在下次启动时重建")
+        raise
+
+
+def _rag_source_configs(
+    store: ConversationHistoryStoreSQLite,
+    *,
+    enabled_only: bool = False,
+) -> list[RAGSourceConfig]:
+    return [
+        RAGSourceConfig(
+            source_id=source["source_id"],
+            name=source["name"],
+            description=source["description"],
+            call_when=source["call_when"],
+            path_prefix=source["path_prefix"],
+            enabled=source["enabled"],
+            chunk_strategy=source.get("chunk_strategy", "heading"),
+            chunk_size=int(source.get("chunk_size", 900)),
+        )
+        for source in store.list_rag_sources(enabled_only=enabled_only)
+    ]
+
+
+def _recover_rag_imports(app: FastAPI) -> None:
+    for root in _rag_data_roots(app.state.config):
+        imports_dir = root / ".imports"
+        if imports_dir.exists():
+            for import_dir in list(imports_dir.iterdir()):
+                pending = import_dir / "pending.json"
+                if pending.is_file():
+                    _restore_pending_import(json.loads(pending.read_text(encoding="utf-8")))
+                elif import_dir.is_dir():
+                    shutil.rmtree(import_dir, ignore_errors=True)
+            try:
+                imports_dir.rmdir()
+            except OSError:
+                pass
+
+        for directory in root.iterdir() if root.exists() else []:
+            if not directory.is_dir():
+                continue
+            pending_path = directory / _RAG_IMPORT_PENDING
+            complete_path = directory / _RAG_IMPORT_COMPLETE
+            if pending_path.is_file():
+                _restore_pending_import(json.loads(pending_path.read_text(encoding="utf-8")))
+            elif complete_path.is_file():
+                source = json.loads(complete_path.read_text(encoding="utf-8"))
+                app.state.history_store.upsert_rag_source(source)
+
+
+def _restore_pending_import(manifest: dict[str, Any]) -> None:
+    target = Path(manifest["target_path"])
+    old_target = Path(manifest["old_path"])
+    backup = Path(manifest["backup_path"])
+    if (target / _RAG_IMPORT_PENDING).is_file():
+        shutil.rmtree(target, ignore_errors=True)
+    if backup.exists() and not old_target.exists():
+        backup.rename(old_target)
+    import_dir = Path(manifest["import_dir"])
+    shutil.rmtree(import_dir, ignore_errors=True)
+
+
+async def _save_upload(upload: UploadFile, destination: Path) -> None:
+    total = 0
+    with destination.open("wb") as target:
+        while chunk := await upload.read(1024 * 1024):
+            total += len(chunk)
+            if total > 100 * 1024 * 1024:
+                raise HTTPException(status_code=413, detail="压缩包超过 100MB 限制。")
+            target.write(chunk)
+
+
+def _validate_rag_source_id(value: str) -> str:
+    normalized = value.strip()
+    if not re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", normalized):
+        raise HTTPException(status_code=422, detail="标识必须是小写字母开头的安全标识。")
+    return normalized
+
+
+def _archive_stem(filename: str) -> str:
+    name = Path(filename.replace("\\", "/")).name
+    stem = Path(name).stem
+    stem = re.sub(r"[^\w\-.\u4e00-\u9fff]", "_", stem, flags=re.UNICODE).strip("._")
+    return stem or "upload"
+
+
+def _rag_import_conflicts(app: FastAPI, source_id: str) -> bool:
+    if app.state.history_store.get_rag_source(source_id) is not None:
+        return True
+    return any((root / source_id).exists() for root in _rag_data_roots(app.state.config))
+
+
+def _rag_import_root(app: FastAPI, source_id: str) -> Path:
+    source = app.state.history_store.get_rag_source(source_id)
+    candidates = _rag_data_roots(app.state.config)
+    if source is not None:
+        prefix = source["path_prefix"].rstrip("/")
+        matching = [root for root in candidates if (root / prefix).exists()]
+        if len(matching) == 1:
+            return matching[0]
+    matching = [root for root in candidates if (root / source_id).exists()]
+    return matching[0] if len(matching) == 1 else candidates[0]
+
+
+def _rag_existing_path(app: FastAPI, source_id: str, root: Path) -> Path:
+    source = app.state.history_store.get_rag_source(source_id)
+    if source is None:
+        return root / source_id
+    prefix = source["path_prefix"].rstrip("/")
+    return root / prefix
+
+
+def _get_rag_import(app: FastAPI, import_id: str) -> dict[str, Any]:
+    record = app.state.rag_imports.get(import_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="导入任务不存在或已清理。")
+    return record
+
+
+def _build_import_tree(root: Path) -> list[dict[str, Any]]:
+    def build(directory: Path) -> list[dict[str, Any]]:
+        nodes: list[dict[str, Any]] = []
+        for path in sorted(directory.iterdir(), key=lambda item: (item.is_file(), item.name.casefold())):
+            relative = path.relative_to(root).as_posix()
+            node: dict[str, Any] = {
+                "name": path.name,
+                "path": relative,
+                "type": "file" if path.is_file() else "directory",
+            }
+            if path.is_dir():
+                node["children"] = build(path)
+            nodes.append(node)
+        return nodes
+
+    return [{
+        "name": root.name,
+        "path": root.name,
+        "type": "directory",
+        "children": build(root),
+    }]
+
+
 def _resolve_rag_asset(config: AppConfig, asset_path: str) -> Path:
     if _is_unsafe_rag_asset_path(asset_path):
         raise HTTPException(status_code=403, detail="RAG 资源路径无效。")
@@ -1044,6 +1507,30 @@ def _rag_data_roots(config: AppConfig) -> list[Path]:
             root = PROJECT_ROOT / root
         roots.append(root.resolve())
     return roots
+
+
+def _validate_rag_source_text(value: str) -> str:
+    if any(ord(char) < 32 or ord(char) == 127 for char in value):
+        raise ValueError("本地知识库文本不能包含换行或控制字符。")
+    return value
+
+
+def _normalize_rag_source_path(config: AppConfig, raw_path: str) -> str:
+    path = raw_path.strip()
+    if not path or "\\" in path:
+        raise HTTPException(status_code=422, detail="数据源目录路径不合法。")
+    pure_path = PurePosixPath(path)
+    if pure_path.is_absolute() or len(pure_path.parts) != 1 or pure_path.parts[0] in {".", ".."}:
+        raise HTTPException(status_code=422, detail="数据源目录必须是已存在的一级目录。")
+
+    normalized = f"{pure_path.parts[0]}/"
+    if not any(
+        (candidate := (root / pure_path.parts[0]).resolve()).is_dir()
+        and candidate.is_relative_to(root)
+        for root in _rag_data_roots(config)
+    ):
+        raise HTTPException(status_code=422, detail="数据源目录不存在于本地 RAG 根目录中。")
+    return normalized
 
 
 def _parse_metadata_fragment(raw_metadata: str) -> dict[str, Any]:

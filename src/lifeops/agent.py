@@ -162,11 +162,9 @@ class Agent:
         if services is not None:
             self.rag_router = services.rag_router
         elif config.rag.enabled:
-            from lifeops.rag.router import RAGRouter, RecipeRetriever
-            from lifeops.rag.retriever import RAGRetriever
+            from lifeops.rag.router import build_default_rag_router
 
-            backend = RAGRetriever(config.rag)
-            self.rag_router = RAGRouter([RecipeRetriever(config.rag, backend)])
+            self.rag_router = build_default_rag_router(config.rag)
 
         if services is None:
             self._register_default_tools()
@@ -252,7 +250,7 @@ class Agent:
             validated = RetrieveKnowledgeParams.model_validate(params)
             source = validated.source.strip()
             if not source:
-                return ToolResult(success=False, output="", error="RAG 数据源不能为空")
+                return ToolResult(success=False, output="", error="本地知识库不能为空")
             top_files = min(validated.top_files, 3)
             try:
                 result = await self.rag_router.retrieve(
@@ -945,8 +943,26 @@ class Agent:
     async def _execute_tool_call_result(self, tc: ToolCallResult) -> ToolResult:
         try:
             params = json.loads(tc.arguments)
-        except json.JSONDecodeError:
-            params = {}
+        except (json.JSONDecodeError, TypeError) as error:
+            self._record_trace(
+                TraceEventType.LLM_PARSE_ERROR,
+                {"stage": "tool_arguments", "tool_name": tc.name, "reason": str(error)},
+            )
+            raise AgentRuntimeError(
+                RuntimeErrorType.LLM_PARSE_ERROR,
+                "工具调用参数 JSON 无效",
+                recoverable=True,
+            ) from error
+        if not isinstance(params, dict):
+            self._record_trace(
+                TraceEventType.LLM_PARSE_ERROR,
+                {"stage": "tool_arguments", "tool_name": tc.name, "reason": "参数必须是 JSON 对象"},
+            )
+            raise AgentRuntimeError(
+                RuntimeErrorType.LLM_PARSE_ERROR,
+                "工具调用参数 JSON 无效",
+                recoverable=True,
+            )
 
         logger.info(f"Tool call: {tc.name}({params})")
         definition = self.tools.get_definition(tc.name)

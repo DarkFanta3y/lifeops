@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from typing import Literal
 
 from lifeops.rag.types import KnowledgeChunk
 
@@ -21,8 +22,14 @@ def split_markdown(
     parent_content_hash: str | None = None,
     target_chars: int = 900,
     overlap_chars: int = 150,
+    strategy: Literal["heading", "fixed"] = "heading",
 ) -> list[KnowledgeChunk]:
-    sections = _split_sections(content, title)
+    if strategy not in {"heading", "fixed"}:
+        raise ValueError("不支持的切片策略")
+    if target_chars < 1 or overlap_chars < 0 or overlap_chars >= target_chars:
+        raise ValueError("切片大小或重叠大小不合法")
+
+    sections = [(title, content)] if strategy == "fixed" else _split_sections(content, title)
     chunks: list[KnowledgeChunk] = []
     parent_hash = parent_content_hash or hashlib.sha1(content.strip().encode("utf-8")).hexdigest()
 

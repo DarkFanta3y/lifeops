@@ -28,6 +28,7 @@ LifeOps 是一个本地优先的 AI 生活助手智能体。它把流式对话�
 - **工具统一展示**：内置工具和 MCP Server 工具使用同一套工具注册与展示模型，控制台可按 `TOOL` / `MCP` 切换查看。
 - **长期记忆**：持续学习会话摘要、用户偏好和知识图谱，并提供记忆搜索、偏好删除、实体删除和低价值记忆清理能力。
 - **RAG**：索引本地 Markdown 知识库，混合向量检索、BM25、RRF 与 reranker，让回答能引用你的本地资料。
+- **本地知识库管理**：在 DATABASE 页面通过三步向导上传 ZIP，浏览解压目录、预览固定大小或按标题切片，并在后台建立向量与 BM25 索引；完成后重启 LifeOps 加载新知识库。
 - **生产级运行时**：每次请求生成 `run_id`，记录结构化 trace、工具策略决策、失败分类和离线 runtime eval，便于审计与回归测试。
 
 ## 智能体
@@ -83,9 +84,12 @@ curl http://127.0.0.1:8081/api/tools/policy
 
 ![本地 Markdown RAG](assets/rag.png)
 
-RAG 系统会把本地 Markdown 知识库索引到 ChromaDB 与 BM25。主 LLM 需要本地资料时调用唯一公开工具 `retrieve_knowledge`，传入工具描述中的顶级 `source`（当前为 `recipes` 菜谱）；工具内部再由 `RAGRouter` 分发到对应 Retriever，菜谱 Retriever 负责 `dishes/` 下的细分类路由。检索时会并行执行向量检索与 BM25，再进行 RRF 融合和 reranker 精排；本地资料不足时，主 LLM 可根据结果自行决定是否继续调用网页搜索。
+RAG 系统会把本地 Markdown 知识库索引到 ChromaDB 与 BM25。DATABASE 页面新增知识库时，服务端安全解压 ZIP、展示目录树，并预览首个 Markdown 的切片结果；固定大小支持 150–900 字符，按标题切块时超长章节自动拆分。索引完成后写入完成标识和 SQLite 配置，重启时清理未完成导入并加载已完成知识库；覆盖已有知识库前会要求二次确认，失败时恢复旧目录。删除只删除配置，不删除本地文件或索引文件。主 LLM 需要本地资料时调用唯一公开工具 `retrieve_knowledge`，传入工具描述中的顶级 `source`：`source="recipes"` 检索 `dishes/` 菜谱，`source="islamic_culture"` 检索 `伊斯兰文化知识库/`；工具内部再由 `RAGRouter` 分发到对应 Retriever。
 
 返回结果按父 Markdown 文件聚合，并保留证据片段。Markdown 中的本地图片会通过只读资源接口安全展示在前端消息里。
+
+
+![手动添加本地数据源](assets/本地知识库添加.png)
 
 ### 记忆管理
 
@@ -96,7 +100,7 @@ LifeOps 会把跨会话信息写入本地 SQLite，包括会话摘要、用户�
 
 ## Web 控制台
 
-LifeOps 的主要入口是本地 Web 控制台。后端由 FastAPI 提供会话、聊天、Skill、工具、记忆和 RAG 资源接口；前端通过 SSE 接收流式回答和工具事件。
+LifeOps 的主要入口是本地 Web 控制台。后端由 FastAPI 提供会话、聊天、Skill、工具、记忆、RAG 资源和数据源管理接口；前端通过 SSE 接收流式回答和工具事件。
 ![LifeOps Web 控制台](assets/web.png)
 
 ### 对话与历史

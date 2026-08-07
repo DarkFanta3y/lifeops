@@ -28,7 +28,12 @@ class SentenceTransformerEmbeddingProvider:
         return self._model
 
     def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        return self.model.encode(texts, normalize_embeddings=True).tolist()
+        return self.model.encode(
+            texts,
+            batch_size=32,
+            normalize_embeddings=True,
+            show_progress_bar=False,
+        ).tolist()
 
     def embed_query(self, text: str) -> list[float]:
         return self.embed_documents([text])[0]

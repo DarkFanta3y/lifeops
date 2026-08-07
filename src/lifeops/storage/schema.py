@@ -1,6 +1,6 @@
 """SQLite 数据库 schema 定义：对话历史存储的 DDL 与版本常量。"""
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 7
 
 # fmt: off
 CREATE_TABLES_SQL = """
@@ -14,6 +14,20 @@ CREATE TABLE IF NOT EXISTS conversations (
     last_message    TEXT,                          -- 最后一条消息预览（可空）
     created_at      TEXT    NOT NULL,              -- ISO 8601
     updated_at      TEXT    NOT NULL               -- ISO 8601
+);
+
+-- rag_sources: 本地 RAG 数据源配置
+CREATE TABLE IF NOT EXISTS rag_sources (
+    source_id   TEXT PRIMARY KEY,
+    name        TEXT NOT NULL,
+    description TEXT NOT NULL,
+    call_when   TEXT NOT NULL,
+    path_prefix TEXT NOT NULL UNIQUE,
+    enabled     INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0, 1)),
+    chunk_strategy TEXT NOT NULL DEFAULT 'heading',
+    chunk_size INTEGER NOT NULL DEFAULT 900,
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
 );
 
 -- messages: 消息记录
