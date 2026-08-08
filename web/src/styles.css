@@ -12,6 +12,7 @@ body {
   margin: 0;
   background: #f5f6f8;
   color: #111827;
+  font-family: "思源黑体","Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", "思源黑体 CN",  "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
 }
 
 #root {
@@ -344,27 +345,6 @@ textarea {
   padding: 16px;
   border-top: 1px solid #e5e7eb;
   background: #ffffff;
-}
-
-.composer-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 8px;
-}
-
-.composer-preview-toggle.ant-btn {
-  color: #4b5563;
-  font-size: 12px;
-}
-
-.composer-preview {
-  max-height: 180px;
-  overflow: auto;
-  margin-bottom: 10px;
-  padding: 10px 12px;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  background: #f9fafb;
 }
 
 .composer-input {

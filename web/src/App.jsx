@@ -19,7 +19,6 @@ import {
   DeleteOutlined,
   DownOutlined,
   FileTextOutlined,
-  MessageOutlined,
   PlusOutlined,
   RightOutlined,
   SearchOutlined,
@@ -621,7 +620,6 @@ function SearchModal({ open, query, results, loading, loadingMore, error, hasMor
 function ChatWorkspace({ selectedConversation, messages, intermediateMessages,
   selectedConversationId, chatInput, sending, hasMore, loadingOlder, onLoadOlder,
   onInputChange, onSend }) {
-  const [previewOpen, setPreviewOpen] = useState(false);
   const [loggingOpen, setLoggingOpen] = useState(false);
   const messageStreamRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -678,14 +676,7 @@ function ChatWorkspace({ selectedConversation, messages, intermediateMessages,
           ))}
         <div ref={messagesEndRef} />
       </div>
-      <div className="composer"><div className="composer-actions">
-        <Button type="text" size="small" icon={<MessageOutlined />}
-          className="composer-preview-toggle" aria-expanded={previewOpen}
-          onClick={() => setPreviewOpen((current) => !current)}>
-          {previewOpen ? "隐藏预览" : "预览"}</Button></div>
-        {previewOpen ? <div className="composer-preview" aria-label="Markdown 预览">
-          <MarkdownRenderer content={chatInput} emptyText="暂无预览内容" /></div> : null}
-        <div className="composer-input"><Input.TextArea value={chatInput}
+      <div className="composer"><div className="composer-input"><Input.TextArea value={chatInput}
           onChange={(event) => onInputChange(event.target.value)}
           onPressEnter={(event) => { if (!event.shiftKey) {
             event.preventDefault(); handleSendFromComposer();

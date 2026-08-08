@@ -16,7 +16,7 @@ createRoot(document.getElementById("root")).render(
           colorBgLayout: "#f6f7f9",
           borderRadius: 6,
           fontFamily:
-            '"Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif',
+            '"思源黑体","Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", "思源黑体 CN",  "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif',
         },
         components: {
           Layout: {

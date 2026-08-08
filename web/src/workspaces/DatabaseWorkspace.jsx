@@ -379,7 +379,7 @@ export default function DatabaseWorkspace({
         width={1120}
         destroyOnHidden
       >
-        <Steps current={step} items={[{ title: "上传资料" }, { title: "选择切片" }, { title: "入库处理" }]} />
+        <Steps current={step} items={[{ title: "上传资料" }, { title: "选择切片策略" }, { title: "入库" }]} />
         {wizardError ? <Alert className="database-import-alert" type="error" message={wizardError} showIcon /> : null}
         <Text type="secondary" className="database-import-format">暂时只支持 Markdown（可包含常见图片资源）</Text>
         {step === 0 ? (
