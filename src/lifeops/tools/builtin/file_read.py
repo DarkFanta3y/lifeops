@@ -6,6 +6,7 @@ from typing import Any
 from pydantic import Field
 
 from lifeops.tools.base import ToolDefinition, ToolParams, ToolResult
+from lifeops.tools.builtin.edit_guard import FileEditGuard
 from lifeops.tools.registry import ToolRegistry
 from lifeops.utils.logging import get_logger
 
@@ -23,7 +24,9 @@ class FileReadParams(ToolParams):
     limit: int = Field(default=2000, ge=1, le=5000, description="最多返回的行数")
 
 
-async def _file_read_handler(params: dict[str, Any]) -> ToolResult:
+async def _file_read_handler(
+    params: dict[str, Any], edit_guard: FileEditGuard | None = None
+) -> ToolResult:
     validated = FileReadParams.model_validate(params)
     file_path = validated.path
     offset = validated.offset
@@ -40,6 +43,8 @@ async def _file_read_handler(params: dict[str, Any]) -> ToolResult:
             return ToolResult(success=True, output="\n".join(lines))
 
         text = path.read_text(encoding=encoding, errors="replace")
+        if edit_guard is not None:
+            edit_guard.mark_read(path)
         all_lines = text.splitlines()
         start = max(0, offset - 1)
         end = min(len(all_lines), start + limit)
@@ -60,14 +65,20 @@ async def _file_read_handler(params: dict[str, Any]) -> ToolResult:
         return ToolResult(success=False, output="", error=str(e))
 
 
-def create_file_read_tool(registry: ToolRegistry) -> None:
+def create_file_read_tool(registry: ToolRegistry, edit_guard: FileEditGuard | None = None) -> None:
+    async def handler(params: dict[str, Any]) -> ToolResult:
+        return await _file_read_handler(params, edit_guard=edit_guard)
+
     definition = ToolDefinition(
         name="file_read",
-        description="何时调用：读取文件内容或列出目录。何时禁止：不要用于创建、替换、追加或删除文件。",
+        description=(
+            "何时调用：读取文件内容或列出目录；编辑文件前必须先读取目标文件。"
+            "何时禁止：不要用于创建、替换、追加或删除文件。"
+        ),
         parameters_model=FileReadParams,
         category="builtin",
         canonical_name="builtin.file_read",
         read_only=True,
         risk_level="low",
     )
-    registry.register(definition, _file_read_handler)
+    registry.register(definition, handler)

@@ -127,7 +127,7 @@ Skill 系统启用时，Agent 会额外暴露只读低风险内部工具 `activa
 
 ### Tools 与 MCP
 
-`TOOLS` 页面默认展示内置工具，包括命令执行、文件读取、简单文件创建/替换/追加、legacy 文件编辑、代码搜索（`grep` 正则匹配与 `glob` 文件查找）、网页搜索和本地知识库检索。工具参数 schema 会保留 `minLength`、`minimum`、`maximum`、`enum`、`pattern`、`additionalProperties: false` 等约束，便于前端展示和模型调用校验。切换到 `MCP` 后，可以按 Server 展开查看已连接 MCP 工具及参数。
+`TOOLS` 页面默认展示内置工具，包括命令执行、文件读取、文件创建/替换/追加、代码搜索（`grep` 正则匹配与 `glob` 文件查找）、网页搜索和本地知识库检索。文件编辑有安全网保护：修改已有文件前必须先用 `file_read` 读过该文件（会话级 `FileEditGuard` 强制），`file_replace` 的 `old_text` 必须在文件中唯一，编辑结果以 unified diff 写入工具结果 metadata 并可在 Logging 弹窗查看。工具参数 schema 会保留 `minLength`、`minimum`、`maximum`、`enum`、`pattern`、`additionalProperties: false` 等约束，便于前端展示和模型调用校验。切换到 `MCP` 后，可以按 Server 展开查看已连接 MCP 工具及参数。
 
 Agent 运行时不需要区分工具来源。内置工具、MCP 工具和内部 Skill 伪工具都会注册到统一工具表中，执行层始终保留完整 registry，执行结果再写入上下文和 Logging。`/api/tools` 仍返回完整工具清单，便于管理和调试。
 

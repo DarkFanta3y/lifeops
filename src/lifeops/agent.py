@@ -28,6 +28,9 @@ from lifeops.skills.matcher import SkillMatcher
 from lifeops.skills.types import SkillCatalog
 from lifeops.tools.base import ToolDefinition, ToolParams, ToolResult
 from lifeops.tools.builtin import register_all_builtin_tools
+from lifeops.tools.builtin.edit_guard import FileEditGuard
+from lifeops.tools.builtin.file_read import create_file_read_tool
+from lifeops.tools.builtin.file_write import create_simple_file_tools
 from lifeops.tools.mcp.manager import MCPManager
 from lifeops.tools.mcp.types import MCPServerConfig
 from lifeops.tools.registry import ToolRegistry
@@ -76,7 +79,6 @@ EDIT_CANONICAL_TOOLS = {
     "builtin.file_create",
     "builtin.file_replace",
     "builtin.file_append",
-    "builtin.file_edit",
 }
 
 _APPROVAL_PARAMS_PREVIEW_CHARS = 600
@@ -119,6 +121,7 @@ DEFAULT_SYSTEM_PROMPT = """# 身份与目标
 
 - 需要读取或编辑文件、执行命令、搜索互联网或调用 MCP 时，使用对应工具。
 - 在本地文件中定位内容或路径时优先使用 grep 和 glob，不要用 bash 拼接搜索命令。
+- 修改已有文件前必须先用 file_read 读取当前内容，file_replace 的 old_text 必须取自真实内容且在文件中唯一。
 - 系统已提供检索结果时优先直接使用，不重复检索；仍缺信息或需操作时才继续调用工具。
 - 工具失败或权限受限时，说明限制、已尝试内容和下一步选择。
 - 不为可直接回答的常识性或低风险问题过度调用工具。
@@ -173,6 +176,7 @@ class Agent:
             timeout=config.llm.timeout,
         )
         self.tools = services.base_tool_registry.clone() if services is not None else ToolRegistry()
+        self.edit_guard = FileEditGuard()
         self.mcp_manager = services.mcp_manager if services is not None else MCPManager()
         self.context = ContextManager(
             max_tokens=config.context.max_context_tokens,
@@ -214,6 +218,7 @@ class Agent:
 
         if services is None:
             self._register_default_tools()
+        self._rebind_file_tools_with_guard()
         self._register_finish_task_tool()
         self._register_rag_tool()
 
@@ -248,6 +253,17 @@ class Agent:
 
     def _register_default_tools(self) -> None:
         register_all_builtin_tools(self.tools, self.config)
+
+    def _rebind_file_tools_with_guard(self) -> None:
+        """把文件读写工具重绑到本会话的 FileEditGuard，强制“先读后编辑”。
+
+        services 路径下工具来自全局 registry 的 clone，其 handler 不携带会话状态，
+        因此无论哪条构造路径都统一重绑这四个工具。
+        """
+        for name in ("file_read", "file_create", "file_replace", "file_append"):
+            self.tools.unregister(name)
+        create_file_read_tool(self.tools, edit_guard=self.edit_guard)
+        create_simple_file_tools(self.tools, edit_guard=self.edit_guard)
 
     def _register_finish_task_tool(self) -> None:
         async def handler(params: dict[str, Any]) -> ToolResult:
@@ -1446,6 +1462,7 @@ class Agent:
     def reset(self) -> None:
         self.messages.clear()
         self.conversation_id = self._new_conversation_id()
+        self.edit_guard.reset()
         self.context = ContextManager(
             max_tokens=self.config.context.max_context_tokens,
             l1_budget_ratio=self.config.context.l1_budget_ratio,

@@ -25,7 +25,6 @@ SIMPLE_WRITE_TOOL_ORDER = {
     "file_append": 12,
 }
 LEGACY_OR_HIGH_RISK_ORDER = {
-    "file_edit": 90,
     "bash": 95,
 }
 
