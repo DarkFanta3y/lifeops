@@ -1,21 +1,25 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
+
+import yaml
 
 from lifeops.skills.types import SkillCatalog, SkillMetadata, SkillSource
 from lifeops.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-KNOWN_FRONTMATTER_KEYS = {
+STANDARD_FRONTMATTER_KEYS = {
     "name",
     "description",
+    "license",
+    "compatibility",
     "metadata",
     "allowed-tools",
-    "dependencies",
-    "policy",
 }
+SKILL_NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
 
 class SkillLoader:
@@ -61,8 +65,10 @@ class SkillLoader:
                 results.append((f"跳过 Skill 目录 {child}: 缺少 SKILL.md", None))
                 continue
             try:
-                results.append((None, self._load_metadata(skill_file, child, source)))
-            except ValueError as exc:
+                metadata, metadata_warnings = self._load_metadata(skill_file, child, source)
+                results.extend((warning, None) for warning in metadata_warnings)
+                results.append((None, metadata))
+            except (TypeError, ValueError, yaml.YAMLError) as exc:
                 results.append((f"跳过 Skill {skill_file}: {exc}", None))
             except OSError as exc:
                 results.append((f"跳过 Skill {skill_file}: 读取失败: {exc}", None))
@@ -70,176 +76,101 @@ class SkillLoader:
 
     def _load_metadata(
         self, skill_file: Path, directory: Path, source: SkillSource
-    ) -> SkillMetadata:
+    ) -> tuple[SkillMetadata, list[str]]:
         content = skill_file.read_text(encoding="utf-8")
         frontmatter = self._extract_frontmatter(content)
 
-        name = frontmatter.get("name")
-        description = frontmatter.get("description")
-        if not isinstance(name, str) or not name.strip():
-            raise ValueError("缺少必填字段 name")
-        if not isinstance(description, str) or not description.strip():
-            raise ValueError("缺少必填字段 description")
+        name = _required_string(frontmatter, "name")
+        description = _required_string(frontmatter, "description")
+        if len(name) > 64 or not SKILL_NAME_PATTERN.fullmatch(name):
+            raise ValueError("name 必须是 1–64 个小写字母、数字和单连字符组成的标准名称")
+        if name != directory.name:
+            raise ValueError("name 必须与 Skill 父目录名一致")
+        if len(description) > 1024:
+            raise ValueError("description 长度不能超过 1024 个字符")
 
-        metadata = frontmatter.get("metadata")
-        short_description = None
-        if isinstance(metadata, dict):
-            short_description_value = metadata.get("short-description")
-            if isinstance(short_description_value, str):
-                short_description = short_description_value
+        license_value = _optional_string(frontmatter, "license")
+        compatibility = _optional_string(frontmatter, "compatibility")
+        if compatibility is not None and len(compatibility) > 500:
+            raise ValueError("compatibility 长度不能超过 500 个字符")
 
-        policy = frontmatter.get("policy")
-        allow_implicit_invocation = True
-        if isinstance(policy, dict) and isinstance(policy.get("allow_implicit_invocation"), bool):
-            allow_implicit_invocation = policy["allow_implicit_invocation"]
+        standard_metadata = frontmatter.get("metadata", {})
+        if not isinstance(standard_metadata, dict):
+            raise ValueError("metadata 必须是 YAML mapping")
+        lifeops_metadata = standard_metadata.get("lifeops", {})
+        if not isinstance(lifeops_metadata, dict):
+            raise ValueError("metadata.lifeops 必须是 YAML mapping")
 
-        return SkillMetadata(
-            name=name.strip(),
+        allowed_tools = _string_list(frontmatter.get("allowed-tools"), "allowed-tools")
+        dependencies = _string_list(lifeops_metadata.get("dependencies"), "metadata.lifeops.dependencies")
+        allow_implicit_invocation = lifeops_metadata.get("allow-implicit-invocation", True)
+        if not isinstance(allow_implicit_invocation, bool):
+            raise ValueError("metadata.lifeops.allow-implicit-invocation 必须是布尔值")
+
+        extra = {
+            key: value
+            for key, value in frontmatter.items()
+            if key not in STANDARD_FRONTMATTER_KEYS
+        }
+        unknown_keys = sorted(extra, key=str)
+        metadata = SkillMetadata(
+            name=name,
             description=description.strip(),
             path=skill_file,
             directory=directory,
             source=source,
             raw_frontmatter=frontmatter,
-            short_description=short_description,
-            allowed_tools=_string_list(frontmatter.get("allowed-tools")),
-            dependencies=_string_list(frontmatter.get("dependencies")),
+            license=license_value,
+            compatibility=compatibility,
+            metadata=standard_metadata,
+            short_description=_optional_string(standard_metadata, "short-description"),
+            allowed_tools=allowed_tools,
+            dependencies=dependencies,
             allow_implicit_invocation=allow_implicit_invocation,
-            extra={
-                key: value
-                for key, value in frontmatter.items()
-                if key not in KNOWN_FRONTMATTER_KEYS
-            },
+            extra=extra,
         )
+        warnings = [
+            f"Skill {skill_file} 包含未知顶层字段: {', '.join(unknown_keys)}"
+        ] if unknown_keys else []
+        return metadata, warnings
 
     def _extract_frontmatter(self, content: str) -> dict[str, Any]:
         lines = content.splitlines()
         if not lines or lines[0].strip() != "---":
             raise ValueError("缺少 YAML frontmatter")
 
-        end_index = None
-        for index, line in enumerate(lines[1:], start=1):
-            if line.strip() == "---":
-                end_index = index
-                break
-        if end_index is None:
-            raise ValueError("frontmatter 未闭合")
+        try:
+            end_index = next(index for index, line in enumerate(lines[1:], 1) if line.strip() == "---")
+        except StopIteration as exc:
+            raise ValueError("frontmatter 未闭合") from exc
 
-        return _parse_yaml_subset(lines[1:end_index])
-
-
-def _string_list(value: Any) -> list[str]:
-    if not isinstance(value, list):
-        return []
-    return [item for item in value if isinstance(item, str)]
+        parsed = yaml.safe_load("\n".join(lines[1:end_index]))
+        if not isinstance(parsed, dict):
+            raise ValueError("frontmatter 必须是 YAML mapping")
+        return parsed
 
 
-def _parse_yaml_subset(lines: list[str]) -> dict[str, Any]:
-    root: dict[str, Any] = {}
-    stack: list[tuple[int, Any]] = [(-1, root)]
-
-    index = 0
-    while index < len(lines):
-        raw_line = lines[index]
-        line_number = index + 2
-        if not raw_line.strip() or raw_line.lstrip().startswith("#"):
-            index += 1
-            continue
-
-        indent = len(raw_line) - len(raw_line.lstrip(" "))
-        line = raw_line.strip()
-        while stack and indent <= stack[-1][0]:
-            stack.pop()
-        parent = stack[-1][1]
-
-        if line.startswith("- "):
-            if not isinstance(parent, list):
-                raise ValueError(f"第 {line_number} 行列表缩进无效")
-            item = _parse_list_item(line[2:], line_number)
-            parent.append(item)
-            if isinstance(item, dict):
-                stack.append((indent, item))
-            index += 1
-            continue
-
-        if ":" not in line:
-            raise ValueError(f"第 {line_number} 行格式无效")
-        key, raw_value = line.split(":", 1)
-        key = key.strip()
-        raw_value = raw_value.strip()
-        if not key:
-            raise ValueError(f"第 {line_number} 行缺少键名")
-        if not isinstance(parent, dict):
-            raise ValueError(f"第 {line_number} 行映射缩进无效")
-
-        if raw_value in {"|", "|-", "|+"}:
-            parent[key], index = _parse_block_scalar(lines, index, indent, raw_value)
-            continue
-        if raw_value == "":
-            container: dict[str, Any] | list[Any]
-            next_line = _next_content_line(lines, index + 1)
-            container = [] if next_line and next_line.strip().startswith("- ") else {}
-            parent[key] = container
-            stack.append((indent, container))
-        else:
-            parent[key] = _parse_scalar(raw_value, line_number)
-        index += 1
-
-    return root
+def _required_string(mapping: dict[str, Any], key: str) -> str:
+    value = mapping.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"缺少必填字段 {key}")
+    return value.strip()
 
 
-def _next_content_line(lines: list[str], current_index: int) -> str | None:
-    for next_line in lines[current_index:]:
-        if next_line.strip() and not next_line.lstrip().startswith("#"):
-            return next_line
-    return None
-
-
-def _parse_block_scalar(
-    lines: list[str], current_index: int, parent_indent: int, marker: str
-) -> tuple[str, int]:
-    block_lines: list[str] = []
-    next_index = current_index + 1
-    block_indent: int | None = None
-
-    while next_index < len(lines):
-        raw_line = lines[next_index]
-        if raw_line.strip():
-            indent = len(raw_line) - len(raw_line.lstrip(" "))
-            if indent <= parent_indent:
-                break
-            if block_indent is None:
-                block_indent = indent
-            block_lines.append(raw_line[min(block_indent, len(raw_line)) :])
-        else:
-            block_lines.append("")
-        next_index += 1
-
-    value = "\n".join(block_lines)
-    if marker == "|":
-        value = f"{value}\n"
-    elif marker == "|+":
-        value = f"{value}\n"
-    return value, next_index
-
-
-def _parse_list_item(raw_value: str, line_number: int) -> Any:
-    if ":" in raw_value and not raw_value.startswith(("'", '"')):
-        key, value = raw_value.split(":", 1)
-        return {key.strip(): _parse_scalar(value.strip(), line_number)}
-    return _parse_scalar(raw_value, line_number)
-
-
-def _parse_scalar(value: str, line_number: int) -> Any:
-    if value in {"true", "True"}:
-        return True
-    if value in {"false", "False"}:
-        return False
-    if value in {"null", "Null", "~"}:
+def _optional_string(mapping: dict[str, Any], key: str) -> str | None:
+    value = mapping.get(key)
+    if value is None:
         return None
-    if value.startswith("[") or value.startswith("{"):
-        raise ValueError(f"第 {line_number} 行包含不支持或无效的内联 YAML")
-    if (value.startswith('"') and value.endswith('"')) or (
-        value.startswith("'") and value.endswith("'")
-    ):
-        return value[1:-1]
-    return value
+    if not isinstance(value, str):
+        raise ValueError(f"{key} 必须是字符串")
+    return value.strip()
+
+
+def _string_list(value: Any, field_name: str) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return value.split()
+    if isinstance(value, list) and all(isinstance(item, str) for item in value):
+        return value
+    raise ValueError(f"{field_name} 必须是空格分隔字符串或字符串列表")

@@ -12,6 +12,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 from uuid import uuid4
 
+import yaml
 from fastapi import File, FastAPI, Form, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
@@ -31,7 +32,6 @@ from lifeops.runtime.policy_rules import default_policy_summary
 from lifeops.runtime.store import RuntimeStore
 from lifeops.runtime.types import RunStatus, TraceEventType, TraceRecorder
 from lifeops.storage import ConversationHistoryStoreSQLite, auto_migrate
-from lifeops.skills.loader import _parse_yaml_subset
 from lifeops.skills.manager import SkillManager
 from lifeops.tools.builtin import register_all_builtin_tools
 from lifeops.tools.mcp.manager import MCPManager
@@ -50,6 +50,18 @@ _RAG_IMPORT_PENDING = ".lifeops-import-pending.json"
 _RAG_IMPORT_COMPLETE = ".lifeops-import-complete.json"
 
 
+class _SkillYamlDumper(yaml.SafeDumper):
+    pass
+
+
+def _represent_skill_string(dumper: yaml.SafeDumper, value: str) -> Any:
+    style = "|" if "\n" in value else None
+    return dumper.represent_scalar("tag:yaml.org,2002:str", value, style=style)
+
+
+_SkillYamlDumper.add_representer(str, _represent_skill_string)
+
+
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1)
     conversation_id: str | None = None
@@ -62,10 +74,15 @@ class ChatResponse(BaseModel):
 
 
 class CreateSkillRequest(BaseModel):
-    name: str = Field(pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-    description: str = Field(min_length=1)
+    name: str = Field(min_length=1, max_length=64, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+    description: str = Field(min_length=1, max_length=1024)
+    license: str | None = None
+    compatibility: str | None = Field(default=None, max_length=500)
+    allowed_tools: list[str] = Field(default_factory=list)
     metadata: str = ""
     content: str = Field(min_length=1)
+
+    model_config = {"str_strip_whitespace": True}
 
 
 class CreateRAGSourceRequest(BaseModel):
@@ -441,6 +458,9 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
                 "short_description": skill.short_description,
                 "allowed_tools": skill.allowed_tools,
                 "dependencies": skill.dependencies,
+                "license": skill.license,
+                "compatibility": skill.compatibility,
+                "metadata": skill.metadata,
             }
             for skill in manager.skills.values()
         ]
@@ -1537,8 +1557,8 @@ def _parse_metadata_fragment(raw_metadata: str) -> dict[str, Any]:
     if not raw_metadata.strip():
         return {}
     try:
-        metadata = _parse_yaml_subset(raw_metadata.splitlines())
-    except ValueError as exc:
+        metadata = yaml.safe_load(raw_metadata)
+    except yaml.YAMLError as exc:
         raise HTTPException(status_code=422, detail=f"metadata YAML 无效: {exc}") from exc
     if not isinstance(metadata, dict):
         raise HTTPException(status_code=422, detail="metadata 必须是 YAML mapping。")
@@ -1564,83 +1584,27 @@ def _write_project_skill(
 
 
 def _format_skill_file(request: CreateSkillRequest, metadata: dict[str, Any]) -> str:
-    frontmatter = [
-        "---",
-        f"name: {request.name}",
-        "description: |-",
-        *_indent_block(request.description),
-    ]
+    frontmatter: dict[str, Any] = {
+        "name": request.name,
+        "description": request.description,
+    }
+    if request.license is not None:
+        frontmatter["license"] = request.license
+    if request.compatibility is not None:
+        frontmatter["compatibility"] = request.compatibility
+    if request.allowed_tools:
+        frontmatter["allowed-tools"] = " ".join(request.allowed_tools)
     if metadata:
-        frontmatter.append("metadata:")
-        frontmatter.extend(_dump_yaml_mapping(metadata, indent=2))
-    frontmatter.append("---")
+        frontmatter["metadata"] = metadata
+    serialized = yaml.dump(
+        frontmatter,
+        Dumper=_SkillYamlDumper,
+        allow_unicode=True,
+        default_flow_style=False,
+        sort_keys=False,
+    ).rstrip()
     content = request.content.rstrip()
-    return "\n".join(frontmatter) + "\n\n" + content + "\n"
-
-
-def _indent_block(value: str, spaces: int = 2) -> list[str]:
-    prefix = " " * spaces
-    return [f"{prefix}{line}" if line else prefix for line in value.strip().splitlines()]
-
-
-def _dump_yaml_mapping(mapping: dict[str, Any], indent: int = 0) -> list[str]:
-    lines: list[str] = []
-    prefix = " " * indent
-    for key, value in mapping.items():
-        if isinstance(value, dict):
-            lines.append(f"{prefix}{key}:")
-            lines.extend(_dump_yaml_mapping(value, indent + 2))
-        elif isinstance(value, list):
-            lines.append(f"{prefix}{key}:")
-            lines.extend(_dump_yaml_list(value, indent + 2))
-        elif isinstance(value, str) and "\n" in value:
-            lines.append(f"{prefix}{key}: |-")
-            lines.extend(_indent_block(value, indent + 2))
-        else:
-            lines.append(f"{prefix}{key}: {_dump_yaml_scalar(value)}")
-    return lines
-
-
-def _dump_yaml_list(values: list[Any], indent: int) -> list[str]:
-    lines: list[str] = []
-    prefix = " " * indent
-    for value in values:
-        if isinstance(value, dict):
-            items = list(value.items())
-            if not items:
-                lines.append(f"{prefix}- null")
-                continue
-            first_key, first_value = items[0]
-            if isinstance(first_value, dict | list):
-                lines.append(f"{prefix}- {first_key}:")
-                nested_lines = (
-                    _dump_yaml_mapping(first_value, indent + 4)
-                    if isinstance(first_value, dict)
-                    else _dump_yaml_list(first_value, indent + 4)
-                )
-                lines.extend(nested_lines)
-            else:
-                lines.append(f"{prefix}- {first_key}: {_dump_yaml_scalar(first_value)}")
-            lines.extend(_dump_yaml_mapping(dict(items[1:]), indent + 2))
-        else:
-            lines.append(f"{prefix}- {_dump_yaml_scalar(value)}")
-    return lines
-
-
-def _dump_yaml_scalar(value: Any) -> str:
-    if value is True:
-        return "true"
-    if value is False:
-        return "false"
-    if value is None:
-        return "null"
-    if isinstance(value, str) and (
-        value == ""
-        or value in {"true", "True", "false", "False", "null", "Null", "~"}
-        or value.startswith(("[", "{"))
-    ):
-        return f"'{value}'" if value else '""'
-    return str(value)
+    return f"---\n{serialized}\n---\n\n{content}\n"
 
 
 async def _describe_mcp_servers(manager: MCPManager) -> list[dict[str, Any]]:

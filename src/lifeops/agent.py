@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import inspect
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from time import perf_counter
 from typing import Any, Literal
@@ -18,7 +19,7 @@ from lifeops.history import ConversationHistoryStore, HistorySource
 from lifeops.llm.client import LLMClient
 from lifeops.llm.types import ChatResponse, LLMError, Message, MessageRole, ToolCallResult
 from lifeops.runtime.errors import AgentRuntimeError, RuntimeErrorType
-from lifeops.runtime.policy import ToolPolicyContext, ToolPolicyEngine
+from lifeops.runtime.policy import ToolPolicyContext, ToolPolicyEngine, ToolPolicyResult
 from lifeops.runtime.policy_rules import PolicyAction
 from lifeops.runtime.types import RunStatus, TraceEventType, TraceRecorder
 from lifeops.skills.manager import SkillManager
@@ -60,6 +61,12 @@ class AgentServices:
     rag_router: Any | None = None
     skill_catalog: SkillCatalog | None = None
 
+
+@dataclass
+class _RoundToolExecution:
+    executed_names: list[str] = field(default_factory=list)
+    finish: tuple[ToolCallResult, ToolResult] | None = None
+
 DEFAULT_SYSTEM_PROMPT = """# 身份与目标
 
 你是 LifeOps，一个面向个人生活管理的 AI 助理。帮助用户整理任务、日程、健康、财务、资料、长期目标和个人工作流，把模糊想法转化为可执行的下一步。
@@ -78,6 +85,7 @@ DEFAULT_SYSTEM_PROMPT = """# 身份与目标
 # 工具使用策略
 
 - 需要读取或编辑文件、执行命令、搜索互联网或调用 MCP 时，使用对应工具。
+- 在本地文件中定位内容或路径时优先使用 grep 和 glob，不要用 bash 拼接搜索命令。
 - 系统已提供检索结果时优先直接使用，不重复检索；仍缺信息或需操作时才继续调用工具。
 - 工具失败或权限受限时，说明限制、已尝试内容和下一步选择。
 - 不为可直接回答的常识性或低风险问题过度调用工具。
@@ -89,9 +97,9 @@ DEFAULT_SYSTEM_PROMPT = """# 身份与目标
 # 任务闭环
 
 - 工具执行后必须观察工具结果，再判断原始目标是否已经满足。
-- 每轮最多执行一个工具；不要在没有观察当前结果前预先执行下一步。
+- 可以在同一轮并行调用多个只读工具（如 file_read、grep、glob）以高效收集信息；写入或执行类工具每轮至多一个，且应在观察完已有结果后再发起。
 - 如果目标已完成、需要用户补充信息或无法安全继续，调用 `finish_task` 明确结束。
-- 已执行过工具后，不要直接输出普通文本作为最终回答；只能调用下一工具或 `finish_task`。
+- 已执行过工具后，不要直接输出普通文本作为最终回答；只能调用下一批工具或 `finish_task`。
 - 不要把工具调用成功误认为任务完成；工具结果只是观察信息。
 
 # 安全与边界
@@ -142,7 +150,7 @@ class Agent:
         )
         self.system_prompt = system_prompt or DEFAULT_SYSTEM_PROMPT
         self.messages: list[Message] = []
-        self.max_iterations = 10
+        self.max_iterations = config.agent.max_iterations
         self.on_tool_prepare: Any | None = None
         self.on_tool_call: Any | None = None
         self.on_tool_result: Any | None = None
@@ -545,6 +553,33 @@ class Agent:
 
             emitted = bool(content_parts or reasoning_parts or stream_tool_calls)
             if stream_error is not None:
+                visible_content_emitted = bool(content_parts and emit_content)
+                if (
+                    stream_error.get("message") == "工具调用参数 JSON 无效"
+                    and not visible_content_emitted
+                    and not stream_tool_calls
+                    and attempt == 0
+                ):
+                    try:
+                        return await self.llm.chat(messages, tools=tools), False
+                    except Exception as exc:
+                        self._record_trace(
+                            TraceEventType.LLM_ERROR,
+                            {
+                                **stream_error,
+                                "attempt": attempt + 1,
+                                "retrying": False,
+                            },
+                        )
+                        self._fail_run(
+                            stream_error.get("error_type") or RuntimeErrorType.LLM_ERROR.value,
+                            stream_error.get("message") or "LLM 流式调用失败",
+                        )
+                        raise AgentRuntimeError(
+                            RuntimeErrorType.LLM_ERROR,
+                            stream_error.get("message") or "LLM 流式调用失败",
+                            details=stream_error,
+                        ) from exc
                 retryable = self._stream_error_can_retry(stream_error, emitted, attempt)
                 self._record_trace(
                     TraceEventType.LLM_ERROR,
@@ -688,7 +723,8 @@ class Agent:
             if requires_explicit_finish:
                 task_instruction = (
                     "已经执行过工具。请先观察工具结果并重新判断原始目标："
-                    "只能调用一个下一步工具，或调用 finish_task 结束；禁止直接输出普通最终文本。"
+                    "只能调用下一批工具（只读工具可并行），或调用 finish_task 结束；"
+                    "禁止直接输出普通最终文本。"
                 )
                 if completion_violations:
                     task_instruction += "上一次没有遵守该协议，请本轮必须调用工具或 finish_task。"
@@ -795,39 +831,28 @@ class Agent:
                     reasoning_content=response.reasoning_content,
                 )
 
-                first_tool_call = response.tool_calls[0]
-                result = await self._execute_tool_call_result(first_tool_call)
-                if first_tool_call.name == "finish_task" and result.success:
-                    status = str(result.metadata.get("task_status") or "complete")
-                    self._record_trace(
-                        TraceEventType.TASK_COMPLETION_DECIDED,
-                        {
-                            "status": status,
-                            "iteration": iteration,
-                            "executed_tool_count": len(used_tool_names),
-                            "has_missing_information": bool(
-                                result.metadata.get("missing_information")
-                            ),
-                        },
-                    )
-                    return await self._complete_response(
-                        result.output,
-                        reasoning_content=response.reasoning_content,
-                        emit_token=True,
-                    )
-                used_tool_names.append(first_tool_call.name)
-
-                for skipped_call in response.tool_calls[1:]:
-                    await self._record_tool_result(
-                        skipped_call,
-                        ToolResult(
-                            success=False,
-                            output="",
-                            error="本轮仅执行一个动作，请观察当前结果后重新决定。",
-                            metadata={"skipped": True},
-                        ),
-                        0,
-                    )
+                round_execution = await self._execute_round_tool_calls(response.tool_calls)
+                if round_execution.finish is not None:
+                    finish_tc, finish_result = round_execution.finish
+                    if finish_result.success:
+                        status = str(finish_result.metadata.get("task_status") or "complete")
+                        self._record_trace(
+                            TraceEventType.TASK_COMPLETION_DECIDED,
+                            {
+                                "status": status,
+                                "iteration": iteration,
+                                "executed_tool_count": len(used_tool_names),
+                                "has_missing_information": bool(
+                                    finish_result.metadata.get("missing_information")
+                                ),
+                            },
+                        )
+                        return await self._complete_response(
+                            finish_result.output,
+                            reasoning_content=response.reasoning_content,
+                            emit_token=True,
+                        )
+                used_tool_names.extend(round_execution.executed_names)
 
             if not response.content and not response.tool_calls:
                 if requires_explicit_finish:
@@ -940,7 +965,7 @@ class Agent:
             used_tool_names=tuple(used_tool_names or ()),
         )
 
-    async def _execute_tool_call_result(self, tc: ToolCallResult) -> ToolResult:
+    def _parse_tool_arguments(self, tc: ToolCallResult) -> dict[str, Any]:
         try:
             params = json.loads(tc.arguments)
         except (json.JSONDecodeError, TypeError) as error:
@@ -963,7 +988,11 @@ class Agent:
                 "工具调用参数 JSON 无效",
                 recoverable=True,
             )
+        return params
 
+    async def _pre_execute_tool(
+        self, tc: ToolCallResult, params: dict[str, Any]
+    ) -> ToolPolicyResult | None:
         logger.info(f"Tool call: {tc.name}({params})")
         definition = self.tools.get_definition(tc.name)
         canonical_name = self.tools.get_canonical_name(tc.name)
@@ -978,7 +1007,6 @@ class Agent:
         if self.on_tool_call is not None:
             await self.on_tool_call(tc.name, params)
 
-        started_at = perf_counter()
         policy_result = self._evaluate_tool_policy(definition, tc.name, canonical_name, params)
         if policy_result is not None:
             self._record_trace(
@@ -992,39 +1020,100 @@ class Agent:
                     "matched_rule": policy_result.matched_rule,
                 },
             )
-            if policy_result.action in {PolicyAction.ASK, PolicyAction.DENY}:
-                result = ToolResult(
-                    success=False,
-                    output="",
-                    error=policy_result.reason,
-                    metadata={
-                        "policy_action": policy_result.action.value,
-                        "matched_rule": policy_result.matched_rule,
-                    },
-                )
-                duration_ms = (perf_counter() - started_at) * 1000
-                await self._record_tool_result(tc, result, duration_ms)
-                return result
+        return policy_result
 
+    def _policy_denial_result(self, policy_result: ToolPolicyResult | None) -> ToolResult | None:
+        if policy_result is None:
+            return None
+        if policy_result.action in {PolicyAction.ASK, PolicyAction.DENY}:
+            return ToolResult(
+                success=False,
+                output="",
+                error=policy_result.reason,
+                metadata={
+                    "policy_action": policy_result.action.value,
+                    "matched_rule": policy_result.matched_rule,
+                },
+            )
+        return None
+
+    async def _execute_tool_handler(self, tc: ToolCallResult, params: dict[str, Any]) -> ToolResult:
         try:
-            result = await self.tools.execute(tc.name, params)
+            return await self.tools.execute(tc.name, params)
         except KeyError:
-            result = ToolResult(
+            return ToolResult(
                 success=False,
                 output="",
                 error=f"Unknown tool: {tc.name}",
                 metadata={"error_type": RuntimeErrorType.TOOL_ERROR.value},
             )
         except Exception as e:
-            result = ToolResult(
+            return ToolResult(
                 success=False,
                 output="",
                 error=str(e),
                 metadata={"error_type": RuntimeErrorType.TOOL_ERROR.value},
             )
+
+    async def _execute_tool_call_result(self, tc: ToolCallResult) -> ToolResult:
+        params = self._parse_tool_arguments(tc)
+        policy_result = await self._pre_execute_tool(tc, params)
+        started_at = perf_counter()
+        result = self._policy_denial_result(policy_result)
+        if result is None:
+            result = await self._execute_tool_handler(tc, params)
         duration_ms = (perf_counter() - started_at) * 1000
         await self._record_tool_result(tc, result, duration_ms)
         return result
+
+    async def _execute_round_tool_calls(
+        self, tool_calls: list[ToolCallResult]
+    ) -> _RoundToolExecution:
+        if tool_calls[0].name == "finish_task":
+            result = await self._execute_tool_call_result(tool_calls[0])
+            return _RoundToolExecution(
+                executed_names=[tool_calls[0].name],
+                finish=(tool_calls[0], result),
+            )
+
+        prepared: list[tuple[ToolCallResult, dict[str, Any], ToolPolicyResult | None]] = []
+        for tc in tool_calls:
+            params = self._parse_tool_arguments(tc)
+            prepared.append((tc, params, await self._pre_execute_tool(tc, params)))
+
+        results: dict[int, tuple[ToolResult, float]] = {}
+
+        async def _run(index: int) -> None:
+            tc, params, policy_result = prepared[index]
+            started_at = perf_counter()
+            result = self._policy_denial_result(policy_result)
+            if result is None:
+                result = await self._execute_tool_handler(tc, params)
+            results[index] = (result, (perf_counter() - started_at) * 1000)
+
+        parallel_enabled = bool(
+            getattr(self.config.agent, "parallel_readonly_tools", True)
+        )
+        read_only_indices: list[int] = []
+        if parallel_enabled:
+            for index, (tc, _, _) in enumerate(prepared):
+                definition = self.tools.get_definition(tc.name)
+                if definition is not None and definition.read_only:
+                    read_only_indices.append(index)
+
+        if len(read_only_indices) > 1:
+            await asyncio.gather(*(_run(index) for index in read_only_indices))
+            write_indices = [i for i in range(len(prepared)) if i not in set(read_only_indices)]
+        else:
+            write_indices = list(range(len(prepared)))
+        for index in write_indices:
+            await _run(index)
+
+        for index, (tc, _, _) in enumerate(prepared):
+            result, duration_ms = results[index]
+            await self._record_tool_result(tc, result, duration_ms)
+
+        return _RoundToolExecution(executed_names=[tc.name for tc, _, _ in prepared])
 
     async def _prepare_tool_call(
         self,

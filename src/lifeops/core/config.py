@@ -92,8 +92,8 @@ class MCPConfig(BaseSettings):
 
 class SkillsConfig(BaseSettings):
     enabled: bool = True
-    project_dir: str = ".lifeops/skills"
-    user_dir: str = "~/.lifeops/skills"
+    project_dir: str = ".agents/skills"
+    user_dir: str = "~/.agents/skills"
     implicit_match_enabled: bool = True
     max_active: int = 3
 
@@ -176,6 +176,22 @@ class ToolPolicyConfig(BaseSettings):
     }
 
 
+class AgentConfig(BaseSettings):
+    max_iterations: int = Field(default=50, ge=1, le=200)
+    parallel_readonly_tools: bool = True
+    project_memory_files: str = "AGENTS.md,LIFEOPS.md"
+    project_memory_max_chars: int = Field(default=8000, ge=500)
+    subagent_max_iterations: int = Field(default=10, ge=1, le=50)
+    bash_max_output_chars: int = Field(default=30000, ge=1000)
+
+    model_config = {
+        "env_prefix": "LIFEOPS_AGENT_",
+        "env_file": _ENV_FILE,
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+    }
+
+
 class AppConfig(BaseSettings):
     llm: LLMConfig = Field(default_factory=LLMConfig)
     context: ContextConfig = Field(default_factory=ContextConfig)
@@ -186,6 +202,7 @@ class AppConfig(BaseSettings):
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
     tool_policy: ToolPolicyConfig = Field(default_factory=ToolPolicyConfig)
+    agent: AgentConfig = Field(default_factory=AgentConfig)
     history_path: str = ".lifeops/conversations.jsonl"
     db_path: str = ".lifeops/conversations.db"
     debug: bool = False

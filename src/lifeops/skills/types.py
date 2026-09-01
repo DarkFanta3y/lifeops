@@ -19,6 +19,9 @@ class SkillMetadata:
     directory: Path
     source: SkillSource
     raw_frontmatter: dict[str, Any]
+    license: str | None = None
+    compatibility: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
     short_description: str | None = None
     allowed_tools: list[str] = field(default_factory=list)
     dependencies: list[str] = field(default_factory=list)
