@@ -167,6 +167,8 @@ class RuntimeConfig(BaseSettings):
 class ToolPolicyConfig(BaseSettings):
     mode: Literal["off", "balanced", "strict"] = "balanced"
     path: str = ".lifeops/tool-policy.json"
+    permission_mode: Literal["default", "accept_edits", "yolo"] = "default"
+    approval_timeout_seconds: int = Field(default=120, ge=1)
 
     model_config = {
         "env_prefix": "LIFEOPS_TOOL_POLICY_",

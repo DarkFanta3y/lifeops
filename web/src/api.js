@@ -53,7 +53,7 @@ export function searchMessages(query, limit = 20, offset = 0) {
   return request(`/api/search/messages?${params.toString()}`);
 }
 
-export async function sendChatMessage({ message, conversationId, onToken }) {
+export async function sendChatMessage({ message, conversationId, onToken, onApproval }) {
   const response = await fetch(`${API_BASE}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -88,6 +88,10 @@ export async function sendChatMessage({ message, conversationId, onToken }) {
         if (event.type === "token") {
           const tokenData = event.data ?? event.content ?? "";
           onToken?.(tokenData);
+        } else if (event.type === "approval_required") {
+          if (event.data && typeof event.data === "object") {
+            onApproval?.(event.data);
+          }
         } else if (event.type === "error") {
           const errorMsg =
             typeof event.data === "string"
@@ -105,6 +109,13 @@ export async function sendChatMessage({ message, conversationId, onToken }) {
   }
 
   return result;
+}
+
+export function approveRequest(requestId, decision) {
+  return request(`/api/approvals/${requestId}`, {
+    method: "POST",
+    body: JSON.stringify({ decision }),
+  });
 }
 
 export function deleteConversation(conversationId) {

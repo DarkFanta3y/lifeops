@@ -13,6 +13,8 @@ export default function SkillsWorkspace({ skills, loading, onRefresh, onAdd }) {
   const columns = [
     { title: "名称", dataIndex: "name", key: "name", width: 220 },
     { title: "描述", dataIndex: "description", key: "description" },
+    { title: "License", dataIndex: "license", key: "license", width: 120 },
+    { title: "Compatibility", dataIndex: "compatibility", key: "compatibility", ellipsis: true },
     { title: "来源", dataIndex: "source", key: "source", width: 120 },
     { title: "路径", dataIndex: "path", key: "path", ellipsis: true },
   ];

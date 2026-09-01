@@ -20,6 +20,7 @@ from lifeops.llm.client import LLMClient
 from lifeops.llm.types import ChatResponse, LLMError, Message, MessageRole, ToolCallResult
 from lifeops.runtime.errors import AgentRuntimeError, RuntimeErrorType
 from lifeops.runtime.policy import ToolPolicyContext, ToolPolicyEngine, ToolPolicyResult
+from lifeops.runtime.policy_file import PolicyFileStore
 from lifeops.runtime.policy_rules import PolicyAction
 from lifeops.runtime.types import RunStatus, TraceEventType, TraceRecorder
 from lifeops.skills.manager import SkillManager
@@ -66,6 +67,38 @@ class AgentServices:
 class _RoundToolExecution:
     executed_names: list[str] = field(default_factory=list)
     finish: tuple[ToolCallResult, ToolResult] | None = None
+
+
+APPROVAL_DECISIONS = ("allow_once", "allow_always", "deny")
+
+# accept_edits 权限模式下自动放行的文件编辑类工具
+EDIT_CANONICAL_TOOLS = {
+    "builtin.file_create",
+    "builtin.file_replace",
+    "builtin.file_append",
+    "builtin.file_edit",
+}
+
+_APPROVAL_PARAMS_PREVIEW_CHARS = 600
+
+
+@dataclass(frozen=True)
+class ApprovalRequest:
+    request_id: str
+    tool_name: str
+    canonical_name: str
+    params: dict[str, Any]
+    reason: str
+    risk_level: str
+
+    def params_preview(self) -> str:
+        try:
+            text = json.dumps(self.params, ensure_ascii=False)
+        except (TypeError, ValueError):
+            text = str(self.params)
+        if len(text) > _APPROVAL_PARAMS_PREVIEW_CHARS:
+            return text[:_APPROVAL_PARAMS_PREVIEW_CHARS] + "...(截断)"
+        return text
 
 DEFAULT_SYSTEM_PROMPT = """# 身份与目标
 
@@ -165,7 +198,12 @@ class Agent:
         self.memory_service = memory_service
         self.run_id = run_id
         self.trace_recorder = trace_recorder
-        self.tool_policy_engine = tool_policy_engine or ToolPolicyEngine(config.tool_policy)
+        self.policy_file = PolicyFileStore(config.tool_policy.path)
+        self.approval_handler: Any | None = None
+        self._last_approval_params: dict[str, Any] = {}
+        self.tool_policy_engine = tool_policy_engine or ToolPolicyEngine(
+            config.tool_policy, policy_file=self.policy_file
+        )
 
         if services is not None:
             self.rag_router = services.rag_router
@@ -1022,10 +1060,13 @@ class Agent:
             )
         return policy_result
 
-    def _policy_denial_result(self, policy_result: ToolPolicyResult | None) -> ToolResult | None:
+    async def _resolve_policy_denial(
+        self, tc: ToolCallResult, policy_result: ToolPolicyResult | None
+    ) -> ToolResult | None:
+        """处理策略决策；返回 None 表示放行执行，返回 ToolResult 表示短路结束。"""
         if policy_result is None:
             return None
-        if policy_result.action in {PolicyAction.ASK, PolicyAction.DENY}:
+        if policy_result.action == PolicyAction.DENY:
             return ToolResult(
                 success=False,
                 output="",
@@ -1035,7 +1076,127 @@ class Agent:
                     "matched_rule": policy_result.matched_rule,
                 },
             )
-        return None
+        if policy_result.action != PolicyAction.ASK:
+            return None
+
+        decision = await self._request_approval(tc, policy_result)
+        if decision in {"allow_once", "allow_always"}:
+            if decision == "allow_always":
+                self._persist_always_allow(tc, policy_result)
+            return None
+        return ToolResult(
+            success=False,
+            output="",
+            error="用户拒绝了本次工具调用。",
+            metadata={
+                "policy_action": "denied_by_user",
+                "matched_rule": policy_result.matched_rule,
+            },
+        )
+
+    def _persist_always_allow(
+        self, tc: ToolCallResult, policy_result: ToolPolicyResult
+    ) -> None:
+        if self.policy_file is None:
+            return
+        definition = self.tools.get_definition(tc.name)
+        canonical = self.tools.get_canonical_name(tc.name) if definition is not None else tc.name
+        try:
+            if canonical == "builtin.bash":
+                command = str(self._last_approval_params.get("command") or "")
+                self.policy_file.add_bash_allow_prefix(command)
+            else:
+                self.policy_file.add_tool_allow(canonical)
+        except Exception:
+            logger.exception("写入用户策略文件失败")
+
+    async def _request_approval(self, tc: ToolCallResult, policy_result: ToolPolicyResult) -> str:
+        permission_mode = getattr(
+            self.config.tool_policy, "permission_mode", "default"
+        )
+        if permission_mode == "yolo":
+            self._record_trace(
+                TraceEventType.APPROVAL_RESOLVED,
+                {
+                    "tool_name": tc.name,
+                    "decision": "allow_once",
+                    "auto": True,
+                    "source": "permission_mode:yolo",
+                },
+            )
+            return "allow_once"
+
+        definition = self.tools.get_definition(tc.name)
+        canonical_name = (
+            self.tools.get_canonical_name(tc.name) if definition is not None else tc.name
+        )
+        if permission_mode == "accept_edits" and canonical_name in EDIT_CANONICAL_TOOLS:
+            self._record_trace(
+                TraceEventType.APPROVAL_RESOLVED,
+                {
+                    "tool_name": tc.name,
+                    "decision": "allow_once",
+                    "auto": True,
+                    "source": "permission_mode:accept_edits",
+                },
+            )
+            return "allow_once"
+
+        if self.approval_handler is None:
+            return "deny"
+
+        try:
+            params = json.loads(tc.arguments)
+        except (json.JSONDecodeError, TypeError):
+            params = {}
+        self._last_approval_params = params if isinstance(params, dict) else {}
+        request = ApprovalRequest(
+            request_id=uuid4().hex,
+            tool_name=tc.name,
+            canonical_name=canonical_name,
+            params=self._last_approval_params,
+            reason=policy_result.reason,
+            risk_level=policy_result.risk_level,
+        )
+        self._record_trace(
+            TraceEventType.APPROVAL_REQUIRED,
+            {
+                "request_id": request.request_id,
+                "tool_name": tc.name,
+                "canonical_name": canonical_name,
+                "reason": policy_result.reason,
+                "risk_level": policy_result.risk_level,
+            },
+        )
+        self._update_run_status(RunStatus.WAITING_APPROVAL)
+        timeout_seconds = getattr(
+            self.config.tool_policy, "approval_timeout_seconds", 120
+        )
+        decision = "deny"
+        try:
+            decision = await asyncio.wait_for(
+                self.approval_handler(request), timeout=timeout_seconds
+            )
+        except (TimeoutError, asyncio.TimeoutError):
+            decision = "deny"
+            logger.warning(f"审批等待超时（{timeout_seconds}s），按拒绝处理: {tc.name}")
+        except Exception:
+            decision = "deny"
+            logger.exception("审批处理异常，按拒绝处理")
+        finally:
+            self._update_run_status(RunStatus.RUNNING)
+        if decision not in APPROVAL_DECISIONS:
+            decision = "deny"
+        self._record_trace(
+            TraceEventType.APPROVAL_RESOLVED,
+            {
+                "request_id": request.request_id,
+                "tool_name": tc.name,
+                "decision": decision,
+                "auto": False,
+            },
+        )
+        return decision
 
     async def _execute_tool_handler(self, tc: ToolCallResult, params: dict[str, Any]) -> ToolResult:
         try:
@@ -1059,7 +1220,7 @@ class Agent:
         params = self._parse_tool_arguments(tc)
         policy_result = await self._pre_execute_tool(tc, params)
         started_at = perf_counter()
-        result = self._policy_denial_result(policy_result)
+        result = await self._resolve_policy_denial(tc, policy_result)
         if result is None:
             result = await self._execute_tool_handler(tc, params)
         duration_ms = (perf_counter() - started_at) * 1000
@@ -1086,7 +1247,7 @@ class Agent:
         async def _run(index: int) -> None:
             tc, params, policy_result = prepared[index]
             started_at = perf_counter()
-            result = self._policy_denial_result(policy_result)
+            result = await self._resolve_policy_denial(tc, policy_result)
             if result is None:
                 result = await self._execute_tool_handler(tc, params)
             results[index] = (result, (perf_counter() - started_at) * 1000)

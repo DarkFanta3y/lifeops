@@ -51,7 +51,7 @@ LLM 流式输出工具调用时，Agent 会监听工具名和参数增量：识�
 
 Web API 会为每次 `/api/chat` 创建独立 `run_id`，并记录 `run_started`、LLM 调用、检索路由、工具请求、工具策略决策、上下文压缩、完成或失败等 trace event。可通过 `GET /api/runs/{run_id}` 查询一次运行的状态和事件，通过 `GET /api/conversations/{conversation_id}/runs` 查看会话下的运行历史。
 
-工具执行前会经过 `ToolPolicyEngine`。只读工具默认允许，高风险 `bash`、文件写入工具和 MCP 工具默认保守处理；危险命令会被拒绝，`ask` 决策在首期不会自动执行工具。`GET /api/tools/policy` 可查看当前策略摘要。
+工具执行前会经过 `ToolPolicyEngine`。只读工具默认允许，高风险 `bash`、文件写入工具和 MCP 工具默认保守处理；危险命令始终直接拒绝。策略给出 `ask` 决策时进入**人工审批闭环**：SSE 流会先发送 `approval_required` 事件（含参数摘要与原因），聊天输入区上方出现审批卡片，可"允许一次 / 总是允许 / 拒绝"；决策通过 `POST /api/approvals/{request_id}` 提交，Agent 在此期间挂起等待，超时（默认 120s）自动按拒绝处理。"总是允许"会持久化到 `.lifeops/tool-policy.json`（bash 按命令前缀记忆，其他工具按 canonical name），下次同类调用直接放行。`LIFEOPS_TOOL_POLICY_PERMISSION_MODE` 支持 `default`（等待审批）/ `accept_edits`（文件编辑自动放行）/ `yolo`（全部放行，危险命令仍拒绝）。`GET /api/tools/policy` 可查看当前策略摘要。
 
 Runtime 还把 LLM 解析失败、工具失败、策略拒绝、RAG 失败和迭代上限等情况分类写入 trace。离线 eval 覆盖普通问答、危险工具拒绝等核心路径，避免后续 prompt、policy 或 memory 改动破坏基础可靠性。
 
@@ -62,6 +62,8 @@ LIFEOPS_RUNTIME_ENABLED=true
 LIFEOPS_RUNTIME_TRACE_MAX_PAYLOAD_CHARS=12000
 LIFEOPS_TOOL_POLICY_MODE=balanced
 LIFEOPS_TOOL_POLICY_PATH=.lifeops/tool-policy.json
+LIFEOPS_TOOL_POLICY_PERMISSION_MODE=default
+LIFEOPS_TOOL_POLICY_APPROVAL_TIMEOUT_SECONDS=120
 ```
 
 运行后可直接查询：

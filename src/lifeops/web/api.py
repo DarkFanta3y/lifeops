@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
-from lifeops.agent import Agent, AgentServices
+from lifeops.agent import APPROVAL_DECISIONS, Agent, AgentServices, ApprovalRequest
 from lifeops.core.config import PROJECT_ROOT, AppConfig, clear_proxy_env
 from lifeops.core.context_manager import ContextManager
 from lifeops.llm.types import Message, MessageRole
@@ -28,6 +28,7 @@ from lifeops.rag.importer import extract_zip_archive, preview_markdown
 from lifeops.rag.indexer import RAGIndexer
 from lifeops.rag.types import RAGSourceConfig
 from lifeops.runtime.policy import ToolPolicyEngine
+from lifeops.runtime.policy_file import PolicyFileStore
 from lifeops.runtime.policy_rules import default_policy_summary
 from lifeops.runtime.store import RuntimeStore
 from lifeops.runtime.types import RunStatus, TraceEventType, TraceRecorder
@@ -65,6 +66,10 @@ _SkillYamlDumper.add_representer(str, _represent_skill_string)
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1)
     conversation_id: str | None = None
+
+
+class ApprovalDecisionRequest(BaseModel):
+    decision: str = Field(min_length=1)
 
 
 class ChatResponse(BaseModel):
@@ -163,8 +168,12 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
         app.state.history_store,
         trace_max_payload_chars=app_config.runtime.trace_max_payload_chars,
     )
-    app.state.tool_policy_engine = ToolPolicyEngine(app_config.tool_policy)
+    app.state.tool_policy_engine = ToolPolicyEngine(
+        app_config.tool_policy,
+        policy_file=PolicyFileStore(app_config.tool_policy.path),
+    )
     app.state.web_agents = {}
+    app.state.pending_approvals: dict[str, tuple[asyncio.Future, ApprovalRequest]] = {}
     app.state.services = _create_agent_services(app_config)
     app.state.memory_service = MemoryService(
         app.state.history_store,
@@ -430,9 +439,27 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
                 run_id=run_id,
                 resume_from=resume_from,
                 background_tasks=app.state.background_tasks,
+                pending_approvals=app.state.pending_approvals,
             ),
             media_type="text/event-stream",
         )
+
+    @app.post("/api/approvals/{request_id}")
+    async def resolve_approval(request_id: str, request: ApprovalDecisionRequest) -> dict[str, Any]:
+        pending = app.state.pending_approvals.get(request_id)
+        if pending is None:
+            raise HTTPException(status_code=404, detail="审批请求不存在或已结束")
+        future, approval_request = pending
+        decision = request.decision
+        if decision not in APPROVAL_DECISIONS:
+            raise HTTPException(status_code=422, detail=f"无效的审批决策: {decision}")
+        if not future.done():
+            future.set_result(decision)
+        return {
+            "request_id": request_id,
+            "decision": decision,
+            "tool_name": approval_request.tool_name,
+        }
 
     @app.get("/api/runs/{run_id}")
     async def get_run(run_id: str) -> dict[str, Any]:
@@ -1008,6 +1035,7 @@ async def _generate_sse_messages(
     run_id: str | None = None,
     resume_from: int | None = None,
     background_tasks: set[asyncio.Task] | None = None,
+    pending_approvals: dict[str, tuple[asyncio.Future, ApprovalRequest]] | None = None,
 ):
     queue: asyncio.Queue[str] = asyncio.Queue()
     next_event_id = 0
@@ -1015,6 +1043,7 @@ async def _generate_sse_messages(
     previous_on_tool_call = getattr(agent, "on_tool_call", None)
     previous_on_tool_result = getattr(agent, "on_tool_result", None)
     previous_on_token = getattr(agent, "on_token", None)
+    previous_approval_handler = getattr(agent, "approval_handler", None)
 
     def make_sse(event_type: str, data: Any, *, always_send: bool = False) -> str | None:
         nonlocal next_event_id
@@ -1091,10 +1120,41 @@ async def _generate_sse_messages(
         if previous_on_token is not None:
             await previous_on_token(token)
 
+    async def approval_handler(request: ApprovalRequest) -> str:
+        if pending_approvals is None:
+            return "deny"
+        future: asyncio.Future = asyncio.get_running_loop().create_future()
+        pending_approvals[request.request_id] = (future, request)
+        payload = {
+            "request_id": request.request_id,
+            "tool_name": request.tool_name,
+            "canonical_name": request.canonical_name,
+            "params_preview": request.params_preview(),
+            "reason": request.reason,
+            "risk_level": request.risk_level,
+        }
+        line = make_sse("approval_required", payload, always_send=True)
+        if line is not None:
+            await queue.put(line)
+        decision = "deny"
+        try:
+            decision = await future
+        finally:
+            pending_approvals.pop(request.request_id, None)
+            line = make_sse(
+                "approval_resolved",
+                {"request_id": request.request_id, "decision": decision},
+                always_send=True,
+            )
+            if line is not None:
+                await queue.put(line)
+        return decision
+
     agent.on_tool_prepare = on_tool_prepare
     agent.on_tool_call = on_tool_call
     agent.on_tool_result = on_tool_result
     agent.on_token = on_token
+    agent.approval_handler = approval_handler
     run_task = asyncio.create_task(agent.run(user_message))
 
     try:
@@ -1198,6 +1258,7 @@ async def _generate_sse_messages(
         agent.on_tool_call = previous_on_tool_call
         agent.on_tool_result = previous_on_tool_result
         agent.on_token = previous_on_token
+        agent.approval_handler = previous_approval_handler
 
 
 def _sse_line(event_type: str, data: Any, event_id: int | None = None) -> str:

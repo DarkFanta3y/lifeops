@@ -39,6 +39,8 @@ class TraceEventType(str, Enum):
     MEMORY_FINALIZE_SKIPPED = "memory_finalize_skipped"
     MEMORY_FINALIZE_FAILED = "memory_finalize_failed"
     SKILL_MATCHED = "skill_matched"
+    APPROVAL_REQUIRED = "approval_required"
+    APPROVAL_RESOLVED = "approval_resolved"
 
 
 @dataclass(frozen=True)

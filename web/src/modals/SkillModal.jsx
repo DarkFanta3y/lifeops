@@ -7,7 +7,10 @@ const { Text } = Typography;
 export default function SkillModal({ open, value, saving, onChange, onSave, onClose }) {
   const updateField = (field, nextValue) => onChange({ ...value, [field]: nextValue });
   const canSave = /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value.name)
-    && value.description.trim() && value.content.trim();
+    && value.name.length <= 64
+    && value.description.trim().length >= 1 && value.description.trim().length <= 1024
+    && value.compatibility.length <= 500
+    && value.content.trim();
   return (
     <Modal title="新增 Skill" open={open} onCancel={onClose} onOk={onSave} okText="保存"
       cancelText="取消" confirmLoading={saving} okButtonProps={{ disabled: !canSave }}
@@ -22,6 +25,14 @@ export default function SkillModal({ open, value, saving, onChange, onSave, onCl
           <div className="markdown-preview" aria-label="描述预览">
             <MarkdownRenderer content={value.description} emptyText="描述预览" />
           </div></label>
+        <label><Text strong>License</Text><Input value={value.license}
+          onChange={(event) => updateField("license", event.target.value)} placeholder="MIT" /></label>
+        <label><Text strong>Compatibility</Text><Input value={value.compatibility}
+          onChange={(event) => updateField("compatibility", event.target.value)}
+          placeholder="需要本地文件工具，最多 500 个字符" /></label>
+        <label><Text strong>Allowed Tools</Text><Input value={value.allowed_tools.join(" ")}
+          onChange={(event) => updateField("allowed_tools", event.target.value.split(/\s+/).filter(Boolean))}
+          placeholder="file_read bash" /></label>
         <label><Text strong>metadata</Text><Input.TextArea value={value.metadata}
           onChange={(event) => updateField("metadata", event.target.value)} rows={4}
           placeholder={"short-description: 周复盘\nowner: lifeops"} /></label>

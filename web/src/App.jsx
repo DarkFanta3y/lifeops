@@ -21,6 +21,7 @@ import {
   FileTextOutlined,
   PlusOutlined,
   RightOutlined,
+  SafetyOutlined,
   SearchOutlined,
   SendOutlined,
   ToolOutlined,
@@ -38,6 +39,7 @@ import {
   fetchTools,
   updateRagSource,
   sendChatMessage,
+  approveRequest,
 } from "./api.js";
 import MarkdownRenderer from "./MarkdownRenderer.jsx";
 import {
@@ -87,6 +89,7 @@ function App() {
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [pendingApproval, setPendingApproval] = useState(null);
   const [error, setError] = useState("");
   const [conversationsOpen, setConversationsOpen] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -99,7 +102,8 @@ function App() {
   const [skillModalOpen, setSkillModalOpen] = useState(false);
   const [savingSkill, setSavingSkill] = useState(false);
   const [skillForm, setSkillForm] = useState({
-    name: "", description: "", metadata: "", content: "",
+    name: "", description: "", license: "", compatibility: "", allowed_tools: [],
+    metadata: "", content: "",
   });
   const conversationListRequestRef = useRef(0);
   const conversationRequestRef = useRef(0);
@@ -349,7 +353,10 @@ function App() {
       await createSkill(skillForm);
       message.success("Skill 已创建");
       setSkillModalOpen(false);
-      setSkillForm({ name: "", description: "", metadata: "", content: "" });
+      setSkillForm({
+        name: "", description: "", license: "", compatibility: "", allowed_tools: [],
+        metadata: "", content: "",
+      });
       await loadSkills();
     } catch (err) {
       setError(err.message);
@@ -454,6 +461,7 @@ function App() {
       const payload = await sendChatMessage({
         message: content,
         conversationId: selectedConversationId,
+        onApproval: (request) => setPendingApproval(request),
         onToken: (tokenText) => {
           streamedContent += tokenText;
           setConversationMessages((current) => {
@@ -478,7 +486,19 @@ function App() {
       setError(err.message);
       setConversationMessages((current) => current.filter((item) => item !== optimisticUserMessage));
     } finally {
+      setPendingApproval(null);
       setSending(false);
+    }
+  }
+
+  async function handleApprovalDecision(decision) {
+    const request = pendingApproval;
+    if (!request) return;
+    setPendingApproval(null);
+    try {
+      await approveRequest(request.request_id, decision);
+    } catch (err) {
+      setError(`审批提交失败：${err.message}`);
     }
   }
 
@@ -488,6 +508,7 @@ function App() {
         messages={conversationMessages} intermediateMessages={intermediateMessages}
         selectedConversationId={selectedConversationId} chatInput={chatInput} sending={sending}
         hasMore={messageHasMore} loadingOlder={messagesLoadingOlder}
+        pendingApproval={pendingApproval} onApprovalDecision={handleApprovalDecision}
         onLoadOlder={loadOlderMessages} onInputChange={setChatInput} onSend={handleSend} />;
     }
     if (activeView === "skills") {
@@ -619,7 +640,7 @@ function SearchModal({ open, query, results, loading, loadingMore, error, hasMor
 
 function ChatWorkspace({ selectedConversation, messages, intermediateMessages,
   selectedConversationId, chatInput, sending, hasMore, loadingOlder, onLoadOlder,
-  onInputChange, onSend }) {
+  pendingApproval, onApprovalDecision, onInputChange, onSend }) {
   const [loggingOpen, setLoggingOpen] = useState(false);
   const messageStreamRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -676,6 +697,25 @@ function ChatWorkspace({ selectedConversation, messages, intermediateMessages,
           ))}
         <div ref={messagesEndRef} />
       </div>
+      {pendingApproval ? (
+        <div className="approval-card" role="alertdialog" aria-label="工具审批请求">
+          <div className="approval-head">
+            <SafetyOutlined aria-hidden="true" />
+            <Text strong>工具调用需要授权：{pendingApproval.tool_name}</Text>
+            <Tag color={pendingApproval.risk_level === "high" ? "red" : "orange"}>
+              风险：{pendingApproval.risk_level}
+            </Tag>
+          </div>
+          <pre className="approval-params">{pendingApproval.params_preview}</pre>
+          <Text type="secondary">{pendingApproval.reason}</Text>
+          <div className="approval-actions">
+            <Button size="small" onClick={() => onApprovalDecision("deny")}>拒绝</Button>
+            <Button size="small" onClick={() => onApprovalDecision("allow_always")}>总是允许</Button>
+            <Button size="small" type="primary" danger={false}
+              onClick={() => onApprovalDecision("allow_once")}>允许一次</Button>
+          </div>
+        </div>
+      ) : null}
       <div className="composer"><div className="composer-input"><Input.TextArea value={chatInput}
           onChange={(event) => onInputChange(event.target.value)}
           onPressEnter={(event) => { if (!event.shiftKey) {
