@@ -6,6 +6,7 @@ import os
 import inspect
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from time import perf_counter
 from typing import Any, Literal
 from uuid import uuid4
@@ -15,6 +16,7 @@ from pydantic import Field, model_validator
 from lifeops.core.compression_pipeline import CompressionPipeline
 from lifeops.core.config import AppConfig
 from lifeops.core.context_manager import ContextLayer, ContextManager
+from lifeops.agent_subagent import SubAgentRunner
 from lifeops.history import ConversationHistoryStore, HistorySource
 from lifeops.llm.client import LLMClient
 from lifeops.llm.types import ChatResponse, LLMError, Message, MessageRole, ToolCallResult
@@ -39,6 +41,28 @@ from lifeops.utils.logging import get_logger
 from lifeops.utils.text import sanitize_unicode_text
 
 logger = get_logger(__name__)
+
+
+class _SpawnAgentParams(ToolParams):
+    description: str = Field(
+        min_length=1, max_length=120, description="任务摘要（3-5 个词）"
+    )
+    prompt: str = Field(
+        min_length=1, description="完整自包含的任务描述，包含目标、范围和期望的返回形式"
+    )
+    tools: list[str] | None = Field(
+        default=None,
+        description="可选的允许工具名列表；默认只读集合 file_read/grep/glob/web_search/retrieve_knowledge",
+    )
+
+
+class _TodoItemParams(ToolParams):
+    content: str = Field(min_length=1, description="任务步骤描述")
+    status: Literal["pending", "in_progress", "completed"] = Field(default="pending")
+
+
+class _TodoWriteParams(ToolParams):
+    todos: list[_TodoItemParams] = Field(min_length=1, description="完整的任务清单，整表覆盖")
 
 
 class _FinishTaskParams(ToolParams):
@@ -130,6 +154,16 @@ DEFAULT_SYSTEM_PROMPT = """# 身份与目标
 
 - 已激活 Skill 的正文优先于本提示词中的通用规则；与用户最新指令冲突时以用户指令为准。
 
+# 子智能体协作
+
+- 探索型任务（定位代码、查找资料、汇总大量文档）优先用 `spawn_agent` 委派：子智能体在独立上下文中用只读工具工作，只返回结论，避免大量中间内容占用主上下文。
+- spawn_agent 的 prompt 必须自包含：写明目标、范围和期望的返回形式。
+- 需要基于探索结果做修改时，先拿到子智能体结论，再由你自己执行写入工具。
+
+# 任务计划
+
+- 预计三步以上的任务，先用 `todo_write` 列出计划清单，再开始执行；每完成一步更新对应条目状态。
+
 # 任务闭环
 
 - 工具执行后必须观察工具结果，再判断原始目标是否已经满足。
@@ -187,6 +221,7 @@ class Agent:
         )
         self.system_prompt = system_prompt or DEFAULT_SYSTEM_PROMPT
         self.messages: list[Message] = []
+        self.todos: list[dict[str, Any]] = []
         self.max_iterations = config.agent.max_iterations
         self.on_tool_prepare: Any | None = None
         self.on_tool_call: Any | None = None
@@ -221,6 +256,9 @@ class Agent:
         self._rebind_file_tools_with_guard()
         self._register_finish_task_tool()
         self._register_rag_tool()
+        self._register_subagent_tool()
+        self._register_todo_tool()
+        self._load_project_memory()
 
         # MCP 静态配置加载
         if (
@@ -253,6 +291,104 @@ class Agent:
 
     def _register_default_tools(self) -> None:
         register_all_builtin_tools(self.tools, self.config)
+
+    def _register_subagent_tool(self) -> None:
+        async def handler(params: dict[str, Any]) -> ToolResult:
+            validated = _SpawnAgentParams.model_validate(params)
+            runner = SubAgentRunner(
+                llm=self.llm,
+                source_registry=self.tools,
+                allowed_tools=validated.tools,
+                max_iterations=self.config.agent.subagent_max_iterations,
+                run_id=self.run_id,
+                trace_recorder=self.trace_recorder,
+            )
+            output = await runner.run(validated.prompt, description=validated.description)
+            return ToolResult(
+                success=True,
+                output=output,
+                metadata={
+                    "kind": "subagent",
+                    "description": validated.description,
+                },
+            )
+
+        self.tools.register(
+            ToolDefinition(
+                name="spawn_agent",
+                description=(
+                    "何时调用：委派独立探索型子任务（如查找代码位置、汇总资料），"
+                    "子智能体在独立上下文中用只读工具工作并只返回结论。"
+                    "何时禁止：需要修改文件或执行写操作的任务不要委派；简单查询自己直接做更快。"
+                ),
+                parameters_model=_SpawnAgentParams,
+                category="internal",
+                canonical_name="internal.spawn_agent",
+                read_only=True,
+                risk_level="low",
+            ),
+            handler,
+        )
+
+    def _register_todo_tool(self) -> None:
+        async def handler(params: dict[str, Any]) -> ToolResult:
+            validated = _TodoWriteParams.model_validate(params)
+            todos = [item.model_dump() for item in validated.todos]
+            self.todos = todos
+            lines = [
+                f"[{item['status']}] {item['content']}" for item in todos
+            ]
+            self._record_trace(
+                TraceEventType.TODO_UPDATED,
+                {"todo_count": len(todos)},
+            )
+            return ToolResult(
+                success=True,
+                output="\n".join(lines),
+                metadata={"kind": "todo", "todos": todos},
+            )
+
+        self.tools.register(
+            ToolDefinition(
+                name="todo_write",
+                description=(
+                    "何时调用：维护多步骤任务的计划清单；整表覆盖写入，每完成一步更新对应状态。"
+                    "何时禁止：单步任务或纯问答不要使用。"
+                ),
+                parameters_model=_TodoWriteParams,
+                category="internal",
+                canonical_name="internal.todo_write",
+                read_only=True,
+                risk_level="low",
+            ),
+            handler,
+        )
+
+    def _load_project_memory(self) -> None:
+        names = [
+            item.strip()
+            for item in self.config.agent.project_memory_files.split(",")
+            if item.strip()
+        ]
+        max_chars = self.config.agent.project_memory_max_chars
+        for name in names:
+            path = Path(name).expanduser()
+            if not (path.exists() and path.is_file()):
+                continue
+            try:
+                content = path.read_text(encoding="utf-8", errors="replace")
+            except OSError as error:
+                logger.warning(f"读取项目记忆文件失败 {name}: {error}")
+                return
+            if len(content) > max_chars:
+                content = content[:max_chars] + f"\n...[项目记忆超长，已截断至 {max_chars} 字符]"
+            self.context.add_content(
+                "project_memory",
+                f"项目记忆文件 {name} 的内容（用户显式维护的项目约定，遵循其中指令）：\n\n{content}",
+                ContextLayer.L1,
+            )
+            logger.info(f"已加载项目记忆文件: {name}")
+            return
 
     def _rebind_file_tools_with_guard(self) -> None:
         """把文件读写工具重绑到本会话的 FileEditGuard，强制“先读后编辑”。
@@ -1463,6 +1599,7 @@ class Agent:
         self.messages.clear()
         self.conversation_id = self._new_conversation_id()
         self.edit_guard.reset()
+        self.todos = []
         self.context = ContextManager(
             max_tokens=self.config.context.max_context_tokens,
             l1_budget_ratio=self.config.context.l1_budget_ratio,
@@ -1470,6 +1607,7 @@ class Agent:
             l3_budget_ratio=self.config.context.l3_budget_ratio,
             reserve_ratio=self.config.context.reserve_ratio,
         )
+        self._load_project_memory()
         if self.config.skills.enabled:
             self.skill_manager = self._create_skill_manager()
             self.skill_matcher = SkillMatcher(self.llm)

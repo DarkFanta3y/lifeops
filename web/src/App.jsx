@@ -90,6 +90,7 @@ function App() {
   const [chatInput, setChatInput] = useState("");
   const [sending, setSending] = useState(false);
   const [pendingApproval, setPendingApproval] = useState(null);
+  const [todos, setTodos] = useState([]);
   const [error, setError] = useState("");
   const [conversationsOpen, setConversationsOpen] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -233,6 +234,7 @@ function App() {
       if (!isCurrentGeneration(generation, conversationRequestRef.current)) return;
       setConversationMessages(payload.messages || []);
       setIntermediateMessages(payload.intermediate_messages || []);
+      setTodos(extractLatestTodos(payload.intermediate_messages || []));
       setMessageHasMore(Boolean(payload.has_more));
       setMessageBeforeId(payload.next_before_id ?? null);
     } catch (err) {
@@ -462,6 +464,11 @@ function App() {
         message: content,
         conversationId: selectedConversationId,
         onApproval: (request) => setPendingApproval(request),
+        onToolResult: (data) => {
+          if (data?.metadata?.kind === "todo" && Array.isArray(data.metadata.todos)) {
+            setTodos(data.metadata.todos);
+          }
+        },
         onToken: (tokenText) => {
           streamedContent += tokenText;
           setConversationMessages((current) => {
@@ -509,6 +516,7 @@ function App() {
         selectedConversationId={selectedConversationId} chatInput={chatInput} sending={sending}
         hasMore={messageHasMore} loadingOlder={messagesLoadingOlder}
         pendingApproval={pendingApproval} onApprovalDecision={handleApprovalDecision}
+        todos={todos}
         onLoadOlder={loadOlderMessages} onInputChange={setChatInput} onSend={handleSend} />;
     }
     if (activeView === "skills") {
@@ -640,7 +648,7 @@ function SearchModal({ open, query, results, loading, loadingMore, error, hasMor
 
 function ChatWorkspace({ selectedConversation, messages, intermediateMessages,
   selectedConversationId, chatInput, sending, hasMore, loadingOlder, onLoadOlder,
-  pendingApproval, onApprovalDecision, onInputChange, onSend }) {
+  pendingApproval, onApprovalDecision, todos, onInputChange, onSend }) {
   const [loggingOpen, setLoggingOpen] = useState(false);
   const messageStreamRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -697,6 +705,23 @@ function ChatWorkspace({ selectedConversation, messages, intermediateMessages,
           ))}
         <div ref={messagesEndRef} />
       </div>
+      {todos && todos.length > 0 ? (
+        <div className="todo-card" aria-label="任务计划">
+          <Text type="secondary" className="todo-title">任务计划</Text>
+          <ul className="todo-list">
+            {todos.map((item, index) => (
+              <li key={`${index}-${item.content}`} className={`todo-item ${item.status}`}>
+                <span className="todo-box" aria-hidden="true">
+                  {item.status === "completed" ? "✓" : item.status === "in_progress" ? "●" : ""}
+                </span>
+                <span className={item.status === "completed" ? "todo-done" : ""}>
+                  {item.content}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {pendingApproval ? (
         <div className="approval-card" role="alertdialog" aria-label="工具审批请求">
           <div className="approval-head">
@@ -738,6 +763,20 @@ function roleLabel(role) {
   if (role === "assistant") return "助手";
   if (role === "tool") return "工具";
   return "用户";
+}
+
+function extractLatestTodos(intermediateMessages) {
+  const todoResults = intermediateMessages.filter(
+    (item) => item.role === "tool" && item.tool_name === "todo_write",
+  );
+  const last = todoResults.at(-1);
+  if (!last) return [];
+  return String(last.content || "").split("\n").filter(Boolean).map((line) => {
+    const match = line.match(/^\[(pending|in_progress|completed)\]\s*(.*)$/);
+    return match
+      ? { status: match[1], content: match[2] }
+      : { status: "pending", content: line };
+  });
 }
 
 export default App;

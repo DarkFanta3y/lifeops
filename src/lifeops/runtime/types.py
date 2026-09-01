@@ -41,6 +41,9 @@ class TraceEventType(str, Enum):
     SKILL_MATCHED = "skill_matched"
     APPROVAL_REQUIRED = "approval_required"
     APPROVAL_RESOLVED = "approval_resolved"
+    SUBAGENT_STARTED = "subagent_started"
+    SUBAGENT_FINISHED = "subagent_finished"
+    TODO_UPDATED = "todo_updated"
 
 
 @dataclass(frozen=True)
