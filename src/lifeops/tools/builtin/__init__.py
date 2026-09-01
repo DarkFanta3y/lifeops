@@ -15,7 +15,7 @@ def register_all_builtin_tools(
     config: AppConfig | None = None,
     edit_guard: FileEditGuard | None = None,
 ) -> None:
-    create_bash_tool(registry)
+    create_bash_tool(registry, config)
     create_file_read_tool(registry, edit_guard=edit_guard)
     create_simple_file_tools(registry, edit_guard=edit_guard)
     create_search_tools(registry)
