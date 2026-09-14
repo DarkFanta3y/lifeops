@@ -25,6 +25,7 @@ CLAUDE.md
 PROJECT.md.ecc-hooks-disable
 .ecc-hooks-disable
 .codex
+.zcode/
 .sisyphus/
 .understand-anything/
 models/

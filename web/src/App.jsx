@@ -456,7 +456,11 @@ function App() {
       role: "user", content, created_at: new Date().toISOString(),
     };
     const streamingAssistantId = `streaming-${Date.now()}`;
-    setConversationMessages((current) => [...current, optimisticUserMessage]);
+    const pendingAssistantMessage = {
+      message_id: streamingAssistantId, role: "assistant", content: "",
+      created_at: new Date().toISOString(), pending: true,
+    };
+    setConversationMessages((current) => [...current, optimisticUserMessage, pendingAssistantMessage]);
     setChatInput("");
     try {
       let streamedContent = "";
@@ -475,7 +479,7 @@ function App() {
             const items = [...current];
             const last = items.at(-1);
             if (last?.role === "assistant" && last.message_id === streamingAssistantId) {
-              items[items.length - 1] = { ...last, content: streamedContent };
+              items[items.length - 1] = { ...last, content: streamedContent, pending: false };
             } else {
               items.push({ message_id: streamingAssistantId, role: "assistant",
                 content: streamedContent, created_at: new Date().toISOString() });
@@ -495,6 +499,7 @@ function App() {
     } finally {
       setPendingApproval(null);
       setSending(false);
+      setConversationMessages((current) => current.filter((item) => !item.pending));
     }
   }
 
@@ -699,8 +704,13 @@ function ChatWorkspace({ selectedConversation, messages, intermediateMessages,
           : messages.map((item, index) => (
             <div className={`message-row ${item.role}`}
               key={item.message_id ?? `${item.created_at}-${index}`}>
-              <div className="message-bubble"><Text className="role-label">{roleLabel(item.role)}</Text>
-                <MarkdownRenderer content={item.content} emptyText="" /></div>
+              <div className="message-bubble">
+                {item.pending ? (
+                  <span className="typing-dots" role="status" aria-label="助手正在思考">
+                    <span className="typing-dot" /><span className="typing-dot" />
+                    <span className="typing-dot" />
+                  </span>
+                ) : <MarkdownRenderer content={item.content} emptyText="" />}</div>
             </div>
           ))}
         <div ref={messagesEndRef} />
@@ -757,12 +767,6 @@ function ChatWorkspace({ selectedConversation, messages, intermediateMessages,
     </Suspense> : null}
     </section>
   );
-}
-
-function roleLabel(role) {
-  if (role === "assistant") return "助手";
-  if (role === "tool") return "工具";
-  return "用户";
 }
 
 function extractLatestTodos(intermediateMessages) {
