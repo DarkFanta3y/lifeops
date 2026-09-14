@@ -44,6 +44,8 @@ class TraceEventType(str, Enum):
     SUBAGENT_STARTED = "subagent_started"
     SUBAGENT_FINISHED = "subagent_finished"
     TODO_UPDATED = "todo_updated"
+    TASK_COMPLEXITY_DECIDED = "task_complexity_decided"
+    PLAN_GATE_DENIED = "plan_gate_denied"
 
 
 @dataclass(frozen=True)

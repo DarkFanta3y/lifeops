@@ -181,6 +181,7 @@ class ToolPolicyConfig(BaseSettings):
 class AgentConfig(BaseSettings):
     max_iterations: int = Field(default=50, ge=1, le=200)
     parallel_readonly_tools: bool = True
+    plan_gate_enabled: bool = True
     project_memory_files: str = "AGENTS.md,LIFEOPS.md"
     project_memory_max_chars: int = Field(default=8000, ge=500)
     subagent_max_iterations: int = Field(default=10, ge=1, le=50)

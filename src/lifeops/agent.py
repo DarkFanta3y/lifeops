@@ -16,6 +16,7 @@ from pydantic import Field, model_validator
 from lifeops.core.compression_pipeline import CompressionPipeline
 from lifeops.core.config import AppConfig
 from lifeops.core.context_manager import ContextLayer, ContextManager
+from lifeops.agent_planner import classify_task_complexity
 from lifeops.agent_subagent import SubAgentRunner
 from lifeops.history import ConversationHistoryStore, HistorySource
 from lifeops.llm.client import LLMClient
@@ -105,6 +106,21 @@ EDIT_CANONICAL_TOOLS = {
     "builtin.file_append",
 }
 
+# 计划闸门覆盖的写入类工具：任务被判定为复杂且未列计划时拒绝执行
+PLAN_GATED_CANONICAL_TOOLS = {
+    "builtin.bash",
+    "builtin.file_create",
+    "builtin.file_replace",
+    "builtin.file_append",
+}
+
+_PLAN_GATE_DENY_MESSAGE = (
+    "本任务已被判定为多步骤任务，且尚未列出执行计划。"
+    "系统已拒绝该写入类工具：请先调用 todo_write 写出完整计划清单"
+    "（所有步骤初始为 pending），之后再执行写入类工具。"
+    "只读工具（file_read/grep/glob 等）不受限制，可先用它们了解现状。"
+)
+
 _APPROVAL_PARAMS_PREVIEW_CHARS = 600
 
 
@@ -162,7 +178,9 @@ DEFAULT_SYSTEM_PROMPT = """# 身份与目标
 
 # 任务计划
 
-- 预计三步以上的任务，先用 `todo_write` 列出计划清单，再开始执行；每完成一步更新对应条目状态。
+- 多步骤任务必须先 `todo_write` 列计划再动笔；未列计划时写入类工具会被系统拒绝。
+- 计划持续显示在上下文中：完成一步更新状态；计划不合理可整表修订，不必硬走原计划。
+- 简单问答不要用 `todo_write`。
 
 # 任务闭环
 
@@ -222,6 +240,8 @@ class Agent:
         self.system_prompt = system_prompt or DEFAULT_SYSTEM_PROMPT
         self.messages: list[Message] = []
         self.todos: list[dict[str, Any]] = []
+        self._plan_required = False
+        self._plan_written_this_run = False
         self.max_iterations = config.agent.max_iterations
         self.on_tool_prepare: Any | None = None
         self.on_tool_call: Any | None = None
@@ -335,6 +355,7 @@ class Agent:
             validated = _TodoWriteParams.model_validate(params)
             todos = [item.model_dump() for item in validated.todos]
             self.todos = todos
+            self._plan_written_this_run = True
             lines = [
                 f"[{item['status']}] {item['content']}" for item in todos
             ]
@@ -579,6 +600,25 @@ class Agent:
         result.extend(self.messages)
         return result
 
+    def _plan_task_instruction(self) -> str | None:
+        if self._plan_required and not self._plan_written_this_run:
+            return (
+                "本任务已判定为多步骤任务：必须先调用 todo_write 列出完整计划，"
+                "在此之前写入类工具会被系统拒绝；可先用只读工具了解现状。"
+            )
+        if self.todos:
+            return (
+                "请对照上下文中的任务计划推进：每完成一步就把对应条目状态更新，"
+                "计划不合理时可直接 todo_write 整表修订，全部完成后调用 finish_task 结束。"
+            )
+        return None
+
+    def _render_todos(self) -> str:
+        return "\n".join(
+            f"[{item.get('status', 'pending')}] {item.get('content', '')}"
+            for item in self.todos
+        )
+
     def _build_system_context(self, task_instruction: str | None = None) -> str:
         sections: list[str] = [f"## 当前信息\n当前日期：{datetime.now():%Y-%m-%d}"]
         for title, entries in (
@@ -595,6 +635,8 @@ class Agent:
                 continue
             section = "\n\n".join(entry.content for entry in content_entries)
             sections.append(f"## {title}\n{section}")
+        if self.todos:
+            sections.append(f"## 当前任务计划\n{self._render_todos()}")
         if task_instruction:
             sections.append(f"## 当前任务闭环\n{task_instruction}")
         return "\n\n".join([self.system_prompt, *sections])
@@ -893,6 +935,17 @@ class Agent:
         if self.skill_matcher is not None:
             self.skill_matcher.llm = self.llm
         await self._activate_skills_for_input(user_input)
+        self._plan_written_this_run = False
+        self._plan_required = False
+        if self.config.agent.plan_gate_enabled:
+            self._plan_required = await classify_task_complexity(self.llm, user_input)
+            self._record_trace(
+                TraceEventType.TASK_COMPLEXITY_DECIDED,
+                {
+                    "plan_required": self._plan_required,
+                    "input_length": len(user_input),
+                },
+            )
         await self._ensure_mcp_tools_registered()
         run_message_start = len(self.messages)
         self.messages.append(Message(role=MessageRole.USER, content=user_input))
@@ -918,6 +971,13 @@ class Agent:
                 )
                 if completion_violations:
                     task_instruction += "上一次没有遵守该协议，请本轮必须调用工具或 finish_task。"
+            plan_instruction = self._plan_task_instruction()
+            if plan_instruction:
+                task_instruction = (
+                    f"{task_instruction}\n{plan_instruction}"
+                    if task_instruction
+                    else plan_instruction
+                )
             tool_defs = self.tools.list_definitions()
             selection_context = self._build_tool_selection_context(user_input, used_tool_names)
             exposed_tool_defs = select_llm_tools(tool_defs, context=selection_context)
@@ -1379,6 +1439,30 @@ class Agent:
         await self._record_tool_result(tc, result, duration_ms)
         return result
 
+    def _plan_gate_result(self, tc: ToolCallResult) -> ToolResult | None:
+        """复杂任务未列计划时拦截写入类工具；返回 None 表示放行。"""
+        if not (self._plan_required and not self._plan_written_this_run):
+            return None
+        definition = self.tools.get_definition(tc.name)
+        canonical_name = (
+            self.tools.get_canonical_name(tc.name) if definition is not None else tc.name
+        )
+        if canonical_name not in PLAN_GATED_CANONICAL_TOOLS:
+            return None
+        self._record_trace(
+            TraceEventType.PLAN_GATE_DENIED,
+            {
+                "tool_name": tc.name,
+                "canonical_name": canonical_name,
+            },
+        )
+        return ToolResult(
+            success=False,
+            output="",
+            error=_PLAN_GATE_DENY_MESSAGE,
+            metadata={"plan_gate": "denied"},
+        )
+
     async def _execute_round_tool_calls(
         self, tool_calls: list[ToolCallResult]
     ) -> _RoundToolExecution:
@@ -1399,7 +1483,9 @@ class Agent:
         async def _run(index: int) -> None:
             tc, params, policy_result = prepared[index]
             started_at = perf_counter()
-            result = await self._resolve_policy_denial(tc, policy_result)
+            result = self._plan_gate_result(tc)
+            if result is None:
+                result = await self._resolve_policy_denial(tc, policy_result)
             if result is None:
                 result = await self._execute_tool_handler(tc, params)
             results[index] = (result, (perf_counter() - started_at) * 1000)
@@ -1600,6 +1686,8 @@ class Agent:
         self.conversation_id = self._new_conversation_id()
         self.edit_guard.reset()
         self.todos = []
+        self._plan_required = False
+        self._plan_written_this_run = False
         self.context = ContextManager(
             max_tokens=self.config.context.max_context_tokens,
             l1_budget_ratio=self.config.context.l1_budget_ratio,

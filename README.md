@@ -47,6 +47,10 @@ LLM 流式输出工具调用时，Agent 会监听工具名和参数增量：识�
 
 对于智谱、DeepSeek 等要求在后续请求中回传 `reasoning_content` 的思考模式模型，LifeOps 会在后端历史中保留该协议字段并随下一轮 LLM 请求回传，但不会把模型内部思考内容展示到 Web 消息、搜索结果或 Logging 弹窗中。
 
+### 任务计划与计划闸门
+
+LifeOps 采用内嵌式 Plan-Execute：入口先由复杂度分类器（低温单问 LLM 调用，失败自动降级为简单任务）判定任务是否为多步骤任务。判定为复杂任务时启用**计划闸门**——在通过 `todo_write` 列出计划清单之前，写入类工具（`bash`、`file_create`、`file_replace`、`file_append`）会被系统直接拒绝并附指引，只读探索工具不受限制；模型据此先规划再动笔。计划清单会以"当前任务计划"段落持续注入每轮上下文，要求模型完成一步更新一步、发现计划不合理时整表修订（就地 replan），前端任务计划卡片照常实时展示。整体开关为 `LIFEOPS_AGENT_PLAN_GATE_ENABLED`（默认开启），trace 记录 `task_complexity_decided` 与 `plan_gate_denied` 事件。
+
 ### Runtime Trace 与工具策略
 
 Web API 会为每次 `/api/chat` 创建独立 `run_id`，并记录 `run_started`、LLM 调用、检索路由、工具请求、工具策略决策、上下文压缩、完成或失败等 trace event。可通过 `GET /api/runs/{run_id}` 查询一次运行的状态和事件，通过 `GET /api/conversations/{conversation_id}/runs` 查看会话下的运行历史。
