@@ -54,12 +54,14 @@ export function searchMessages(query, limit = 20, offset = 0) {
 }
 
 export async function sendChatMessage({
-  message, conversationId, onToken, onApproval, onToolResult,
+  message, conversationId, signal, onToken, onApproval, onApprovalResolved,
+  onToolCall, onToolResult,
 }) {
   const response = await fetch(`${API_BASE}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message, conversation_id: conversationId || undefined }),
+    signal,
   });
 
   if (!response.ok) {
@@ -93,6 +95,14 @@ export async function sendChatMessage({
         } else if (event.type === "approval_required") {
           if (event.data && typeof event.data === "object") {
             onApproval?.(event.data);
+          }
+        } else if (event.type === "approval_resolved") {
+          if (event.data && typeof event.data === "object") {
+            onApprovalResolved?.(event.data);
+          }
+        } else if (event.type === "tool_call") {
+          if (event.data && typeof event.data === "object") {
+            onToolCall?.(event.data);
           }
         } else if (event.type === "tool_result") {
           if (event.data && typeof event.data === "object") {

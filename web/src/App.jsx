@@ -18,12 +18,9 @@ import {
   DatabaseOutlined,
   DeleteOutlined,
   DownOutlined,
-  FileTextOutlined,
   PlusOutlined,
   RightOutlined,
-  SafetyOutlined,
   SearchOutlined,
-  SendOutlined,
   ToolOutlined,
 } from "@ant-design/icons";
 
@@ -38,23 +35,18 @@ import {
   fetchSkills,
   fetchTools,
   updateRagSource,
-  sendChatMessage,
-  approveRequest,
 } from "./api.js";
-import MarkdownRenderer from "./MarkdownRenderer.jsx";
 import {
   canLoadMore,
   isCurrentGeneration,
   mergeUniqueById,
-  prependUniqueById,
-  restorePrependScrollPosition,
 } from "./pagination.js";
-import { isNearBottom } from "./scroll.js";
 import useInfiniteSentinel from "./useInfiniteSentinel.js";
 
 const SkillsWorkspace = lazy(() => import("./workspaces/SkillsWorkspace.jsx"));
 const DatabaseWorkspace = lazy(() => import("./workspaces/DatabaseWorkspace.jsx"));
 const ToolsWorkspace = lazy(() => import("./workspaces/ToolsWorkspace.jsx"));
+const ChatWorkspace = lazy(() => import("./chat/ChatWorkspace.jsx"));
 const LoggingModal = lazy(() => import("./modals/LoggingModal.jsx"));
 const SkillModal = lazy(() => import("./modals/SkillModal.jsx"));
 
@@ -79,18 +71,12 @@ function App() {
   const [selectedConversationId, setSelectedConversationId] = useState(null);
   const [conversationMessages, setConversationMessages] = useState([]);
   const [intermediateMessages, setIntermediateMessages] = useState([]);
-  const [messageHasMore, setMessageHasMore] = useState(false);
-  const [messageBeforeId, setMessageBeforeId] = useState(null);
-  const [messagesLoadingOlder, setMessagesLoadingOlder] = useState(false);
   const [skills, setSkills] = useState([]);
   const [ragSources, setRagSources] = useState([]);
   const [tools, setTools] = useState([]);
   const [mcpServers, setMcpServers] = useState([]);
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
-  const [chatInput, setChatInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [pendingApproval, setPendingApproval] = useState(null);
-  const [todos, setTodos] = useState([]);
   const [error, setError] = useState("");
   const [conversationsOpen, setConversationsOpen] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -109,7 +95,6 @@ function App() {
   const conversationListRequestRef = useRef(0);
   const conversationRequestRef = useRef(0);
   const conversationMoreRef = useRef(false);
-  const messageOlderRef = useRef(false);
   const searchGenerationRef = useRef(0);
   const searchMoreRef = useRef(false);
 
@@ -211,10 +196,6 @@ function App() {
     conversationRequestRef.current += 1;
     setConversationMessages([]);
     setIntermediateMessages([]);
-    setMessageHasMore(false);
-    setMessageBeforeId(null);
-    setMessagesLoadingOlder(false);
-    messageOlderRef.current = false;
   }
 
   async function loadConversation(conversationId) {
@@ -224,54 +205,31 @@ function App() {
     setSelectedConversationId(conversationId);
     setConversationMessages([]);
     setIntermediateMessages([]);
-    setMessageHasMore(false);
-    setMessageBeforeId(null);
-    setMessagesLoadingOlder(false);
-    messageOlderRef.current = false;
     setError("");
     try {
-      const payload = await fetchConversationCursor(conversationId, MESSAGE_PAGE_SIZE);
-      if (!isCurrentGeneration(generation, conversationRequestRef.current)) return;
-      setConversationMessages(payload.messages || []);
-      setIntermediateMessages(payload.intermediate_messages || []);
-      setTodos(extractLatestTodos(payload.intermediate_messages || []));
-      setMessageHasMore(Boolean(payload.has_more));
-      setMessageBeforeId(payload.next_before_id ?? null);
-    } catch (err) {
-      if (generation === conversationRequestRef.current) setError(err.message);
-    }
-  }
-
-  async function loadOlderMessages() {
-    if (!selectedConversationId || !messageBeforeId
-      || !canLoadMore(messageHasMore, messageOlderRef.current)) {
-      return false;
-    }
-    const generation = conversationRequestRef.current;
-    messageOlderRef.current = true;
-    setMessagesLoadingOlder(true);
-    try {
-      const payload = await fetchConversationCursor(
-        selectedConversationId, MESSAGE_PAGE_SIZE, messageBeforeId,
-      );
-      if (!isCurrentGeneration(generation, conversationRequestRef.current)) return false;
-      setConversationMessages((current) => prependUniqueById(
-        current, payload.messages || [], "message_id",
-      ));
-      setIntermediateMessages((current) => prependUniqueById(
-        current, payload.intermediate_messages || [], "message_id",
-      ));
-      setMessageHasMore(Boolean(payload.has_more));
-      setMessageBeforeId(payload.next_before_id ?? null);
-      return true;
-    } catch (err) {
-      if (generation === conversationRequestRef.current) setError(err.message);
-      return false;
-    } finally {
-      if (generation === conversationRequestRef.current) {
-        messageOlderRef.current = false;
-        setMessagesLoadingOlder(false);
+      // 游标翻页取全量历史（首页取最新，再向前拼接；40 页上限防失控）
+      const allMessages = [];
+      const allIntermediate = [];
+      let beforeId = null;
+      for (let page = 0; page < 40; page++) {
+        const payload = await fetchConversationCursor(
+          conversationId, MESSAGE_PAGE_SIZE, beforeId,
+        );
+        if (!isCurrentGeneration(generation, conversationRequestRef.current)) return;
+        if (beforeId === null) {
+          allMessages.push(...(payload.messages || []));
+          allIntermediate.push(...(payload.intermediate_messages || []));
+        } else {
+          allMessages.unshift(...(payload.messages || []));
+          allIntermediate.unshift(...(payload.intermediate_messages || []));
+        }
+        if (!payload.has_more || !payload.next_before_id) break;
+        beforeId = payload.next_before_id;
       }
+      setConversationMessages(allMessages);
+      setIntermediateMessages(allIntermediate);
+    } catch (err) {
+      if (generation === conversationRequestRef.current) setError(err.message);
     }
   }
 
@@ -371,7 +329,6 @@ function App() {
     setActiveView("chat");
     setSelectedConversationId(null);
     resetMessages();
-    setChatInput("");
     setError("");
   }
 
@@ -445,84 +402,15 @@ function App() {
     }
   }
 
-  async function handleSend() {
-    const content = chatInput.trim();
-    if (!content || sending) return;
-    setActiveView("chat");
-    setSending(true);
-    setError("");
-    const optimisticUserMessage = {
-      message_id: `optimistic-${Date.now()}`,
-      role: "user", content, created_at: new Date().toISOString(),
-    };
-    const streamingAssistantId = `streaming-${Date.now()}`;
-    const pendingAssistantMessage = {
-      message_id: streamingAssistantId, role: "assistant", content: "",
-      created_at: new Date().toISOString(), pending: true,
-    };
-    setConversationMessages((current) => [...current, optimisticUserMessage, pendingAssistantMessage]);
-    setChatInput("");
-    try {
-      let streamedContent = "";
-      const payload = await sendChatMessage({
-        message: content,
-        conversationId: selectedConversationId,
-        onApproval: (request) => setPendingApproval(request),
-        onToolResult: (data) => {
-          if (data?.metadata?.kind === "todo" && Array.isArray(data.metadata.todos)) {
-            setTodos(data.metadata.todos);
-          }
-        },
-        onToken: (tokenText) => {
-          streamedContent += tokenText;
-          setConversationMessages((current) => {
-            const items = [...current];
-            const last = items.at(-1);
-            if (last?.role === "assistant" && last.message_id === streamingAssistantId) {
-              items[items.length - 1] = { ...last, content: streamedContent, pending: false };
-            } else {
-              items.push({ message_id: streamingAssistantId, role: "assistant",
-                content: streamedContent, created_at: new Date().toISOString() });
-            }
-            return items;
-          });
-        },
-      });
-      await refreshConversations({
-        nextSelectedId: payload.conversation_id,
-        autoSelect: false,
-        loadSelected: false,
-      });
-    } catch (err) {
-      setError(err.message);
-      setConversationMessages((current) => current.filter((item) => item !== optimisticUserMessage));
-    } finally {
-      setPendingApproval(null);
-      setSending(false);
-      setConversationMessages((current) => current.filter((item) => !item.pending));
-    }
-  }
-
-  async function handleApprovalDecision(decision) {
-    const request = pendingApproval;
-    if (!request) return;
-    setPendingApproval(null);
-    try {
-      await approveRequest(request.request_id, decision);
-    } catch (err) {
-      setError(`审批提交失败：${err.message}`);
-    }
-  }
-
   function renderContent() {
     if (activeView === "chat") {
-      return <ChatWorkspace selectedConversation={selectedConversation}
-        messages={conversationMessages} intermediateMessages={intermediateMessages}
-        selectedConversationId={selectedConversationId} chatInput={chatInput} sending={sending}
-        hasMore={messageHasMore} loadingOlder={messagesLoadingOlder}
-        pendingApproval={pendingApproval} onApprovalDecision={handleApprovalDecision}
-        todos={todos}
-        onLoadOlder={loadOlderMessages} onInputChange={setChatInput} onSend={handleSend} />;
+      return <Suspense fallback={<LoadingFallback />}><ChatWorkspace
+        selectedConversation={selectedConversation}
+        conversationId={selectedConversationId}
+        messages={conversationMessages} setMessages={setConversationMessages}
+        intermediateMessages={intermediateMessages} sending={sending}
+        setSending={setSending} refreshConversations={refreshConversations}
+        onError={setError} /></Suspense>;
     }
     if (activeView === "skills") {
       return <Suspense fallback={<LoadingFallback />}><SkillsWorkspace skills={skills}
@@ -649,138 +537,6 @@ function SearchModal({ open, query, results, loading, loadingMore, error, hasMor
       </div>
     </Modal>
   );
-}
-
-function ChatWorkspace({ selectedConversation, messages, intermediateMessages,
-  selectedConversationId, chatInput, sending, hasMore, loadingOlder, onLoadOlder,
-  pendingApproval, onApprovalDecision, todos, onInputChange, onSend }) {
-  const [loggingOpen, setLoggingOpen] = useState(false);
-  const messageStreamRef = useRef(null);
-  const messagesEndRef = useRef(null);
-  const shouldAutoScrollRef = useRef(true);
-
-  useEffect(() => {
-    if (shouldAutoScrollRef.current) messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-  useEffect(() => {
-    shouldAutoScrollRef.current = true;
-    messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
-  }, [selectedConversationId]);
-
-  async function handleLoadOlder() {
-    const stream = messageStreamRef.current;
-    if (!stream) return;
-    const previousHeight = stream.scrollHeight;
-    const previousTop = stream.scrollTop;
-    shouldAutoScrollRef.current = false;
-    const loaded = await onLoadOlder();
-    if (loaded) requestAnimationFrame(() => {
-      if (messageStreamRef.current) {
-        restorePrependScrollPosition(messageStreamRef.current, previousHeight, previousTop);
-      }
-    });
-  }
-  const topSentinelRef = useInfiniteSentinel({
-    rootRef: messageStreamRef, disabled: !hasMore || loadingOlder, onIntersect: handleLoadOlder,
-  });
-  function handleSendFromComposer() {
-    shouldAutoScrollRef.current = true;
-    onSend();
-  }
-  return (
-    <section className="workspace chat-workspace"><main className="chat-pane">
-      <div className="chat-head"><div><Text type="secondary">当前对话</Text>
-        <Title level={4}>{selectedConversation?.title || "新对话"}</Title></div>
-        <div><Tag color="blue">{selectedConversation?.message_count ?? messages.length} 条消息</Tag>
-          <Button type="text" size="small" icon={<FileTextOutlined />} className="logging-btn"
-            onClick={() => setLoggingOpen(true)}>Logging</Button></div></div>
-      <div ref={messageStreamRef}
-        className={`message-stream${messages.length === 0 ? " message-stream-empty" : ""}`}
-        onScroll={(event) => { shouldAutoScrollRef.current = isNearBottom(event.currentTarget); }}>
-        <div ref={topSentinelRef} className="infinite-sentinel top-sentinel">
-          {loadingOlder ? <Spin size="small" /> : null}
-        </div>
-        {messages.length === 0 ? <Empty description="从下方输入开始一次新对话" />
-          : messages.map((item, index) => (
-            <div className={`message-row ${item.role}`}
-              key={item.message_id ?? `${item.created_at}-${index}`}>
-              <div className="message-bubble">
-                {item.pending ? (
-                  <span className="typing-dots" role="status" aria-label="助手正在思考">
-                    <span className="typing-dot" /><span className="typing-dot" />
-                    <span className="typing-dot" />
-                  </span>
-                ) : <MarkdownRenderer content={item.content} emptyText="" />}</div>
-            </div>
-          ))}
-        <div ref={messagesEndRef} />
-      </div>
-      {todos && todos.length > 0 ? (
-        <div className="todo-card" aria-label="任务计划">
-          <Text type="secondary" className="todo-title">任务计划</Text>
-          <ul className="todo-list">
-            {todos.map((item, index) => (
-              <li key={`${index}-${item.content}`} className={`todo-item ${item.status}`}>
-                <span className="todo-box" aria-hidden="true">
-                  {item.status === "completed" ? "✓" : item.status === "in_progress" ? "●" : ""}
-                </span>
-                <span className={item.status === "completed" ? "todo-done" : ""}>
-                  {item.content}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-      {pendingApproval ? (
-        <div className="approval-card" role="alertdialog" aria-label="工具审批请求">
-          <div className="approval-head">
-            <SafetyOutlined aria-hidden="true" />
-            <Text strong>工具调用需要授权：{pendingApproval.tool_name}</Text>
-            <Tag color={pendingApproval.risk_level === "high" ? "red" : "orange"}>
-              风险：{pendingApproval.risk_level}
-            </Tag>
-          </div>
-          <pre className="approval-params">{pendingApproval.params_preview}</pre>
-          <Text type="secondary">{pendingApproval.reason}</Text>
-          <div className="approval-actions">
-            <Button size="small" onClick={() => onApprovalDecision("deny")}>拒绝</Button>
-            <Button size="small" onClick={() => onApprovalDecision("allow_always")}>总是允许</Button>
-            <Button size="small" type="primary" danger={false}
-              onClick={() => onApprovalDecision("allow_once")}>允许一次</Button>
-          </div>
-        </div>
-      ) : null}
-      <div className="composer"><div className="composer-input"><Input.TextArea value={chatInput}
-          onChange={(event) => onInputChange(event.target.value)}
-          onPressEnter={(event) => { if (!event.shiftKey) {
-            event.preventDefault(); handleSendFromComposer();
-          } }} placeholder="输入消息，Enter 发送，Shift+Enter 换行"
-          autoSize={{ minRows: 2, maxRows: 6 }} />
-          <Tooltip title="发送"><Button className="composer-send" type="primary" shape="circle"
-            icon={<SendOutlined />} aria-label="发送消息" loading={sending}
-            disabled={!chatInput.trim() || sending} onClick={handleSendFromComposer} /></Tooltip></div>
-      </div>
-    </main>
-    {loggingOpen ? <Suspense fallback={<LoadingFallback />}><LoggingModal open
-      intermediateMessages={intermediateMessages} onClose={() => setLoggingOpen(false)} />
-    </Suspense> : null}
-    </section>
-  );
-}
-
-function extractLatestTodos(intermediateMessages) {
-  const todoResults = intermediateMessages.filter(
-    (item) => item.role === "tool" && item.tool_name === "todo_write",
-  );
-  const last = todoResults.at(-1);
-  if (!last) return [];
-  return String(last.content || "").split("\n").filter(Boolean).map((line) => {
-    const match = line.match(/^\[(pending|in_progress|completed)\]\s*(.*)$/);
-    return match
-      ? { status: match[1], content: match[2] }
-      : { status: "pending", content: line };
-  });
 }
 
 export default App;

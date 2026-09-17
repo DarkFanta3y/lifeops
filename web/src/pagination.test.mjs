@@ -5,8 +5,6 @@ import {
   canLoadMore,
   isCurrentGeneration,
   mergeUniqueById,
-  prependUniqueById,
-  restorePrependScrollPosition,
 } from "./pagination.js";
 
 test("append pagination deduplicates stable IDs", () => {
@@ -16,21 +14,6 @@ test("append pagination deduplicates stable IDs", () => {
     "conversation_id",
   );
   assert.deepEqual(result.map((item) => item.conversation_id), ["a", "b", "c"]);
-});
-
-test("prepend pagination deduplicates and keeps chronological order", () => {
-  const result = prependUniqueById(
-    [{ message_id: 3 }, { message_id: 4 }],
-    [{ message_id: 1 }, { message_id: 2 }, { message_id: 3 }],
-    "message_id",
-  );
-  assert.deepEqual(result.map((item) => item.message_id), [1, 2, 3, 4]);
-});
-
-test("prepend scroll restoration preserves the visible anchor", () => {
-  const element = { scrollHeight: 760, scrollTop: 40 };
-  restorePrependScrollPosition(element, 500, 40);
-  assert.equal(element.scrollTop, 300);
 });
 
 test("request generations reject responses from an old query or conversation", () => {
