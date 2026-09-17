@@ -10,10 +10,10 @@ page.on("console", (msg) => {
 page.on("pageerror", (err) => errors.push(`[pageerror] ${err.message}`));
 
 await page.goto("http://127.0.0.1:5174/", { waitUntil: "domcontentloaded" });
-await page.waitForSelector("[data-slot=aui_composer-shell]", { timeout: 20000 });
+await page.waitForSelector("[data-slot=lifeops-composer]", { timeout: 20000 });
 
 const chatDone = page.waitForResponse((r) => r.url().includes("/api/chat"), { timeout: 30000 });
-await page.locator("[data-slot=aui_composer-shell] textarea").first()
+await page.locator("[data-slot=lifeops-composer] textarea").first()
   .fill("用 bash 命令在 /tmp 创建文件 lifeops-smoke-approval.txt，内容为 hello");
 await page.keyboard.press("Enter");
 console.log("已发送，等待审批卡片…");
@@ -37,7 +37,7 @@ await page.waitForSelector('[aria-label="停止生成"]', { state: "detached", t
 await page.waitForTimeout(1500);
 
 const assistantText = await page
-  .locator("[data-slot=aui_assistant-message-root]")
+  .locator("[data-slot=lifeops-assistant-message]")
   .last()
   .innerText();
 console.log(`助手消息: ${assistantText.slice(0, 200).replace(/\n/g, " | ")}`);

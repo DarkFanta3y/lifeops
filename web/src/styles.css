@@ -10,8 +10,8 @@ body {
 
 body {
   margin: 0;
-  background: #f5f6f8;
-  color: #111827;
+  background: #ffffff;
+  color: #0d0d0d;
   font-family: "思源黑体","Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", "思源黑体 CN",  "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
 }
 
@@ -26,134 +26,6 @@ textarea {
   letter-spacing: 0;
 }
 
-.app-shell {
-  height: 100vh;
-  overflow: hidden;
-}
-
-.sidebar {
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: #f3f4f6;
-  border-right: 1px solid #d1d5db;
-}
-
-.sidebar .ant-layout-sider-children {
-  height: 100%;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.brand {
-  height: 72px;
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 18px;
-  background: #f3f4f6;
-  border-bottom: 1px solid #d1d5db;
-}
-
-.brand img {
-  width: 100%;
-  max-width: 148px;
-  height: 42px;
-  object-fit: contain;
-  flex: 0 0 auto;
-}
-
-.sidebar-actions {
-  flex: 0 0 auto;
-  display: grid;
-  gap: 10px;
-  padding: 16px 14px 28px;
-}
-
-.sidebar-nav {
-  flex: 0 0 auto;
-  display: grid;
-  gap: 4px;
-  padding: 0 10px 16px;
-  border-bottom: 1px solid #d1d5db;
-}
-
-.sidebar-nav-item,
-.conversation-group-toggle {
-  width: 100%;
-  border: 0;
-  background: transparent;
-  color: #374151;
-  font: inherit;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  text-align: left;
-}
-
-.sidebar-nav-item {
-  min-height: 38px;
-  padding: 8px 10px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.sidebar-nav-item:hover,
-.conversation-group-toggle:hover {
-  background: #e5e7eb;
-}
-
-.sidebar-nav-item.active {
-  background: #111827;
-  color: #ffffff;
-}
-
-.sidebar-conversations {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  padding: 14px 10px 0;
-}
-
-.conversation-group-toggle {
-  min-height: 38px;
-  padding: 8px 10px;
-  border-radius: 6px;
-  color: #111827;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.conversation-group-toggle .ant-tag {
-  margin-left: auto;
-  margin-right: 0;
-}
-
-.main-layout {
-  height: 100vh;
-  min-height: 0;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.content {
-  position: relative;
-  height: 100%;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  padding: 0;
-}
-
 .content-alert {
   flex: 0 0 auto;
   margin: 16px 24px 0;
@@ -163,132 +35,6 @@ textarea {
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
-}
-
-.chat-workspace {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr);
-}
-
-.chat-pane {
-  background: #ffffff;
-}
-
-.toolbar,
-.chat-head {
-  min-height: 58px;
-  padding: 14px 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.toolbar h4,
-.chat-head h4 {
-  margin: 0;
-}
-
-.conversation-list {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-  padding: 8px 0 12px;
-}
-
-.infinite-sentinel {
-  min-height: 1px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px 0;
-}
-
-
-.lazy-fallback {
-  min-height: 160px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.sidebar-conversations > .ant-spin,
-.sidebar-conversations .ant-spin-nested-loading,
-.sidebar-conversations .ant-spin-container {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.conversation-item {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 28px;
-  align-items: center;
-  gap: 4px;
-  border-radius: 6px;
-}
-
-.conversation-item:hover {
-  background: #e9edf2;
-}
-
-.conversation-item.active {
-  background: #dbeafe;
-}
-
-.conversation-select {
-  min-width: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  padding: 10px 8px 10px 10px;
-  display: grid;
-  gap: 4px;
-  text-align: left;
-}
-
-.conversation-select .ant-typography,
-.search-result-item .ant-typography {
-  display: block;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.conversation-delete {
-  opacity: 0;
-  color: #dc2626;
-}
-
-.conversation-item:hover .conversation-delete,
-.conversation-delete:focus-visible {
-  opacity: 1;
-}
-
-.sidebar-empty {
-  padding: 18px 4px;
-}
-
-.chat-pane {
-  height: 100%;
-  min-height: 0;
-  min-width: 0;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  overflow: hidden;
-}
-
-/* assistant-ui Thread 根节点自带 flex 布局与内部滚动，仅需给它一个有界高度 */
-.thread-shell {
-  min-height: 0;
-  min-width: 0;
 }
 
 .table-workspace {
@@ -563,20 +309,6 @@ textarea {
   }
 }
 
-@media (max-width: 640px) {
-  .database-body {
-    padding: 12px;
-  }
-
-  .database-card-grid {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-
-  .database-import-columns {
-    grid-template-columns: 1fr;
-  }
-}
 
 .workspace-pagination-overlay {
   position: absolute;
@@ -584,7 +316,7 @@ textarea {
   bottom: 0;
   left: 0;
   height: 82px;
-  background: rgba(245, 246, 248, 0.78);
+  background: rgba(255, 255, 255, 0.82);
   backdrop-filter: blur(8px);
   border-top: 1px solid rgba(229, 231, 235, 0.72);
   pointer-events: none;
@@ -758,12 +490,6 @@ textarea {
 
 /* ── Logging popup ─────────────────────────────── */
 
-.logging-btn {
-  font-size: 12px;
-  color: #4b5563;
-  margin-top: 8px;
-}
-
 .logging-modal .ant-modal-body {
   padding: 16px 24px;
 }
@@ -878,51 +604,8 @@ textarea {
 }
 
 @media (max-width: 900px) {
-  .content {
-    padding: 0;
-  }
-
   .workspace {
     min-height: 0;
   }
 }
 
-@media (max-width: 640px) {
-  .brand {
-    padding: 0 12px;
-    justify-content: center;
-  }
-
-  .brand img {
-    max-width: 44px;
-  }
-
-  .sidebar-actions {
-    padding: 12px 8px 20px;
-  }
-
-  .sidebar-actions .ant-btn > span:not(.ant-btn-icon),
-  .sidebar-nav-item span:not(.anticon),
-  .conversation-group-toggle span:not(.anticon),
-  .conversation-group-toggle .ant-tag,
-  .conversation-select,
-  .conversation-delete {
-    display: none;
-  }
-
-  .sidebar-nav,
-  .sidebar-conversations {
-    padding-left: 8px;
-    padding-right: 8px;
-  }
-
-  .sidebar-nav-item,
-  .conversation-group-toggle {
-    justify-content: center;
-  }
-
-  .toolbar {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-}

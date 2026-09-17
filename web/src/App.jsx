@@ -2,27 +2,24 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   App as AntApp,
-  Button,
   Empty,
   Input,
-  Layout,
   Modal,
   Popconfirm,
   Spin,
-  Tag,
   Tooltip,
   Typography,
 } from "antd";
 import {
-  AppstoreOutlined,
-  DatabaseOutlined,
-  DeleteOutlined,
-  DownOutlined,
-  PlusOutlined,
-  RightOutlined,
-  SearchOutlined,
-  ToolOutlined,
-} from "@ant-design/icons";
+  Database as DatabaseIcon,
+  LayoutGrid,
+  MessageSquare,
+  PanelLeftIcon,
+  PlusIcon,
+  SearchIcon,
+  Trash2,
+  Wrench,
+} from "lucide-react";
 
 import {
   createRagSource,
@@ -50,20 +47,30 @@ const ChatWorkspace = lazy(() => import("./chat/ChatWorkspace.jsx"));
 const LoggingModal = lazy(() => import("./modals/LoggingModal.jsx"));
 const SkillModal = lazy(() => import("./modals/SkillModal.jsx"));
 
-const { Sider, Content } = Layout;
-const { Text, Title } = Typography;
+const { Text } = Typography;
 const CONVERSATION_PAGE_SIZE = 30;
 const SEARCH_PAGE_SIZE = 20;
 const MESSAGE_PAGE_SIZE = 50;
 const SEARCH_DEBOUNCE_MS = 250;
 
+const NAV_ITEMS = [
+  { key: "skills", label: "SKILLS", icon: LayoutGrid },
+  { key: "tools", label: "TOOLS", icon: Wrench },
+  { key: "database", label: "DATABASE", icon: DatabaseIcon },
+];
+
 function LoadingFallback() {
   return <div className="lazy-fallback"><Spin /></div>;
 }
 
+// 未引入 Tailwind preflight，原生 button 需要显式重置 UA 样式
+const sidebarButtonClass =
+  "group flex w-full cursor-pointer items-center gap-2.5 overflow-hidden rounded-lg border-0 bg-transparent px-2.5 py-2 text-left text-sm text-[#0d0d0d] transition-colors hover:bg-black/[0.06]";
+
 function App() {
   const { message } = AntApp.useApp();
   const [activeView, setActiveView] = useState("chat");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [conversationTotal, setConversationTotal] = useState(0);
   const [conversationListLoading, setConversationListLoading] = useState(false);
@@ -78,7 +85,6 @@ function App() {
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
-  const [conversationsOpen, setConversationsOpen] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
@@ -427,41 +433,23 @@ function App() {
   }
 
   return (
-    <Layout className="app-shell">
-      <Sider className="sidebar" width={264} breakpoint="md" collapsedWidth={72}>
-        <div className="brand"><img src="/lifeops_logo.svg" alt="LifeOps" /></div>
-        <div className="sidebar-actions">
-          <Button type="primary" icon={<PlusOutlined />} block onClick={handleNewChat}>新聊天</Button>
-          <Button icon={<SearchOutlined />} block onClick={() => {
-            setSearchOpen(true); setSearchQuery(""); setSearchResults([]); setSearchError("");
-          }}>搜索标题</Button>
-        </div>
-        <nav className="sidebar-nav" aria-label="主导航">
-          <button type="button" className={`sidebar-nav-item${activeView === "skills" ? " active" : ""}`}
-            onClick={() => setActiveView("skills")}><AppstoreOutlined /><span>SKILLS</span></button>
-          <button type="button" className={`sidebar-nav-item${activeView === "tools" ? " active" : ""}`}
-            onClick={() => setActiveView("tools")}><ToolOutlined /><span>TOOLS</span></button>
-          <button type="button" className={`sidebar-nav-item${activeView === "database" ? " active" : ""}`}
-            onClick={() => setActiveView("database")}><DatabaseOutlined /><span>DATABASE</span></button>
-        </nav>
-        <section className="sidebar-conversations">
-          <button type="button" className="conversation-group-toggle"
-            onClick={() => setConversationsOpen((current) => !current)}>
-            {conversationsOpen ? <DownOutlined /> : <RightOutlined />}
-            <span>对话</span><Tag>{conversationTotal}</Tag>
-          </button>
-          {conversationsOpen ? <Spin spinning={conversationListLoading}>
-            <ConversationList conversations={conversations} selectedConversationId={selectedConversationId}
-              hasMore={conversations.length < conversationTotal} loadingMore={conversationsLoadingMore}
-              onLoadMore={loadMoreConversations} onSelect={loadConversation}
-              onDelete={handleDeleteConversation} />
-          </Spin> : null}
-        </section>
-      </Sider>
-      <Layout className="main-layout"><Content className="content">
+    <div className="bg-background text-foreground flex h-screen overflow-hidden">
+      <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed((c) => !c)}
+        activeView={activeView} onView={setActiveView}
+        conversations={conversations} conversationTotal={conversationTotal}
+        selectedConversationId={selectedConversationId} onSelect={loadConversation}
+        onDelete={handleDeleteConversation}
+        hasMore={conversations.length < conversationTotal}
+        loadingMore={conversationsLoadingMore} onLoadMore={loadMoreConversations}
+        listLoading={conversationListLoading}
+        onNewChat={handleNewChat}
+        onOpenSearch={() => {
+          setSearchOpen(true); setSearchQuery(""); setSearchResults([]); setSearchError("");
+        }} />
+      <main className="flex min-w-0 flex-1 flex-col">
         {error ? <Alert className="content-alert" type="error" message={error} showIcon /> : null}
-        {renderContent()}
-      </Content></Layout>
+        <div className="min-h-0 flex-1">{renderContent()}</div>
+      </main>
       <SearchModal open={searchOpen} query={searchQuery} results={searchResults}
         loading={searchLoading} loadingMore={searchLoadingMore} error={searchError}
         hasMore={searchResults.length < searchTotal} onLoadMore={loadMoreSearchResults}
@@ -471,42 +459,103 @@ function App() {
       {skillModalOpen ? <Suspense fallback={<LoadingFallback />}><SkillModal open
         value={skillForm} saving={savingSkill} onChange={setSkillForm} onSave={handleCreateSkill}
         onClose={() => setSkillModalOpen(false)} /></Suspense> : null}
-    </Layout>
+    </div>
   );
 }
 
-function ConversationList({ conversations, selectedConversationId, hasMore, loadingMore,
-  onLoadMore, onSelect, onDelete }) {
+function Sidebar({
+  collapsed, onToggle, activeView, onView, conversations, conversationTotal,
+  selectedConversationId, onSelect, onDelete, hasMore, loadingMore, onLoadMore,
+  listLoading, onNewChat, onOpenSearch,
+}) {
   const listRef = useRef(null);
   const sentinelRef = useInfiniteSentinel({
     rootRef: listRef, disabled: !hasMore || loadingMore, onIntersect: onLoadMore,
   });
-  if (conversations.length === 0) {
-    return <div className="sidebar-empty"><Empty description="暂无对话"
-      image={Empty.PRESENTED_IMAGE_SIMPLE} /></div>;
-  }
+
   return (
-    <div className="conversation-list" ref={listRef}>
-      {conversations.map((item) => (
-        <div key={item.conversation_id}
-          className={`conversation-item${item.conversation_id === selectedConversationId ? " active" : ""}`}>
-          <button type="button" className="conversation-select"
-            onClick={() => onSelect(item.conversation_id)}>
-            <Text strong>{item.title || "未命名对话"}</Text>
-            <Text type="secondary">{item.last_message}</Text>
+    <aside
+      className="border-border/60 bg-[#f9f9f9] flex h-full shrink-0 flex-col overflow-hidden border-r transition-[width] duration-200"
+      style={{ width: collapsed ? 56 : 260 }}
+    >
+      <div className="flex h-12 shrink-0 items-center gap-2 overflow-hidden px-2">
+        <Tooltip title={collapsed ? "展开侧栏" : "收起侧栏"}>
+          <button type="button" aria-label="切换侧栏" onClick={onToggle}
+            className="hover:bg-black/[0.06] flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent text-[#0d0d0d] transition-colors">
+            <PanelLeftIcon className="size-4.5" />
           </button>
-          <Popconfirm title="删除对话？" description="该对话的历史消息会从本地记录中移除。"
-            okText="删除" cancelText="取消" okButtonProps={{ danger: true }}
-            onConfirm={() => onDelete(item.conversation_id)}>
-            <Tooltip title="删除"><Button danger type="text" size="small"
-              icon={<DeleteOutlined />} className="conversation-delete" aria-label="删除对话" /></Tooltip>
-          </Popconfirm>
-        </div>
-      ))}
-      <div ref={sentinelRef} className="infinite-sentinel">
-        {loadingMore ? <Spin size="small" /> : null}
+        </Tooltip>
+        {!collapsed ? (
+          <img src="/lifeops_logo.svg" alt="LifeOps" className="h-7 w-auto object-contain" />
+        ) : null}
       </div>
-    </div>
+
+      <div className="flex shrink-0 flex-col gap-0.5 px-2">
+        <button type="button" className={sidebarButtonClass} onClick={onNewChat}
+          title={collapsed ? "新聊天" : undefined}>
+          <PlusIcon className="size-4 shrink-0" />
+          {!collapsed ? <span className="truncate">新聊天</span> : null}
+        </button>
+        <button type="button" className={sidebarButtonClass} onClick={onOpenSearch}
+          title={collapsed ? "搜索标题" : undefined}>
+          <SearchIcon className="size-4 shrink-0" />
+          {!collapsed ? <span className="truncate">搜索标题</span> : null}
+        </button>
+        {NAV_ITEMS.map(({ key, label, icon: Icon }) => (
+          <button key={key} type="button" title={collapsed ? label : undefined}
+            className={`${sidebarButtonClass}${activeView === key ? " bg-black/[0.08] font-medium" : ""}`}
+            onClick={() => onView(key)}>
+            <Icon className="size-4 shrink-0" />
+            {!collapsed ? <span className="truncate">{label}</span> : null}
+          </button>
+        ))}
+      </div>
+
+      {!collapsed ? (
+        <div className="mt-4 flex min-h-0 flex-1 flex-col">
+          <div className="text-muted-foreground flex items-center gap-2 px-3.5 pb-1 text-xs font-medium">
+            <MessageSquare className="size-3.5" aria-hidden />
+            <span>对话</span>
+            <span className="rounded-full bg-black/[0.06] px-1.5 py-0.5 tabular-nums">
+              {conversationTotal}
+            </span>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3" ref={listRef}>
+            {listLoading && conversations.length === 0 ? (
+              <div className="flex justify-center py-6"><Spin size="small" /></div>
+            ) : conversations.length === 0 ? (
+              <div className="text-muted-foreground px-2.5 py-6 text-center text-xs">
+                暂无对话
+              </div>
+            ) : conversations.map((item) => (
+              <div key={item.conversation_id}
+                className={`group relative${item.conversation_id === selectedConversationId ? " bg-black/[0.06]" : ""}`}>
+                <button type="button"
+                  className={`${sidebarButtonClass} pr-7${item.conversation_id === selectedConversationId ? " font-medium" : ""}`}
+                  onClick={() => onSelect(item.conversation_id)}>
+                  <span className="truncate">{item.title || "未命名对话"}</span>
+                </button>
+                <Popconfirm title="删除对话？" description="该对话的历史消息会从本地记录中移除。"
+                  okText="删除" cancelText="取消" okButtonProps={{ danger: true }}
+                  onConfirm={() => onDelete(item.conversation_id)}>
+                  <Tooltip title="删除">
+                    <button type="button" aria-label="删除对话"
+                      className="text-muted-foreground hover:text-destructive absolute top-1/2 right-1.5 hidden -translate-y-1/2 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-1 transition-colors hover:bg-black/[0.06] group-hover:flex">
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </Tooltip>
+                </Popconfirm>
+              </div>
+            ))}
+            <div ref={sentinelRef} className="infinite-sentinel">
+              {loadingMore ? <Spin size="small" /> : null}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1" />
+      )}
+    </aside>
   );
 }
 

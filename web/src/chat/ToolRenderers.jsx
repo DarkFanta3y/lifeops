@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { createContext, useContext, useState } from "react";
 import {
   CheckIcon,
   LoaderIcon,
@@ -9,11 +9,6 @@ import {
 import {
   ToolFallback,
 } from "@/components/assistant-ui/elements/tool-fallback.aui";
-import {
-  ToolGroupContent,
-  ToolGroupRoot,
-  ToolGroupTrigger,
-} from "@/components/assistant-ui/elements/tool-group.aui";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -52,7 +47,7 @@ function ApprovalCard({ toolName, argsText, approval }) {
       role="alertdialog"
       aria-label="工具审批请求"
       data-slot="lifeops-approval-card"
-      className="w-full rounded-lg border p-3"
+      className="my-2 w-full max-w-3xl rounded-2xl border p-4"
     >
       <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
         <ShieldAlertIcon className="size-4" aria-hidden />
@@ -63,7 +58,7 @@ function ApprovalCard({ toolName, argsText, approval }) {
         </span>
       </div>
       {argsText ? (
-        <pre className="bg-muted/50 mt-2 rounded-md p-2.5 text-xs whitespace-pre-wrap">
+        <pre className="bg-muted/60 mt-3 rounded-xl p-3 text-xs whitespace-pre-wrap">
           {argsText}
         </pre>
       ) : null}
@@ -84,7 +79,7 @@ function ApprovalCard({ toolName, argsText, approval }) {
 function TodoCard({ todos }) {
   return (
     <div data-slot="lifeops-todo-card" aria-label="任务计划"
-      className="w-full rounded-lg border px-4 py-3">
+      className="my-2 w-full max-w-3xl rounded-2xl border px-4 py-3">
       <p className="text-muted-foreground mb-2 flex items-center gap-1.5 text-xs font-medium">
         <SparklesIcon className="size-3.5" aria-hidden /> 任务计划
       </p>
@@ -110,7 +105,7 @@ function TodoCard({ todos }) {
 }
 
 /**
- * Thread 的 ToolFallback 槽位：
+ * ChatGPT 风格消息流中的工具渲染（无折叠分组，每个工具一个可折叠卡片）：
  * - 审批等待（requires-action + approval 未决）→ 审批卡片
  * - todo_write 且结果为计划数组 → 计划卡片
  * - 其余 → 官方默认折叠渲染
@@ -125,27 +120,4 @@ export function LifeOpsToolFallback(props) {
     return <TodoCard todos={result} />;
   }
   return <ToolFallback {...props} />;
-}
-
-/**
- * Thread 的 ToolGroup 槽位：工具组内出现审批等待时自动展开，
- * 避免审批卡片被折叠隐藏。
- */
-export function LifeOpsToolGroup({ group, children }) {
-  const requiresAction = group.status.type === "requires-action";
-  const [open, setOpen] = useState(requiresAction);
-  const wasActionRef = useRef(requiresAction);
-
-  useEffect(() => {
-    if (requiresAction && !wasActionRef.current) setOpen(true);
-    wasActionRef.current = requiresAction;
-  }, [requiresAction]);
-
-  return (
-    <ToolGroupRoot variant="ghost" open={open} onOpenChange={setOpen}>
-      <ToolGroupTrigger count={group.indices.length}
-        active={group.status.type === "running"} />
-      <ToolGroupContent>{children}</ToolGroupContent>
-    </ToolGroupRoot>
-  );
 }

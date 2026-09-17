@@ -25,9 +25,9 @@ export default defineConfig({
           if (/node_modules\/(react-markdown|remark-|rehype-|unified|micromark|mdast-|hast-|unist-|vfile|streamdown|shiki)/.test(id)) {
             return "markdown-vendor";
           }
-          // 注意：clsx 同时被 antd 依赖，不能放进 chat-vendor，
-          // 否则会把整个聊天依赖桶拖成入口的静态 import。
-          if (/node_modules\/(@radix-ui|@base-ui|lucide-react|zustand|class-variance-authority|tailwind-merge|tw-shimmer|@assistant-ui)/.test(id)) {
+          // 注意：clsx、lucide-react 同时被入口侧（antd / 侧栏图标）共享，
+          // 不能放进 chat-vendor，否则会把整个聊天依赖桶拖成入口的静态 import。
+          if (/node_modules\/(@radix-ui|@base-ui|zustand|class-variance-authority|tailwind-merge|tw-shimmer|@assistant-ui)/.test(id)) {
             return "chat-vendor";
           }
           return undefined;

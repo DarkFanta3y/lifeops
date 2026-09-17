@@ -1,30 +1,14 @@
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { AssistantRuntimeProvider } from "@assistant-ui/react";
-import { Button, Tag, Typography } from "antd";
+import { Button } from "antd";
 import { FileTextOutlined } from "@ant-design/icons";
-import { Thread } from "@/components/assistant-ui/elements/thread.aui";
+import { ChatGPTThread } from "./ChatGPTThread";
 
 import { approveRequest } from "../api.js";
 import { useChatRuntime } from "./useChatRuntime.js";
-import {
-  ApprovalContext,
-  LifeOpsToolFallback,
-  LifeOpsToolGroup,
-} from "./ToolRenderers.jsx";
+import { ApprovalContext } from "./ToolRenderers.jsx";
 
 const LoggingModal = lazy(() => import("../modals/LoggingModal.jsx"));
-const { Text, Title } = Typography;
-
-function ChatWelcome() {
-  return (
-    <div className="mb-6 flex flex-col gap-1 px-2">
-      <h1 className="text-2xl font-medium tracking-tight">有什么可以帮你？</h1>
-      <p className="text-muted-foreground text-sm">
-        输入任务或问题，助手会调用工具、维护计划并给出回答。
-      </p>
-    </div>
-  );
-}
 
 function LoggingFallback() {
   return null;
@@ -72,11 +56,6 @@ export default function ChatWorkspace({
     }
   }
 
-  const threadComponents = useMemo(() => ({
-    Welcome: ChatWelcome,
-    ToolFallback: LifeOpsToolFallback,
-    ToolGroup: LifeOpsToolGroup,
-  }), []);
   const approvalContextValue = {
     onDecision: handleApprovalDecision,
     riskLevel: approvalExtra?.riskLevel ?? null,
@@ -86,21 +65,28 @@ export default function ChatWorkspace({
   return (
     <AssistantRuntimeProvider runtime={chatRuntime}>
       <ApprovalContext.Provider value={approvalContextValue}>
-        <section className="workspace chat-workspace"><main className="chat-pane">
-          <div className="chat-head"><div><Text type="secondary">当前对话</Text>
-            <Title level={4}>{selectedConversation?.title || "新对话"}</Title></div>
-            <div><Tag color="blue">
-              {selectedConversation?.message_count ?? messages.length} 条消息</Tag>
-              <Button type="text" size="small" icon={<FileTextOutlined />} className="logging-btn"
-                onClick={() => setLoggingOpen(true)}>Logging</Button></div></div>
-          <div className="thread-shell">
-            <Thread components={threadComponents} />
+        <section className="workspace chat-workspace">
+          <div className="flex h-full min-h-0 flex-col bg-white">
+            <header className="flex h-12 shrink-0 items-center justify-between px-5">
+              <div className="flex min-w-0 items-baseline gap-2.5">
+                <h1 className="truncate text-[15px] font-medium">
+                  {selectedConversation?.title || "新对话"}
+                </h1>
+                <span className="text-muted-foreground shrink-0 text-xs">
+                  {selectedConversation?.message_count ?? messages.length} 条消息
+                </span>
+              </div>
+              <Button type="text" size="small" icon={<FileTextOutlined />}
+                onClick={() => setLoggingOpen(true)}>Logging</Button>
+            </header>
+            <div className="min-h-0 flex-1">
+              <ChatGPTThread />
+            </div>
           </div>
-        </main>
+        </section>
         {loggingOpen ? <Suspense fallback={<LoggingFallback />}><LoggingModal open
           intermediateMessages={intermediateMessages} onClose={() => setLoggingOpen(false)} />
         </Suspense> : null}
-        </section>
       </ApprovalContext.Provider>
     </AssistantRuntimeProvider>
   );
