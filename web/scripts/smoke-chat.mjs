@@ -1,10 +1,10 @@
-// 聊天 UI 冒烟测试：需要本地起后端(8081)与前端 dev(5174)。
+// 聊天 UI 冒烟测试：需要本地起后端(8081)与前端 dev(5173)。
 // 用法: node scripts/smoke-chat.mjs [消息文本] [期望文本片段]
 import { chromium } from "playwright";
 
 const MESSAGE = process.argv[2] || "只回复两个字：你好";
 const EXPECT = process.argv[3] || "";
-const BASE = process.env.SMOKE_BASE || "http://127.0.0.1:5174/";
+const BASE = process.env.SMOKE_BASE || "http://127.0.0.1:5173/";
 const errors = [];
 
 const browser = await chromium.launch();
@@ -15,7 +15,7 @@ page.on("console", (msg) => {
 page.on("pageerror", (err) => errors.push(`[pageerror] ${err.message}`));
 
 await page.goto(BASE, { waitUntil: "domcontentloaded" });
-await page.waitForSelector("text=新聊天", { timeout: 15000 });
+await page.waitForSelector("text=新对话", { timeout: 15000 });
 console.log("OK 侧边栏渲染");
 await page.waitForSelector("[data-slot=lifeops-composer]", { timeout: 20000 });
 console.log("OK 聊天区渲染（composer 出现）");

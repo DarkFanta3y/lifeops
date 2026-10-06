@@ -20,8 +20,8 @@ LifeOps 是一个本地优先的 AI 生活助手智能体。它把流式对话�
 
 ## 功能亮点
 
-- **流式 AI 对话**：后端通过 SSE 逐 token 返回，前端基于 assistant-ui 实时渲染回复，支持生成中停止；LLM 流式工具参数到齐前会先发送安全预热事件，并兼容需要回传 `reasoning_content` 的思考模式模型。
-- **本地 Web 控制台**：React + Ant Design + assistant-ui（ChatGPT 风格）控制台提供聊天、历史、Skill、工具、记忆和日志入口。
+- **流式 AI 对话**：后端通过 SSE 逐 token 返回，前端基于 Element Plus X 实时渲染回复，支持生成中停止；LLM 流式工具参数到齐前会先发送安全预热事件，并兼容需要回传 `reasoning_content` 的思考模式模型。
+- **本地 Web 控制台**：Vue 3 + Element Plus + Element Plus X 控制台提供聊天、历史、Skill、工具、记忆和日志入口。
 - **会话历史管理**：本地保存会话消息和中文短标题，支持按标题搜索、查看详情和删除会话。
 - **工具调用 Logging**：工具调用、工具结果和中间信息进入独立 Logging 弹窗，不打断对话阅读。
 - **Skill 工作流**：自动发现项目级和用户级 Skill，可在控制台查看元数据，也可直接新增项目级 Skill。
@@ -115,11 +115,13 @@ LifeOps 的主要入口是本地 Web 控制台。后端由 FastAPI 提供会话�
 
 聊天界面固定在视口内，侧边栏用于新建对话、搜索标题和切换历史会话。新会话的 `done` 事件会先返回基于首条用户消息的即时标题，真实中文短标题在后台生成并写入历史；已有会话如果缺少标题，也会在继续对话后后台补齐。
 
-聊天区基于 [assistant-ui](https://github.com/assistant-ui/assistant-ui) 构建（ExternalStoreRuntime 桥接自研 SSE 后端），界面采用官方 ChatGPT 风格示例：可折叠侧栏、居中对话流、深色用户气泡、圆角输入框。工具调用以可折叠卡片内联展示，`todo_write` 计划渲染为任务卡片，高风险工具触发内联审批卡片（允许一次 / 总是允许 / 拒绝），审批期间输入区自动禁用；生成中可随时停止。完整的工具调用记录、检索预编排和中间信息仍归档到 Logging 弹窗，便于排查。
+前端以 [ruoyi-element-ai](https://github.com/element-plus-x/ruoyi-element-ai) 为基础重构，采用 Vue 3、Element Plus 与 Element Plus X：浅灰蓝色侧栏、Conversations 历史列表、居中 BubbleList 对话流和 Sender 输入框。聊天、Skills、工具/MCP、知识库页面均迁移到 Vue，继续接入 LifeOps 的 FastAPI/SSE 接口。工具调用以可折叠卡片内联展示，`todo_write` 计划渲染为任务卡片，高风险工具触发内联审批卡片（允许一次 / 总是允许 / 拒绝），审批期间输入区自动禁用；生成中可随时停止。完整的工具调用记录和中间信息仍归档到 Logging 弹窗，便于排查。Markdown 默认禁用原始 HTML 并经过 DOMPurify 清洗；本地图片继续通过后端资源接口展示。模板的 MIT 许可保留在 `web/public/licenses/ruoyi-element-ai.txt`。
 
 SSE 兼容原有 `token`、`tool_call`、`tool_result` 和 `done` 事件，并新增 `tool_prepare` 与 `skill_prepare` 事件用于调试面板观察预热状态；现有前端可以继续忽略这些新增事件。最终 token 发出后，`done` 会尽快关闭连接，短标题落库和长期记忆学习会通过后台任务继续完成。
 
 ![工具调用 Logging](assets/logging.png)
+
+以上 Web 与 Logging 截图使用浏览器验收的隔离示例数据。
 
 ### Skills
 
@@ -170,6 +172,8 @@ uv run ruff check src/ tests/
 
 cd web
 npm run build
+npm test                 # 消息事件和分页定向测试
+npm run test:ui          # 启动前端后，串行浏览器检查（隔离 HTTP/SSE 桩）
 ```
 
 如需重建本地 Markdown RAG 索引：
@@ -193,7 +197,7 @@ lifeops/
 │   ├── skills/                  # Skill 发现、匹配和加载
 │   ├── tools/                   # 内置工具与 MCP 适配
 │   └── web/                     # FastAPI 本地 Web API
-├── web/                         # React + Vite Web 控制台
+├── web/                         # Vue 3 + Vite Web 控制台
 ├── tests/                       # pytest 测试套件
 ├── assets/                      # README Logo 与截图素材
 ├── .agents/skills/              # Agent Skills 标准 Skill 目录

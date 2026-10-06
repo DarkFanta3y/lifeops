@@ -9,7 +9,7 @@ page.on("console", (msg) => {
 });
 page.on("pageerror", (err) => errors.push(`[pageerror] ${err.message}`));
 
-await page.goto("http://127.0.0.1:5174/", { waitUntil: "domcontentloaded" });
+await page.goto(process.env.SMOKE_BASE || "http://127.0.0.1:5173/", { waitUntil: "domcontentloaded" });
 await page.waitForSelector("[data-slot=lifeops-composer]", { timeout: 20000 });
 
 const chatDone = page.waitForResponse((r) => r.url().includes("/api/chat"), { timeout: 30000 });

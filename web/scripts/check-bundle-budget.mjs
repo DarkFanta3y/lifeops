@@ -6,9 +6,7 @@ const ENTRY_GZIP_BUDGET = 300 * 1024;
 const CHUNK_RAW_BUDGET = 500 * 1024;
 const distDir = new URL("../dist/", import.meta.url);
 const manifest = JSON.parse(readFileSync(new URL(".vite/manifest.json", distDir), "utf8"));
-const entryKey = Object.keys(manifest).find(
-  (key) => key === "src/main.jsx" || manifest[key].src === "src/main.jsx",
-) || Object.keys(manifest).find((key) => manifest[key].isEntry);
+const entryKey = Object.keys(manifest).find((key) => manifest[key].isEntry);
 
 if (!entryKey) throw new Error("Vite manifest 中缺少应用入口");
 
