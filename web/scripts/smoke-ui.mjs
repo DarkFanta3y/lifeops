@@ -9,7 +9,7 @@ let sessions = Array.from({ length: 35 }, (_, i) => ({ conversation_id: `c${i}`,
 let skills = Array.from({ length: 10 }, (_, i) => ({ name: `skill-${i}`, description: `能力 ${i}`, source: 'project', license: 'MIT', path: `/skills/skill-${i}` }));
 let sources = [{ source_id: 'notes', name: '工作笔记', description: '本地资料', call_when: '查找资料时', enabled: true, path_prefix: 'notes/' }];
 const requests = [], decisions = [];
-let stream, polls = 0, chat, failImport = false;
+let stream, polls = 0, chat, failImport = false, regenerated = 0;
 const dualDecisions = new Map();
 const sse = (res, type, data) => res.write(`data: ${JSON.stringify({ type, data })}\n\n`);
 const server = createServer(async (req, res) => {
@@ -27,6 +27,12 @@ const server = createServer(async (req, res) => {
   if (path === '/api/chat') {
     chat = body; res.writeHead(200, { 'Content-Type': 'text/event-stream' }); res.flushHeaders();
     if (body.message === '失败测试') { sse(res, 'error', '连接暂时失败'); res.end(); return; }
+    if (body.message === '重生成测试') {
+      sse(res, 'tool_call', { tool_name: 'retrieve_knowledge', args: { query: 'q', source: 'notes' } });
+      sse(res, 'tool_result', { tool_name: 'retrieve_knowledge', output: '片段', success: true });
+      sse(res, 'token', `第 ${++regenerated} 次回答`);
+      sse(res, 'done', { conversation_id: 'new', title: '新测试会话', memory: { preferences: 3, summaries: 1, entities: 0 } }); res.end(); return;
+    }
     if (body.message === '停止测试') {
       sse(res, 'token', '部分回复'); const timer = setTimeout(() => { sse(res, 'token', '不应继续显示'); res.end(); }, 5000);
       res.on('close', () => clearTimeout(timer)); return;
@@ -71,7 +77,9 @@ const server = createServer(async (req, res) => {
     if (query === '慢') await new Promise(resolve => setTimeout(resolve, 500));
     json({ conversations: rows.slice(offset, offset + limit), total: rows.length }); return;
   }
+  if (path.endsWith('/last-turn')) { json({ user_message: '重生成测试', first_deleted_id: 1, deleted_count: 3 }); return; }
   if (path.startsWith('/api/conversations/')) {
+    if (req.method === 'PATCH') { sessions = sessions.map(item => item.conversation_id === path.split('/').at(-1) ? { ...item, title: body.title } : item); json({ title: body.title }); return; }
     if (req.method === 'DELETE') { sessions = sessions.filter(item => item.conversation_id !== path.split('/').at(-1)); json({ success: true }); return; }
     const older = url.searchParams.has('before_id');
     json({ messages: [{ message_id: older ? 'old' : 'latest', role: older ? 'user' : 'assistant', content: older ? '更早消息' : '历史回答' }],
@@ -110,7 +118,7 @@ const waitText = text => page.getByText(text, { exact: true }).first().waitFor()
 const click = name => page.getByRole('button', { name, exact: true }).click();
 try {
   await mkdir(screenshots, { recursive: true }); await page.goto(BASE);
-  await page.locator('[data-slot=lifeops-composer] textarea').waitFor(); await waitText('你好，我是 LifeOps');
+  await page.locator('[data-slot=lifeops-composer] textarea').waitFor(); await page.locator('.welcome h2').waitFor();
   assert.equal(requests.filter(item => /^\/api\/conversations\//.test(item.path)).length, 0);
   await page.screenshot({ path: `${screenshots}/desktop.png` });
   await page.locator('.sidebar-history .el-scrollbar__wrap').evaluate(el => { el.scrollTop = el.scrollHeight; });
@@ -134,7 +142,7 @@ try {
   assert.equal(await page.locator('[data-slot=lifeops-assistant-message] table').count(), 1);
   await click('复制回答'); assert.match(await page.evaluate(() => navigator.clipboard.readText()), /你好/);
   const download = page.waitForEvent('download'); await click('导出 Markdown'); assert.equal((await download).suggestedFilename(), 'LifeOps-回答.md');
-  await click('Logging'); await waitText('工具调用 · bash'); await page.waitForTimeout(300);
+  await click('运行日志'); await waitText('工具调用 · bash'); await page.waitForTimeout(300);
   await page.screenshot({ path: `${screenshots}/logging.png` });
   await page.getByRole('dialog').getByRole('button', { name: '关闭此对话框' }).click(); await page.getByRole('dialog').waitFor({ state: 'hidden' });
   await page.screenshot({ path: `${screenshots}/chat.png` }); console.log('OK SSE、审批、工具、计划、Markdown、复制导出、Logging');
@@ -148,6 +156,17 @@ try {
   await click('总是允许'); await waitText('双审批完成');
   assert.equal(dualDecisions.get('b'), 'allow_always');
   console.log('OK 各审批卡片分别提交正确请求');
+  await page.locator('[data-slot=lifeops-composer] textarea').fill('重生成测试'); await page.locator('[data-slot=lifeops-composer] textarea').press('Enter');
+  await waitText('第 1 次回答'); await waitText('来源：工作笔记'); await waitText('已载入记忆：偏好 3 · 摘要 1');
+  const turns = await page.locator('[data-slot=lifeops-user-message]').count();
+  await click('重新生成'); await waitText('第 2 次回答');
+  assert.equal(await page.getByText('第 1 次回答').count(), 0); assert.equal(await page.locator('[data-slot=lifeops-user-message]').count(), turns);
+  await click('编辑消息'); await waitText('取消'); await page.locator('[data-slot=lifeops-composer] textarea').press('Enter'); await waitText('第 3 次回答');
+  assert.equal(await page.getByText('第 2 次回答').count(), 0);
+  assert.equal(requests.filter(item => item.method === 'DELETE' && item.path.endsWith('/last-turn')).length, 2);
+  await click('对话菜单'); await page.getByRole('menuitem', { name: '重命名' }).click();
+  await page.locator('.el-message-box__input input').fill('改名会话'); await click('保存'); await page.locator('.title-trigger', { hasText: '改名会话' }).waitFor();
+  console.log('OK 重新生成、编辑重发、来源与记忆标注、重命名');
   await page.locator('[data-slot=lifeops-composer] textarea').fill('停止测试'); await page.locator('[data-slot=lifeops-composer] textarea').press('Enter'); await waitText('部分回复');
   await click('停止生成'); await page.getByRole('button', { name: '停止生成', exact: true }).waitFor({ state: 'hidden' }); assert.equal(await page.getByText('不应继续显示').count(), 0);
   await click('Skills'); await waitText('skill-0'); await page.locator('.el-pagination .btn-next').click(); await waitText('skill-8');
