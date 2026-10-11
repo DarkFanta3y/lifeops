@@ -1,9 +1,10 @@
 <script setup>
 import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue';
 import zhCn from 'element-plus/es/locale/lang/zh-cn';
-import { ChatDotRound, Collection, Coin, Search, Plus, Fold, Expand, Tools } from '@element-plus/icons-vue';
+import { Collection, Coin, Search, Plus, Fold, Expand, Operation, ArrowDown, EditPen, Download, Delete } from '@element-plus/icons-vue';
 import Conversations from '@element-plus-x/Conversations/index.js';
-import { fetchConversations, fetchConversationCursor, deleteConversation } from './api.js';
+import { fetchConversations, fetchConversationCursor, deleteConversation, renameConversation } from './api.js';
+import { downloadMarkdown } from './download.js';
 import { mergeUniqueById } from './pagination.js';
 
 const ChatWorkspace = defineAsyncComponent(() => import('./chat/ChatWorkspace.vue'));
@@ -33,13 +34,23 @@ let historyGeneration = 0;
 let searchGeneration = 0;
 const nav = [
   { key: 'skills', label: 'Skills', icon: Collection },
-  { key: 'tools', label: '工具与 MCP', icon: Tools },
+  { key: 'tools', label: '工具与 MCP', icon: Operation },
   { key: 'database', label: '知识库', icon: Coin },
 ];
-const title = computed(() => view.value === 'chat' ? selectedTitle.value || '新对话'
+const title = computed(() => view.value === 'chat' ? selectedTitle.value
   : nav.find(item => item.key === view.value)?.label);
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+const keys = isMac ? { search: '⌘K', newChat: '⌘⇧O' } : { search: 'Ctrl K', newChat: 'Ctrl Shift O' };
+const groupOrder = ['今天', '昨天', '7 天内', '更早'];
+const grouping = { sort: (a, b) => groupOrder.indexOf(a) - groupOrder.indexOf(b) };
+function groupOf(updatedAt) {
+  const time = Date.parse(updatedAt);
+  if (Number.isNaN(time)) return '更早';
+  const days = Math.floor((new Date().setHours(0, 0, 0, 0) - new Date(time).setHours(0, 0, 0, 0)) / 86400000);
+  return days <= 0 ? '今天' : days === 1 ? '昨天' : days <= 7 ? '7 天内' : '更早';
+}
 const sessionItems = computed(() => conversations.value.map(item => ({ ...item,
-  label: item.title || '未命名对话', disabled: running.value,
+  label: item.title || '未命名对话', disabled: running.value, group: groupOf(item.updated_at),
 })));
 
 async function refreshConversations() {
@@ -112,6 +123,25 @@ async function removeConversation(command, item) {
     ElMessage.success('对话已删除');
   } catch (err) { error.value = err.message; }
 }
+async function titleCommand(command) {
+  if (running.value) return;
+  const id = selectedId.value, name = selectedTitle.value || '未命名对话';
+  if (command === 'delete') return removeConversation('delete', { conversation_id: id });
+  if (command === 'export') {
+    const body = messages.value.map(message => `## ${message.role === 'user' ? '我' : 'LifeOps'}\n\n${message.content}`);
+    return downloadMarkdown(`${name}.md`, [`# ${name}`, ...body].join('\n\n') + '\n');
+  }
+  let value;
+  try {
+    ({ value } = await ElMessageBox.prompt('', '重命名对话', { inputValue: name, inputPattern: /\S/,
+      inputErrorMessage: '标题不能为空', confirmButtonText: '保存', cancelButtonText: '取消' }));
+  } catch { return; }
+  try {
+    const payload = await renameConversation(id, value.trim());
+    if (selectedId.value === id) selectedTitle.value = payload.title;
+    await refreshConversations();
+  } catch (err) { error.value = err.message; }
+}
 async function chatDone(payload) {
   if (payload?.conversation_id) selectedId.value = payload.conversation_id;
   if (payload?.title) selectedTitle.value = payload.title;
@@ -137,10 +167,15 @@ watch([query, searchOpen], (_, __, cleanup) => {
   const timer = setTimeout(() => searchPage(0, generation), 250);
   cleanup(() => clearTimeout(timer));
 });
+function openSearch() {
+  if (running.value) return;
+  searchOpen.value = true; query.value = '';
+}
 function shortcut(event) {
-  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
-    event.preventDefault(); newChat();
-  }
+  if (!(event.ctrlKey || event.metaKey)) return;
+  const key = event.key.toLowerCase();
+  if (key === 'k' && !event.shiftKey) { event.preventDefault(); openSearch(); }
+  else if (key === 'o' && event.shiftKey) { event.preventDefault(); newChat(); }
 }
 onMounted(() => { refreshConversations(); window.addEventListener('keydown', shortcut); });
 onUnmounted(() => window.removeEventListener('keydown', shortcut));
@@ -156,12 +191,12 @@ onUnmounted(() => window.removeEventListener('keydown', shortcut));
           <el-button text :icon="collapsed ? Expand : Fold" aria-label="切换侧栏" @click="collapsed = !collapsed" />
         </div>
         <button class="new-chat" :disabled="running" aria-label="新对话" @click="newChat">
-          <el-icon><Plus /></el-icon><span v-if="!collapsed">新对话</span><kbd v-if="!collapsed">Ctrl K</kbd>
+          <el-icon><Plus /></el-icon><span v-if="!collapsed">新对话</span><kbd v-if="!collapsed">{{ keys.newChat }}</kbd>
         </button>
         <nav class="navigation">
           <button :disabled="running" :title="collapsed ? '搜索对话' : undefined" aria-label="搜索对话"
-            @click="searchOpen = true; query = ''">
-            <el-icon><Search /></el-icon><span v-if="!collapsed">搜索对话</span>
+            @click="openSearch">
+            <el-icon><Search /></el-icon><span v-if="!collapsed">搜索对话</span><kbd v-if="!collapsed">{{ keys.search }}</kbd>
           </button>
           <button v-for="item in nav" :key="item.key" :disabled="running" :aria-label="item.label"
             :class="{ active: view === item.key }" :title="collapsed ? item.label : undefined" @click="view = item.key">
@@ -169,8 +204,8 @@ onUnmounted(() => window.removeEventListener('keydown', shortcut));
           </button>
         </nav>
         <div v-if="!collapsed" class="sidebar-history" v-loading="listLoading">
-          <div class="section-label">最近对话 <span>{{ total }}</span></div>
-          <Conversations :active="selectedId || undefined" :items="sessionItems"
+          <div v-if="!conversations.length" class="section-label">最近对话</div>
+          <Conversations v-if="conversations.length" :groupable="grouping" :active="selectedId || undefined" :items="sessionItems"
             row-key="conversation_id" label-key="label" :label-max-width="175" :show-tooltip="true"
             :menu="[{ key: 'delete', label: '删除对话', disabled: running }]"
             :style="{ width: '100%', height: '100%', padding: '0', backgroundColor: 'transparent' }"
@@ -179,12 +214,23 @@ onUnmounted(() => window.removeEventListener('keydown', shortcut));
             :items-active-style="{ backgroundColor: '#fff', color: '#0057ff', boxShadow: '0 1px 2px #0000000d' }"
             :items-hover-style="{ backgroundColor: '#00000009' }"
             @change="selectConversation" @menu-command="removeConversation" />
-          <p v-if="!conversations.length && !listLoading" class="muted empty-history">暂无对话记录</p>
+          <p v-else-if="!listLoading" class="muted empty-history">暂无对话记录</p>
         </div>
-        <div class="sidebar-footer"><el-icon><ChatDotRound /></el-icon><span v-if="!collapsed">你的日常，交给 LifeOps</span></div>
+        <div class="sidebar-footer" title="本地工作空间"><i class="status-dot" /><span v-if="!collapsed">本地工作空间</span></div>
       </aside>
       <main class="main-layout">
-        <header class="app-header"><h1>{{ title }}</h1><span class="local-badge">本地工作空间</span></header>
+        <header class="app-header">
+          <el-dropdown v-if="view === 'chat' && selectedId" trigger="click" :disabled="running" @command="titleCommand">
+            <button class="title-trigger" aria-label="对话菜单"><span>{{ title || '未命名对话' }}</span><el-icon><ArrowDown /></el-icon></button>
+            <template #dropdown><el-dropdown-menu>
+              <el-dropdown-item command="rename" :icon="EditPen">重命名</el-dropdown-item>
+              <el-dropdown-item command="export" :icon="Download">导出对话</el-dropdown-item>
+              <el-dropdown-item command="delete" :icon="Delete" divided>删除对话</el-dropdown-item>
+            </el-dropdown-menu></template>
+          </el-dropdown>
+          <h1 v-else>{{ title }}</h1>
+          <div id="header-actions" />
+        </header>
         <el-alert v-if="error" :title="error" type="error" show-icon closable @close="error = ''" />
         <div class="content" v-loading="historyLoading">
           <ChatWorkspace v-if="view === 'chat'" v-model:messages="messages" :conversation-id="selectedId"
