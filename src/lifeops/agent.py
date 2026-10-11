@@ -20,6 +20,7 @@ from lifeops.agent_planner import classify_task_complexity
 from lifeops.agent_subagent import SubAgentRunner
 from lifeops.history import ConversationHistoryStore, HistorySource
 from lifeops.llm.client import LLMClient
+from lifeops.llm.json_stream import JSONStringFieldStream
 from lifeops.llm.types import ChatResponse, LLMError, Message, MessageRole, ToolCallResult
 from lifeops.runtime.errors import AgentRuntimeError, RuntimeErrorType
 from lifeops.runtime.policy import ToolPolicyContext, ToolPolicyEngine, ToolPolicyResult
@@ -744,17 +745,20 @@ class Agent:
         tools: list[ToolDefinition] | None,
         *,
         emit_content: bool = True,
-    ) -> tuple[ChatResponse, bool]:
+    ) -> tuple[ChatResponse, bool, bool]:
+        """返回 (响应, 正文是否已流式输出, finish_task 答案是否已流式输出)。"""
         for attempt in range(2):
             content_parts: list[str] = []
             reasoning_parts: list[str] = []
             stream_tool_calls: list[dict[str, Any]] = []
+            answer_stream = JSONStringFieldStream("answer")
+            answer_streamed = False
             stream = self.llm.chat_stream(messages, tools=tools)
             if not hasattr(stream, "__aiter__"):
                 if inspect.iscoroutine(stream):
                     stream.close()
                 try:
-                    return await self.llm.chat(messages, tools=tools), False
+                    return await self.llm.chat(messages, tools=tools), False, False
                 except LLMError as exc:
                     self._fail_run(exc.error_type, exc.message)
                     raise
@@ -767,6 +771,17 @@ class Agent:
                     content_parts.append(data)
                     if emit_content:
                         await self.on_token(data)
+                elif (
+                    event_type == "tool_call_delta"
+                    and isinstance(data, dict)
+                    and data.get("index") == 0
+                    and data.get("name") == "finish_task"
+                ):
+                    # 仅首个 finish_task 调用的答案会被执行，边收边推给用户
+                    text = answer_stream.feed(str(data.get("arguments") or ""))
+                    if text:
+                        answer_streamed = True
+                        await self.on_token(text)
                 elif event_type == "tool_call_start" and isinstance(data, dict):
                     await self._prepare_tool_call(data.get("name", ""), None, status="started")
                 elif event_type == "tool_call_ready" and isinstance(data, dict):
@@ -783,9 +798,13 @@ class Agent:
                     stream_error = self._stream_error_payload(data)
                     break
 
-            emitted = bool(content_parts or reasoning_parts or stream_tool_calls)
+            emitted = bool(
+                content_parts or reasoning_parts or stream_tool_calls or answer_streamed
+            )
             if stream_error is not None:
-                visible_content_emitted = bool(content_parts and emit_content)
+                visible_content_emitted = bool(
+                    (content_parts and emit_content) or answer_streamed
+                )
                 if (
                     stream_error.get("message") == "工具调用参数 JSON 无效"
                     and not visible_content_emitted
@@ -846,6 +865,7 @@ class Agent:
                         reasoning_content=reasoning_content,
                     ),
                     bool((content_parts and emit_content) or stream_tool_calls),
+                    answer_streamed,
                 )
             return (
                 ChatResponse(
@@ -854,6 +874,7 @@ class Agent:
                     reasoning_content=reasoning_content,
                 ),
                 bool(content_parts and emit_content),
+                answer_streamed,
             )
 
         raise AssertionError("stream retry loop exhausted")
@@ -1011,8 +1032,13 @@ class Agent:
             )
 
             emitted_from_stream = False
+            finish_answer_streamed = False
             if self.on_token is not None:
-                response, emitted_from_stream = await self._chat_stream_with_retry(
+                (
+                    response,
+                    emitted_from_stream,
+                    finish_answer_streamed,
+                ) = await self._chat_stream_with_retry(
                     all_messages,
                     exposed_tool_defs if exposed_tool_defs else None,
                     emit_content=not requires_explicit_finish,
@@ -1100,7 +1126,7 @@ class Agent:
                         return await self._complete_response(
                             finish_result.output,
                             reasoning_content=response.reasoning_content,
-                            emit_token=True,
+                            emit_token=not finish_answer_streamed,
                         )
                 used_tool_names.extend(round_execution.executed_names)
 

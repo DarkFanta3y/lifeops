@@ -8,6 +8,8 @@ export function updateStreamParts(parts, type, data) {
       : [...parts, { kind: 'text', text: data }];
   }
   if (type === 'tool_call') {
+    // finish_task 是内部收尾协议，答案已作为文本流式输出，不在对话中展示为工具卡片
+    if ((data.tool_name || data.name) === 'finish_task') return parts;
     return [...parts, { kind: 'tool', toolName: data.tool_name || data.name,
       args: data.args ?? data.params ?? {} }];
   }

@@ -196,6 +196,14 @@ class LLMClient:
                                 }
                         if tc.function.arguments:
                             buffers[idx]["arguments"] += tc.function.arguments
+                            yield {
+                                "type": "tool_call_delta",
+                                "data": {
+                                    "index": idx,
+                                    "name": buffers[idx]["name"],
+                                    "arguments": tc.function.arguments,
+                                },
+                            }
 
                         buf = buffers[idx]
                         if (

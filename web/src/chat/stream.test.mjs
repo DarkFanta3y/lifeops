@@ -61,3 +61,10 @@ test('来源提取：识别知识库与联网搜索，解析字符串参数并�
   ]);
   assert.deepEqual(sources, [{ kind: 'knowledge', id: 'notes' }, { kind: 'web', id: '' }]);
 });
+
+test('finish_task 不生成工具卡片，其结果事件被忽略', () => {
+  let parts = updateStreamParts([], 'tool_call', { tool_name: 'finish_task', args: { answer: 'hi' } });
+  parts = updateStreamParts(parts, 'tool_result', { tool_name: 'finish_task', success: true, output: 'hi' });
+  parts = updateStreamParts(parts, 'token', 'hi');
+  assert.deepEqual(parts, [{ kind: 'text', text: 'hi' }]);
+});
