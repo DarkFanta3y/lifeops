@@ -646,6 +646,13 @@ class ConversationHistoryStoreSQLite:
             "offset": effective_offset,
         }
 
+    def conversation_exists(self, conversation_id: str) -> bool:
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "SELECT 1 FROM conversations WHERE conversation_id = ?", (conversation_id,)
+        )
+        return cursor.fetchone() is not None
+
     def get_first_user_message(self, conversation_id: str) -> str | None:
         cursor = self._conn.cursor()
         cursor.execute(
@@ -1340,11 +1347,7 @@ class ConversationHistoryStoreSQLite:
         if not message_ids:
             return 0
 
-        placeholders = ",".join("?" * len(message_ids))
-        cursor.execute(
-            f"DELETE FROM message_embeddings WHERE message_id IN ({placeholders})",
-            message_ids,
-        )
+        self._delete_message_rows(cursor, message_ids)
         cursor.execute(
             "DELETE FROM message_offload_metadata WHERE conversation_id = ?",
             (conversation_id,),
@@ -1357,18 +1360,6 @@ class ConversationHistoryStoreSQLite:
             "DELETE FROM conversation_summaries WHERE conversation_id = ?",
             (conversation_id,),
         )
-        cursor.execute(
-            f"DELETE FROM tool_results WHERE tool_call_id IN ("
-            f"SELECT tool_call_id FROM tool_calls WHERE message_id IN ({placeholders})"
-            f")",
-            message_ids,
-        )
-
-        cursor.execute(
-            f"DELETE FROM tool_calls WHERE message_id IN ({placeholders})",
-            message_ids,
-        )
-
         cursor.execute(
             "SELECT COUNT(*) FROM messages "
             "WHERE conversation_id = ? "
@@ -1389,6 +1380,74 @@ class ConversationHistoryStoreSQLite:
 
         self._conn.commit()
         return deleted_count
+
+    def _delete_message_rows(self, cursor: sqlite3.Cursor, message_ids: list[int]) -> None:
+        """删除消息关联的向量与工具调用记录（不删除 messages 本身）。"""
+        placeholders = ",".join("?" * len(message_ids))
+        cursor.execute(
+            f"DELETE FROM message_embeddings WHERE message_id IN ({placeholders})",
+            message_ids,
+        )
+        cursor.execute(
+            f"DELETE FROM tool_results WHERE tool_call_id IN ("
+            f"SELECT tool_call_id FROM tool_calls WHERE message_id IN ({placeholders})"
+            f")",
+            message_ids,
+        )
+        cursor.execute(
+            f"DELETE FROM tool_calls WHERE message_id IN ({placeholders})",
+            message_ids,
+        )
+
+    def delete_last_turn(self, conversation_id: str) -> dict[str, Any] | None:
+        """删除最后一轮对话（最后一条用户消息及其后的全部消息），保留标题记录。"""
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "SELECT id, content FROM messages WHERE conversation_id = ? "
+            "AND role = 'user' AND intermediate = 0 "
+            "AND (record_type IS NULL OR record_type != ?) "
+            "ORDER BY id DESC LIMIT 1",
+            (conversation_id, TITLE_RECORD_TYPE),
+        )
+        last_user = cursor.fetchone()
+        if last_user is None:
+            return None
+
+        cursor.execute(
+            "SELECT id FROM messages WHERE conversation_id = ? AND id >= ? "
+            "AND (record_type IS NULL OR record_type != ?)",
+            (conversation_id, last_user["id"], TITLE_RECORD_TYPE),
+        )
+        message_ids = [row[0] for row in cursor.fetchall()]
+        self._delete_message_rows(cursor, message_ids)
+        placeholders = ",".join("?" * len(message_ids))
+        cursor.execute(f"DELETE FROM messages WHERE id IN ({placeholders})", message_ids)
+
+        cursor.execute(
+            "SELECT content FROM messages WHERE conversation_id = ? "
+            "AND (record_type IS NULL OR record_type != ?) ORDER BY id DESC LIMIT 1",
+            (conversation_id, TITLE_RECORD_TYPE),
+        )
+        remaining = cursor.fetchone()
+        cursor.execute(
+            "UPDATE conversations SET message_count = ("
+            "  SELECT COUNT(*) FROM messages WHERE conversation_id = ? AND intermediate = 0 "
+            "  AND (record_type IS NULL OR record_type != ?)"
+            "), last_message = ?, updated_at = ? WHERE conversation_id = ?",
+            (
+                conversation_id,
+                TITLE_RECORD_TYPE,
+                remaining["content"] if remaining else None,
+                self._now(),
+                conversation_id,
+            ),
+        )
+        self._conn.commit()
+        return {
+            "user_message": last_user["content"],
+            "first_deleted_id": last_user["id"],
+            "deleted_count": len(message_ids),
+        }
 
     def _json_dumps(self, value: Any) -> str:
         return json.dumps(self._sanitize_unicode_data(value), ensure_ascii=False)

@@ -42,7 +42,11 @@ from lifeops.tools.registry import ToolRegistry
 from lifeops.tools.schema import parameters_schema_from_model
 from lifeops.utils.logging import get_logger
 from lifeops.utils.logging import setup_logger
-from lifeops.web.title_summary import fallback_conversation_title, summarize_conversation_title
+from lifeops.web.title_summary import (
+    fallback_conversation_title,
+    normalize_conversation_title,
+    summarize_conversation_title,
+)
 
 logger = get_logger(__name__)
 
@@ -66,6 +70,10 @@ _SkillYamlDumper.add_representer(str, _represent_skill_string)
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1)
     conversation_id: str | None = None
+
+
+class RenameConversationRequest(BaseModel):
+    title: str = Field(min_length=1)
 
 
 class ApprovalDecisionRequest(BaseModel):
@@ -272,6 +280,36 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
             raise HTTPException(status_code=500, detail="删除会话时发生内部错误")
         app.state.web_agents.pop(conversation_id, None)
         return {"conversation_id": conversation_id, "deleted_count": deleted_count}
+
+    @app.patch("/api/conversations/{conversation_id}")
+    async def rename_conversation(
+        conversation_id: str, request: RenameConversationRequest
+    ) -> dict[str, Any]:
+        title = normalize_conversation_title(request.title, fallback="")
+        store = app.state.history_store
+        try:
+            if not store.conversation_exists(conversation_id):
+                raise HTTPException(status_code=404, detail="会话不存在")
+            store.append_conversation_title(conversation_id, "web", title)
+        except HTTPException:
+            raise
+        except Exception:
+            logger.exception("重命名会话失败")
+            raise HTTPException(status_code=500, detail="重命名会话时发生内部错误")
+        return {"conversation_id": conversation_id, "title": title}
+
+    @app.delete("/api/conversations/{conversation_id}/last-turn")
+    async def delete_last_turn(conversation_id: str) -> dict[str, Any]:
+        try:
+            result = app.state.history_store.delete_last_turn(conversation_id)
+        except Exception:
+            logger.exception("删除末轮对话失败")
+            raise HTTPException(status_code=500, detail="删除末轮对话时发生内部错误")
+        if result is None:
+            raise HTTPException(status_code=404, detail="会话没有可删除的对话轮次")
+        # Agent 下次请求会从历史重建上下文，弹出缓存即可丢弃旧回答。
+        app.state.web_agents.pop(conversation_id, None)
+        return {"conversation_id": conversation_id, **result}
 
     @app.get("/api/search/messages")
     async def search_messages(
@@ -1243,22 +1281,44 @@ async def _generate_sse_messages(
             run = runtime_store.get_run(run_id)
             if run is not None:
                 status_value = run["status"]
-        yield make_sse(
-            "done",
-            {
-                "conversation_id": conversation_id,
-                "title": title,
-                "run_id": run_id,
-                "status": status_value,
-            },
-            always_send=True,
-        )
+        done_payload: dict[str, Any] = {
+            "conversation_id": conversation_id,
+            "title": title,
+            "run_id": run_id,
+            "status": status_value,
+        }
+        memory_counts = _memory_bootstrap_counts(runtime_store, run_id)
+        if memory_counts is not None:
+            done_payload["memory"] = memory_counts
+        yield make_sse("done", done_payload, always_send=True)
     finally:
         agent.on_tool_prepare = previous_on_tool_prepare
         agent.on_tool_call = previous_on_tool_call
         agent.on_tool_result = previous_on_tool_result
         agent.on_token = previous_on_token
         agent.approval_handler = previous_approval_handler
+
+
+def _memory_bootstrap_counts(
+    runtime_store: RuntimeStore | None, run_id: str | None
+) -> dict[str, int] | None:
+    """读取本轮长期记忆注入计数，供前端展示“已载入记忆”。"""
+    if runtime_store is None or run_id is None:
+        return None
+    try:
+        events = runtime_store.list_run_events(run_id)
+    except Exception:
+        logger.exception("读取长期记忆注入计数失败")
+        return None
+    for event in events:
+        if event.get("event_type") == "memory_bootstrap_finished":
+            payload = event.get("payload") or {}
+            return {
+                "summaries": int(payload.get("summaries_count") or 0),
+                "preferences": int(payload.get("preferences_count") or 0),
+                "entities": int(payload.get("entities_count") or 0),
+            }
+    return None
 
 
 def _sse_line(event_type: str, data: Any, event_id: int | None = None) -> str:
