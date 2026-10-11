@@ -134,6 +134,19 @@ export function approveRequest(requestId, decision) {
   });
 }
 
+export function deleteLastTurn(conversationId) {
+  return request(`/api/conversations/${conversationId}/last-turn`, {
+    method: "DELETE",
+  });
+}
+
+export function renameConversation(conversationId, title) {
+  return request(`/api/conversations/${conversationId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ title }),
+  });
+}
+
 export function deleteConversation(conversationId) {
   return request(`/api/conversations/${conversationId}`, {
     method: "DELETE",

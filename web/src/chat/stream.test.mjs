@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { updateStreamParts } from './stream.js';
+import { collectSources, updateStreamParts } from './stream.js';
 
 test('文本、同名工具结果与审批按事件顺序关联，保留原对象', () => {
   const original = [];
@@ -49,4 +49,15 @@ test('同轮先发布两次同名调用时，审批和结果按后端执行顺�
   assert.equal(parts[0].result, 'A 被拒绝');
   assert.equal(parts[1].approval.request_id, 'B');
   assert.equal(parts[1].result, 'B 完成');
+});
+
+test('来源提取：识别知识库与联网搜索，解析字符串参数并去重', () => {
+  const sources = collectSources([
+    { name: 'retrieve_knowledge', args: '{"query":"a","source":"notes"}' },
+    { name: 'retrieve_knowledge', args: { query: 'b', source: 'notes' } },
+    { name: 'web_search', args: { query: 'x' } },
+    { name: 'web_search', args: 'not json' },
+    { name: 'bash', args: { command: 'pwd' } },
+  ]);
+  assert.deepEqual(sources, [{ kind: 'knowledge', id: 'notes' }, { kind: 'web', id: '' }]);
 });

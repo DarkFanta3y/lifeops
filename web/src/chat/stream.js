@@ -31,3 +31,18 @@ export function updateStreamParts(parts, type, data) {
       isError: data.success === false,
       todos: data.metadata?.kind === 'todo' ? data.metadata.todos : undefined });
 }
+
+// 从工具调用中提取回答引用的来源并去重；calls 为 [{ name, args }]，args 可以是对象或 JSON 字符串。
+export function collectSources(calls) {
+  const sources = [];
+  for (const call of calls) {
+    const name = call.name || '';
+    const kind = name.endsWith('retrieve_knowledge') ? 'knowledge' : name.endsWith('web_search') ? 'web' : null;
+    if (!kind) continue;
+    let args = call.args;
+    if (typeof args === 'string') { try { args = JSON.parse(args); } catch { args = {}; } }
+    const id = kind === 'knowledge' ? String(args?.source || '').trim() : '';
+    if (!sources.some(item => item.kind === kind && item.id === id)) sources.push({ kind, id });
+  }
+  return sources;
+}
