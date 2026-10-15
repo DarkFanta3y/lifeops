@@ -12,6 +12,20 @@ const requests = [], decisions = [];
 let stream, polls = 0, chat, failImport = false, regenerated = 0;
 const dualDecisions = new Map();
 const sse = (res, type, data) => res.write(`data: ${JSON.stringify({ type, data })}\n\n`);
+// 上下文洞察接口桩：形态与 /api/conversations/{id}/context 等真实返回一致
+const cats = { system: 100, tools: 50, user: 10, inject: 0, skill: 0, assistant: 20, tool: 30 };
+const usage = { uncachedInputTokens: 150, cacheReadTokens: 100, cacheWriteTokens: 0, outputTokens: 20 };
+const contextHead = () => ({ ok: true, hasSnapshots: true, model: 'smoke-model', contextWindow: 1000, reserveRatio: 0.1,
+  current: { ...cats, total: 210 }, estimated: 210, toolCalls: 1, humanInputs: 1, answers: 1, lastUser: '你好', running: false,
+  requests: [{ id: 1, seq: 1, runId: 'r1', turn: 1, step: 1, iteration: 0, time: Date.now(), model: 'smoke-model', ...cats, total: 210,
+    estimated: 210, budget: 1000, prompt: 250, cacheRead: 100, output: 20, activeMs: 500, ttftMs: 100,
+    brief: { opener: '你好', inputs: [] }, response: { text: '好的' } }],
+  events: [{ seq: 1, time: Date.now(), kind: 'inject', sub: 'skill', name: 'review', turn: 1, step: 1 }],
+  usage, familyUsage: usage, agents: 1, cost: null, familyCost: null, prices: null,
+  timing: { wallMs: 1000, ttftMs: 100, genMs: 400, calls: 1, toolsMs: 200, toolCalls: 1, speedTokens: 20, speedMs: 400, tools: { bash: { calls: 1, ms: 200 } } },
+  spans: [] });
+const contextAgent = { id: 'main', parent: null, title: '主智能体', kind: 'main', status: 'done', steps: 1,
+  current: { ...cats, total: 210 }, window: 1000, billed: 270, cost: null, durationMs: 1000, prompt: '你好' };
 const server = createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -77,6 +91,22 @@ const server = createServer(async (req, res) => {
     if (query === '慢') await new Promise(resolve => setTimeout(resolve, 500));
     json({ conversations: rows.slice(offset, offset + limit), total: rows.length }); return;
   }
+  if (path === '/api/context/overview') {
+    const day = new Date().toISOString().slice(0, 10);
+    json({ range: url.searchParams.get('range') || '7d', kpi: { sessions: 1, requests: 1, billed: 270, cost: null, cacheHit: 0.4, usage },
+      usage7: [{ day, tokens: 270, requests: 1, sessions: 1, cost: null }], heatmap: [{ day, tokens: 270, requests: 1, sessions: 1, cost: null }],
+      composition: { ...cats, total: 210 }, prices: null,
+      sessions: [{ conversationId: 'c0', title: '洞察会话', updatedAt: 0, runs: 1, requests: 1, days: [day],
+        current: { ...cats, total: 210 }, window: 1000, billed: 270, cost: null, lastActive: Date.now() }] }); return;
+  }
+  if (path.startsWith('/api/context/snapshots/')) {
+    json({ id: 1, conversationId: 'new', agentId: 'main', iteration: 0, time: Date.now(), model: 'smoke-model', budget: 1000,
+      categories: cats, usage: null, response: null, delta: null,
+      elements: [{ key: 'system:0', cat: 'system', name: '系统提示', tokens: 100, hash: 'h', content: { text: '你是助手' }, isNew: false }] }); return;
+  }
+  if (path.endsWith('/context')) { json(contextHead()); return; }
+  if (path.endsWith('/context/files')) { json({ root: '/w', ops: [] }); return; }
+  if (path.endsWith('/context/fleet')) { json({ agents: [contextAgent], todos: [{ content: '验收完成', status: 'completed' }] }); return; }
   if (path.endsWith('/last-turn')) { json({ user_message: '重生成测试', first_deleted_id: 1, deleted_count: 3 }); return; }
   if (path.startsWith('/api/conversations/')) {
     if (req.method === 'PATCH') { sessions = sessions.map(item => item.conversation_id === path.split('/').at(-1) ? { ...item, title: body.title } : item); json({ title: body.title }); return; }
@@ -167,6 +197,18 @@ try {
   await click('对话菜单'); await page.getByRole('menuitem', { name: '重命名' }).click();
   await page.locator('.el-message-box__input input').fill('改名会话'); await click('保存'); await page.locator('.title-trigger', { hasText: '改名会话' }).waitFor();
   console.log('OK 重新生成、编辑重发、来源与记忆标注、重命名');
+  await click('上下文'); await waitText('上下文统计'); await waitText('上下文浏览器'); await waitText('Skill 注入（review）');
+  await page.locator('.lc-drawer').getByRole('button', { name: '编队', exact: true }).click(); await waitText('Agent 网络'); await waitText('验收完成');
+  await page.screenshot({ path: `${screenshots}/context-fleet.png` }); await page.keyboard.press('Escape');
+  await page.locator('.lc-drawer').waitFor({ state: 'hidden' });
+  const chats = requests.filter(item => item.path === '/api/chat').length;
+  await page.locator('[data-slot=lifeops-composer] textarea').fill('/context'); await page.locator('[data-slot=lifeops-composer] textarea').press('Enter');
+  await page.locator('.lc-modal-card').waitFor(); assert.equal(requests.filter(item => item.path === '/api/chat').length, chats);
+  await page.keyboard.press('Escape'); await page.locator('.lc-modal-card').waitFor({ state: 'hidden' });
+  await click('上下文洞察'); await waitText('活跃会话'); await waitText('洞察会话');
+  await page.screenshot({ path: `${screenshots}/insights.png` }); await page.locator('.lc-ov-session').first().click(); await waitText('上下文统计');
+  await page.keyboard.press('Escape'); await page.locator('.lc-drawer').waitFor({ state: 'hidden' });
+  console.log('OK 上下文抽屉、编队、/context 弹窗、上下文洞察');
   await page.locator('[data-slot=lifeops-composer] textarea').fill('停止测试'); await page.locator('[data-slot=lifeops-composer] textarea').press('Enter'); await waitText('部分回复');
   await click('停止生成'); await page.getByRole('button', { name: '停止生成', exact: true }).waitFor({ state: 'hidden' }); assert.equal(await page.getByText('不应继续显示').count(), 0);
   await click('Skills'); await waitText('skill-0'); await page.locator('.el-pagination .btn-next').click(); await waitText('skill-8');

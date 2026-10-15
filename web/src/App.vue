@@ -1,7 +1,7 @@
 <script setup>
 import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue';
 import zhCn from 'element-plus/es/locale/lang/zh-cn';
-import { Collection, Coin, Search, Plus, Fold, Expand, Operation, ArrowDown, EditPen, Download, Delete } from '@element-plus/icons-vue';
+import { Collection, Coin, DataAnalysis, Search, Plus, Fold, Expand, Operation, ArrowDown, EditPen, Download, Delete } from '@element-plus/icons-vue';
 import Conversations from '@element-plus-x/Conversations/index.js';
 import { fetchConversations, fetchConversationCursor, deleteConversation, renameConversation } from './api.js';
 import { downloadMarkdown } from './download.js';
@@ -10,6 +10,11 @@ import { mergeUniqueById } from './pagination.js';
 const ChatWorkspace = defineAsyncComponent(() => import('./chat/ChatWorkspace.vue'));
 const CatalogWorkspace = defineAsyncComponent(() => import('./workspaces/CatalogWorkspace.vue'));
 const DatabaseWorkspace = defineAsyncComponent(() => import('./workspaces/DatabaseWorkspace.vue'));
+const InsightsWorkspace = defineAsyncComponent(() => import('./workspaces/InsightsWorkspace.vue'));
+const ContextDrawer = defineAsyncComponent(() => import('./context/components/ContextDrawer.vue'));
+const ContextModal = defineAsyncComponent(() => import('./context/components/ContextModal.vue'));
+const contextDrawer = ref(false);
+const contextModal = ref(false);
 const view = ref('chat');
 const collapsed = ref(window.innerWidth < 760);
 const running = ref(false);
@@ -35,6 +40,7 @@ let searchGeneration = 0;
 const nav = [
   { key: 'skills', label: 'Skills', icon: Collection },
   { key: 'tools', label: '工具与 MCP', icon: Operation },
+  { key: 'insights', label: '上下文洞察', icon: DataAnalysis },
   { key: 'database', label: '知识库', icon: Coin },
 ];
 const title = computed(() => view.value === 'chat' ? selectedTitle.value
@@ -142,6 +148,14 @@ async function titleCommand(command) {
     await refreshConversations();
   } catch (err) { error.value = err.message; }
 }
+function openContext(kind) {
+  if (kind === 'modal') contextModal.value = true; else contextDrawer.value = true;
+}
+async function openInsightSession(id) {
+  const item = conversations.value.find(row => row.conversation_id === id) || { conversation_id: id };
+  await selectConversation(item);
+  contextDrawer.value = true;
+}
 async function chatDone(payload) {
   if (payload?.conversation_id) selectedId.value = payload.conversation_id;
   if (payload?.title) selectedTitle.value = payload.title;
@@ -235,11 +249,15 @@ onUnmounted(() => window.removeEventListener('keydown', shortcut));
         <div class="content" v-loading="historyLoading">
           <ChatWorkspace v-if="view === 'chat'" v-model:messages="messages" :conversation-id="selectedId"
             :intermediate-messages="intermediate" :disabled="historyLoading" @running="running = $event"
-            @done="chatDone" @settled-logs="intermediate = $event" @error="error = $event" />
+            @done="chatDone" @settled-logs="intermediate = $event" @error="error = $event" @context="openContext" />
           <CatalogWorkspace v-else-if="view === 'skills' || view === 'tools'" :key="view" :kind="view" />
+          <InsightsWorkspace v-else-if="view === 'insights'" @open="openInsightSession" />
           <DatabaseWorkspace v-else />
         </div>
       </main>
+      <ContextDrawer v-if="contextDrawer" v-model="contextDrawer" :conversation-id="selectedId" :running="running"
+        :title="selectedTitle || '未命名对话'" />
+      <ContextModal v-if="contextModal" v-model="contextModal" :conversation-id="selectedId" />
       <el-dialog v-model="searchOpen" title="搜索对话标题" width="min(600px, 94vw)" destroy-on-close>
         <el-input v-model="query" placeholder="输入标题关键词" :prefix-icon="Search" clearable aria-label="标题关键词" />
         <el-alert v-if="searchError" :title="searchError" type="error" show-icon />

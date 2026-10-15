@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import BubbleList from '@element-plus-x/BubbleList/index.js';
 import Sender from '@element-plus-x/Sender/index.js';
-import { Document, CopyDocument, Download, Check, Close, Tools, Top, Calendar, Search, EditPen, RefreshRight, Link, Memo } from '@element-plus/icons-vue';
+import { Document, CopyDocument, Download, Check, Close, Tools, Top, Calendar, Search, EditPen, RefreshRight, Link, Memo, PieChart } from '@element-plus/icons-vue';
 import { approveRequest, deleteLastTurn, fetchRagSources, sendChatMessage } from '../api.js';
 import { downloadMarkdown } from '../download.js';
 import MarkdownRenderer from '../MarkdownRenderer.vue';
@@ -10,7 +10,8 @@ import { collectSources, updateStreamParts } from './stream.js';
 
 const props = defineProps({ messages: { type: Array, default: () => [] },
   intermediateMessages: { type: Array, default: () => [] }, conversationId: String, disabled: Boolean });
-const emit = defineEmits(['update:messages', 'running', 'done', 'error', 'settled-logs']);
+const emit = defineEmits(['update:messages', 'running', 'done', 'error', 'settled-logs', 'context']);
+const CONTEXT_COMMAND = '/context';
 const draft = ref('');
 const sending = ref(false);
 const approval = ref(null);
@@ -97,6 +98,8 @@ function receive(type, data) {
 async function send(text = draft.value, { base = props.messages, logStart = props.intermediateMessages.length } = {}) {
   text = text.trim();
   if (!text || sending.value || props.disabled) return;
+  // /context 只在前端打开上下文弹窗，不发给模型
+  if (text === CONTEXT_COMMAND) { draft.value = ''; emit('context', 'modal'); return; }
   draft.value = ''; editing.value = false;
   sending.value = true; emit('running', true); emit('error', '');
   parts = []; turnLogStart = logStart;
@@ -187,6 +190,7 @@ onBeforeUnmount(() => controller?.abort());
 <template>
   <section class="workspace chat-workspace" :class="{ 'chat-empty': !messages.length }">
     <Teleport defer to="#header-actions">
+      <el-button v-if="conversationId" text :icon="PieChart" @click="emit('context', 'drawer')">上下文</el-button>
       <el-button v-if="messages.length" text :icon="Document" @click="loggingOpen = true">运行日志</el-button>
     </Teleport>
     <div v-if="!messages.length" class="welcome">

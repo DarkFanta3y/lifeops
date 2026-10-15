@@ -247,3 +247,23 @@ export function parseSSEMessages(rawText) {
 
   return results;
 }
+
+export function fetchContextHead(conversationId) {
+  return request(`/api/conversations/${conversationId}/context`);
+}
+
+export function fetchContextSnapshot(snapshotId) {
+  return request(`/api/context/snapshots/${snapshotId}`);
+}
+
+export function fetchContextFiles(conversationId) {
+  return request(`/api/conversations/${conversationId}/context/files`);
+}
+
+export function fetchContextFleet(conversationId) {
+  return request(`/api/conversations/${conversationId}/context/fleet`);
+}
+
+export function fetchContextOverview(range = "7d") {
+  return request(`/api/context/overview?range=${encodeURIComponent(range)}`);
+}
