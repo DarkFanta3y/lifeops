@@ -7,7 +7,7 @@
     "dev": "vite --host 127.0.0.1",
     "build": "vite build && node scripts/check-bundle-budget.mjs",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "node --test src/pagination.test.mjs src/chat/stream.test.mjs src/context/context.test.mjs",
+    "test": "node --test src/pagination.test.mjs src/chat/stream.test.mjs src/chat/speech.test.mjs src/context/context.test.mjs",
     "test:ui": "node scripts/smoke-ui.mjs"
   },
   "dependencies": {

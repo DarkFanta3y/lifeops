@@ -2,11 +2,12 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import BubbleList from '@element-plus-x/BubbleList/index.js';
 import Sender from '@element-plus-x/Sender/index.js';
-import { Document, CopyDocument, Download, Check, Close, Tools, Top, Calendar, Search, EditPen, RefreshRight, Link, Memo, PieChart } from '@element-plus/icons-vue';
+import { Document, CopyDocument, Download, Check, Close, Tools, Top, Calendar, Search, EditPen, RefreshRight, Link, Memo, PieChart, Headset, VideoPause } from '@element-plus/icons-vue';
 import { approveRequest, deleteLastTurn, fetchRagSources, sendChatMessage } from '../api.js';
 import { downloadMarkdown } from '../download.js';
 import MarkdownRenderer from '../MarkdownRenderer.vue';
 import { collectSources, updateStreamParts } from './stream.js';
+import { speak, speechSupported, stopSpeaking, toSpeechText } from './speech.js';
 
 const props = defineProps({ messages: { type: Array, default: () => [] },
   intermediateMessages: { type: Array, default: () => [] }, conversationId: String, disabled: Boolean });
@@ -30,6 +31,7 @@ const suggestions = [
 const editing = ref(false);
 const rewinding = ref(false);
 const sourceNames = ref(null);
+const speakingId = ref(null);
 let controller;
 let parts = [];
 let assistantId;
@@ -100,7 +102,7 @@ async function send(text = draft.value, { base = props.messages, logStart = prop
   if (!text || sending.value || props.disabled) return;
   // /context 只在前端打开上下文弹窗，不发给模型
   if (text === CONTEXT_COMMAND) { draft.value = ''; emit('context', 'modal'); return; }
-  draft.value = ''; editing.value = false;
+  draft.value = ''; editing.value = false; stopSpeech();
   sending.value = true; emit('running', true); emit('error', '');
   parts = []; turnLogStart = logStart;
   assistantId = crypto.randomUUID();
@@ -171,8 +173,14 @@ async function copy(content) {
   try { await navigator.clipboard.writeText(content); ElMessage.success('已复制'); }
   catch { ElMessage.error('复制失败，请检查浏览器剪贴板权限'); }
 }
+function stopSpeech() { stopSpeaking(); speakingId.value = null; }
+function toggleSpeak(item) {
+  if (speakingId.value === item.key) return stopSpeech();
+  speakingId.value = item.key;
+  speak(toSpeechText(item.content), { onEnd: () => { speakingId.value = null; } });
+}
 function print(value) { return typeof value === 'string' ? value : JSON.stringify(value, null, 2); }
-watch(() => props.conversationId, () => { if (!sending.value && !props.messages.some(message => message.message_id === assistantId)) { streamLogs.value = []; draft.value = ''; editing.value = false; turnLogStart = null; } });
+watch(() => props.conversationId, () => { stopSpeech(); if (!sending.value && !props.messages.some(message => message.message_id === assistantId)) { streamLogs.value = []; draft.value = ''; editing.value = false; turnLogStart = null; } });
 watch(() => !sourceNames.value && items.value.some(item => item.sources.some(source => source.kind === 'knowledge')), async needed => {
   if (!needed) return;
   sourceNames.value = {};
@@ -184,7 +192,7 @@ watch(() => props.messages.length, async (length, previous) => {
   await nextTick(); bubbleList.value?.scrollToBottom();
   if (!previous !== !length) composer.value?.querySelector('textarea')?.focus();
 });
-onBeforeUnmount(() => controller?.abort());
+onBeforeUnmount(() => { controller?.abort(); stopSpeech(); });
 </script>
 
 <template>
@@ -237,8 +245,10 @@ onBeforeUnmount(() => controller?.abort());
             <button v-if="item.sourceText" title="查看运行日志" @click="loggingOpen = true"><el-icon><Link /></el-icon>来源：{{ item.sourceText }}</button>
             <span v-if="item.memoryText"><el-icon><Memo /></el-icon>已载入记忆：{{ item.memoryText }}</span>
           </div>
-          <div v-if="item.role === 'assistant' && item.content" class="message-actions" :class="{ pinned: item.isLast }">
+          <div v-if="item.role === 'assistant' && item.content" class="message-actions" :class="{ pinned: item.isLast || speakingId === item.key }">
             <el-button text :icon="CopyDocument" title="复制" aria-label="复制回答" @click="copy(item.content)" />
+            <el-button v-if="speechSupported && !(sending && item.isLast)" text :icon="speakingId === item.key ? VideoPause : Headset"
+              :title="speakingId === item.key ? '停止朗读' : '朗读'" :aria-label="speakingId === item.key ? '停止朗读' : '朗读回答'" @click="toggleSpeak(item)" />
             <el-button text :icon="Download" title="导出 Markdown" aria-label="导出 Markdown" @click="downloadMarkdown('LifeOps-回答.md', item.content)" />
             <el-button v-if="item.isLast && canRewind" text :icon="RefreshRight" title="重新生成" aria-label="重新生成" @click="regenerate" /></div>
           <div v-else-if="item.role === 'user'" class="message-actions">
