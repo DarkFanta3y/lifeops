@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import inspect
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -86,6 +87,12 @@ class _FinishTaskParams(ToolParams):
         return self
 
 
+class _ExitPlanModeParams(ToolParams):
+    plan: str = Field(
+        min_length=1, description="完整计划（markdown），必须以 '# 标题' 开头"
+    )
+
+
 @dataclass
 class AgentServices:
     llm: LLMClient
@@ -102,6 +109,22 @@ class _RoundToolExecution:
 
 
 APPROVAL_DECISIONS = ("allow_once", "allow_always", "deny")
+
+EXIT_PLAN_MODE_TOOL = "exit_plan_mode"
+PLAN_REVIEW_DECISIONS = ("approve", "revise", "dismiss")
+
+
+@dataclass(frozen=True)
+class PlanReviewRequest:
+    request_id: str
+    plan: str
+    title: str
+
+
+@dataclass(frozen=True)
+class PlanReviewDecision:
+    decision: str
+    feedback: str | None = None
 
 # accept_edits 权限模式下自动放行的文件编辑类工具
 EDIT_CANONICAL_TOOLS = {
@@ -124,6 +147,20 @@ _PLAN_GATE_DENY_MESSAGE = (
     "（所有步骤初始为 pending），之后再执行写入类工具。"
     "只读工具（file_read/grep/glob 等）不受限制，可先用它们了解现状。"
 )
+
+_PLAN_MODE_DENY_MESSAGE = (
+    "当前处于计划模式：只能用只读工具探索，写入类工具会被系统拒绝。"
+    "完成探索后调用 exit_plan_mode 提交完整计划，用户批准后才能执行。"
+)
+
+PLAN_MODE_SECTION = """当前处于计划模式：先探索、再设计，经用户批准后才执行。
+- 用户让你"做/改/实现"某事时，理解为"规划怎么做"，不要执行。用户在对话中口头同意不等于批准，必须通过 exit_plan_mode 提交。
+- 只用只读工具（file_read、grep、glob、web_search、retrieve_knowledge、spawn_agent）了解现状；写入类工具会被系统拒绝。
+- 能通过查看得到的事实自己查清，不要问用户；只有需要用户拍板的选择才用 finish_task(status=needs_user) 提问。
+- 规划阶段不要用 todo_write，它用于批准后的执行跟踪。
+- 计划要完整到可直接执行：目标与验收标准、按模块分组的改动步骤、涉及的文件或数据、风险与边界情况、验证方式、明确的假设。
+- 完成后调用 exit_plan_mode 提交以 "# 标题" 开头的完整计划，且它是本次回复中唯一、最后一个工具调用。不要把计划直接写成普通回复，也不要问"是否继续"。
+- 评审被要求继续规划时，按反馈修订后重新提交。"""
 
 _APPROVAL_PARAMS_PREVIEW_CHARS = 600
 
@@ -185,6 +222,7 @@ DEFAULT_SYSTEM_PROMPT = """# 身份与目标
 - 多步骤任务必须先 `todo_write` 列计划再动笔；未列计划时写入类工具会被系统拒绝。
 - 计划持续显示在上下文中：完成一步更新状态；计划不合理可整表修订，不必硬走原计划。
 - 简单问答不要用 `todo_write`。
+- 计划模式下改用 `exit_plan_mode` 提交计划供用户评审，不使用 `todo_write`。
 
 # 任务闭环
 
@@ -247,6 +285,11 @@ class Agent:
         self.todos: list[dict[str, Any]] = []
         self._plan_required = False
         self._plan_written_this_run = False
+        self.plan_mode = False
+        self._plan_mode_seen: bool | None = None
+        self._plan_mode_enabled = bool(getattr(config.agent, "plan_mode_enabled", True))
+        self.plan_review_handler: Any | None = None
+        self.on_plan_mode_change: Any | None = None
         self.max_iterations = config.agent.max_iterations
         self.on_tool_prepare: Any | None = None
         self.on_tool_call: Any | None = None
@@ -285,6 +328,8 @@ class Agent:
         self._register_rag_tool()
         self._register_subagent_tool()
         self._register_todo_tool()
+        if self._plan_mode_enabled:
+            self._register_exit_plan_mode_tool()
         self._load_project_memory()
 
         # MCP 静态配置加载
@@ -325,7 +370,7 @@ class Agent:
             runner = SubAgentRunner(
                 llm=self.llm,
                 source_registry=self.tools,
-                allowed_tools=validated.tools,
+                allowed_tools=self._subagent_allowed_tools(validated.tools),
                 max_iterations=self.config.agent.subagent_max_iterations,
                 run_id=self.run_id,
                 trace_recorder=self.trace_recorder,
@@ -358,6 +403,20 @@ class Agent:
             ),
             handler,
         )
+
+    def _subagent_allowed_tools(self, requested: list[str] | None) -> list[str] | None:
+        """子智能体不能触发计划评审；计划模式下只能拿到只读工具，避免绕过写入拦截。"""
+        if not requested:
+            return requested
+        allowed = []
+        for name in requested:
+            if name == EXIT_PLAN_MODE_TOOL:
+                continue
+            definition = self.tools.get_definition(name)
+            if self.plan_mode and (definition is None or not definition.read_only):
+                continue
+            allowed.append(name)
+        return allowed or None
 
     def _register_todo_tool(self) -> None:
         async def handler(params: dict[str, Any]) -> ToolResult:
@@ -392,6 +451,144 @@ class Agent:
                 risk_level="low",
             ),
             handler,
+        )
+
+    def load_plan_mode(self, active: bool) -> None:
+        """从存储恢复计划模式；视为模型上次运行时已看到该状态。"""
+        self.plan_mode = bool(active) and self._plan_mode_enabled
+        self._plan_mode_seen = self.plan_mode
+
+    def set_plan_mode(self, active: bool, *, source: str = "user") -> bool:
+        """切换计划模式并持久化；返回状态是否发生变化。"""
+        active = bool(active) and self._plan_mode_enabled
+        if active == self.plan_mode:
+            return False
+        self.plan_mode = active
+        if hasattr(self.history_store, "set_plan_mode"):
+            try:
+                self.history_store.set_plan_mode(self.conversation_id, active, self.source)
+            except Exception:
+                logger.exception("持久化计划模式失败")
+        self._record_trace(
+            TraceEventType.PLAN_MODE_CHANGED, {"active": active, "source": source}
+        )
+        return True
+
+    def _register_exit_plan_mode_tool(self) -> None:
+        async def handler(params: dict[str, Any]) -> ToolResult:
+            validated = _ExitPlanModeParams.model_validate(params)
+            plan = validated.plan.strip()
+            if not self.plan_mode:
+                return ToolResult(
+                    success=False,
+                    output="",
+                    error="exit_plan_mode 仅在计划模式下可用；当前不在计划模式，直接推进任务即可。",
+                )
+            if not re.match(r"#\s+\S", plan):
+                return ToolResult(
+                    success=False,
+                    output="",
+                    error="计划必须是以 '# 标题' 开头的完整 markdown，请补全后重新提交。",
+                )
+            if self.plan_review_handler is None:
+                return ToolResult(
+                    success=False,
+                    output="",
+                    error="当前没有可用的计划评审通道；请让用户在界面中输入 /plan off 手动退出计划模式。",
+                )
+            return await self._review_plan(plan)
+
+        self.tools.register(
+            ToolDefinition(
+                name=EXIT_PLAN_MODE_TOOL,
+                description=(
+                    "何时调用：仅在计划模式下，探索完成后提交完整计划供用户评审；"
+                    "批准后退出计划模式并从下一步开始执行，要求继续规划时反馈会在工具结果中返回。"
+                    "何时禁止：不在计划模式时不要调用；它必须是本次回复中唯一、最后一个工具调用。"
+                ),
+                parameters_model=_ExitPlanModeParams,
+                category="internal",
+                canonical_name="internal.exit_plan_mode",
+                read_only=True,
+                risk_level="low",
+            ),
+            handler,
+        )
+
+    async def _review_plan(self, plan: str) -> ToolResult:
+        request = PlanReviewRequest(
+            request_id=uuid4().hex, plan=plan, title=_plan_title(plan)
+        )
+        self._record_trace(
+            TraceEventType.PLAN_REVIEW_REQUIRED,
+            {
+                "request_id": request.request_id,
+                "title": request.title,
+                "plan_length": len(plan),
+            },
+        )
+        self._update_run_status(RunStatus.WAITING_APPROVAL)
+        timeout_seconds = getattr(self.config.agent, "plan_review_timeout_seconds", 900)
+        timed_out = False
+        try:
+            review = await asyncio.wait_for(
+                self.plan_review_handler(request), timeout=timeout_seconds
+            )
+        except (TimeoutError, asyncio.TimeoutError):
+            timed_out = True
+            review = PlanReviewDecision("dismiss")
+            logger.warning(f"计划评审等待超时（{timeout_seconds}s），按关闭评审处理")
+        except Exception:
+            review = PlanReviewDecision("dismiss")
+            logger.exception("计划评审处理异常，按关闭评审处理")
+        finally:
+            self._update_run_status(RunStatus.RUNNING)
+        if not isinstance(review, PlanReviewDecision) or review.decision not in PLAN_REVIEW_DECISIONS:
+            review = PlanReviewDecision("dismiss")
+        feedback = (review.feedback or "").strip()
+        self._record_trace(
+            TraceEventType.PLAN_REVIEW_RESOLVED,
+            {
+                "request_id": request.request_id,
+                "decision": review.decision,
+                "has_feedback": bool(feedback),
+                "timed_out": timed_out,
+            },
+        )
+        metadata: dict[str, Any] = {"kind": "plan_review", "decision": review.decision}
+
+        if review.decision == "approve":
+            self.set_plan_mode(False, source=EXIT_PLAN_MODE_TOOL)
+            # 工具结果本身已说明模式切换，不再追加切换提示；已批准的计划满足计划闸门
+            self._plan_mode_seen = False
+            self._plan_required = False
+            if self.on_plan_mode_change is not None:
+                await self.on_plan_mode_change(False)
+            return ToolResult(
+                success=True,
+                output=(
+                    "计划已批准，计划模式已退出。从下一步开始按计划执行："
+                    "先用 todo_write 把计划拆成执行清单，再逐步推进。"
+                ),
+                metadata=metadata,
+            )
+        if review.decision == "revise":
+            detail = f"，反馈：{feedback}" if feedback else ""
+            return ToolResult(
+                success=False,
+                output="",
+                error=f"用户要求继续规划{detail}。请按反馈修订后重新调用 exit_plan_mode 提交。",
+                metadata=metadata,
+            )
+        output = (
+            "计划评审已超时，计划模式仍开启。你可以直接回复修改意见，或输入 /plan off 退出计划模式。"
+            if timed_out
+            else "计划已提交，计划模式仍开启。你可以直接回复修改意见，或输入 /plan off 退出计划模式。"
+        )
+        return ToolResult(
+            success=True,
+            output=output,
+            metadata={**metadata, "conclude_turn": True, "task_status": "needs_user"},
         )
 
     def _load_project_memory(self) -> None:
@@ -610,6 +807,8 @@ class Agent:
         return result
 
     def _plan_task_instruction(self) -> str | None:
+        if self.plan_mode:
+            return None
         if self._plan_required and not self._plan_written_this_run:
             return (
                 "本任务已判定为多步骤任务：必须先调用 todo_write 列出完整计划，"
@@ -651,6 +850,8 @@ class Agent:
             sections.append(f"## {title}\n{section}")
         if self.todos:
             sections.append(f"## 当前任务计划\n{self._render_todos()}")
+        if self.plan_mode:
+            sections.append(f"## 计划模式\n{PLAN_MODE_SECTION}")
         if task_instruction:
             sections.append(f"## 当前任务闭环\n{task_instruction}")
         return "\n\n".join([self.system_prompt, *sections])
@@ -668,6 +869,8 @@ class Agent:
             )
         if self.todos:
             parts.append(SystemPart("system", "当前任务计划", self._render_todos()))
+        if self.plan_mode:
+            parts.append(SystemPart("system", "计划模式", PLAN_MODE_SECTION))
         if task_instruction:
             parts.append(SystemPart("system", "当前任务闭环", task_instruction))
         return parts
@@ -1046,7 +1249,15 @@ class Agent:
         await self._activate_skills_for_input(user_input)
         self._plan_written_this_run = False
         self._plan_required = False
-        if self.config.agent.plan_gate_enabled:
+        plan_mode_notice = None
+        if self._plan_mode_seen is not None and self._plan_mode_seen != self.plan_mode:
+            plan_mode_notice = (
+                "用户已切换到计划模式。"
+                if self.plan_mode
+                else "用户已退出计划模式，可以正常执行写入类操作。"
+            )
+        self._plan_mode_seen = self.plan_mode
+        if self.config.agent.plan_gate_enabled and not self.plan_mode:
             self._plan_required = await classify_task_complexity(self.llm, user_input)
             self._record_trace(
                 TraceEventType.TASK_COMPLEXITY_DECIDED,
@@ -1081,6 +1292,11 @@ class Agent:
                 if completion_violations:
                     task_instruction += "上一次没有遵守该协议，请本轮必须调用工具或 finish_task。"
             plan_instruction = self._plan_task_instruction()
+            if plan_mode_notice:
+                plan_instruction = (
+                    f"{plan_mode_notice}\n{plan_instruction}" if plan_instruction else plan_mode_notice
+                )
+                plan_mode_notice = None
             if plan_instruction:
                 task_instruction = (
                     f"{task_instruction}\n{plan_instruction}"
@@ -1560,7 +1776,9 @@ class Agent:
         return result
 
     def _plan_gate_result(self, tc: ToolCallResult) -> ToolResult | None:
-        """复杂任务未列计划时拦截写入类工具；返回 None 表示放行。"""
+        """复杂任务未列计划或处于计划模式时拦截写入类工具；返回 None 表示放行。"""
+        if self.plan_mode:
+            return self._plan_mode_gate_result(tc)
         if not (self._plan_required and not self._plan_written_this_run):
             return None
         definition = self.tools.get_definition(tc.name)
@@ -1581,6 +1799,25 @@ class Agent:
             output="",
             error=_PLAN_GATE_DENY_MESSAGE,
             metadata={"plan_gate": "denied"},
+        )
+
+    def _plan_mode_gate_result(self, tc: ToolCallResult) -> ToolResult | None:
+        definition = self.tools.get_definition(tc.name)
+        if definition is None or definition.read_only:
+            return None
+        self._record_trace(
+            TraceEventType.PLAN_GATE_DENIED,
+            {
+                "tool_name": tc.name,
+                "canonical_name": self.tools.get_canonical_name(tc.name),
+                "reason": "plan_mode",
+            },
+        )
+        return ToolResult(
+            success=False,
+            output="",
+            error=_PLAN_MODE_DENY_MESSAGE,
+            metadata={"plan_gate": "plan_mode"},
         )
 
     async def _execute_round_tool_calls(
@@ -1610,6 +1847,10 @@ class Agent:
                 result = await self._execute_tool_handler(tc, params)
             results[index] = (result, (perf_counter() - started_at) * 1000)
 
+        # 计划评审放在本批最后串行执行，评审时其他工具结果已产出
+        review_indices = {
+            index for index, (tc, _, _) in enumerate(prepared) if tc.name == EXIT_PLAN_MODE_TOOL
+        }
         parallel_enabled = bool(
             getattr(self.config.agent, "parallel_readonly_tools", True)
         )
@@ -1617,22 +1858,29 @@ class Agent:
         if parallel_enabled:
             for index, (tc, _, _) in enumerate(prepared):
                 definition = self.tools.get_definition(tc.name)
-                if definition is not None and definition.read_only:
+                if definition is not None and definition.read_only and index not in review_indices:
                     read_only_indices.append(index)
 
         if len(read_only_indices) > 1:
             await asyncio.gather(*(_run(index) for index in read_only_indices))
-            write_indices = [i for i in range(len(prepared)) if i not in set(read_only_indices)]
+            done_indices = set(read_only_indices)
         else:
-            write_indices = list(range(len(prepared)))
+            done_indices = set()
+        write_indices = [i for i in range(len(prepared)) if i not in done_indices]
+        write_indices.sort(key=lambda i: i in review_indices)
         for index in write_indices:
             await _run(index)
 
+        conclude: tuple[ToolCallResult, ToolResult] | None = None
         for index, (tc, _, _) in enumerate(prepared):
             result, duration_ms = results[index]
             await self._record_tool_result(tc, result, duration_ms)
+            if result.metadata.get("conclude_turn") and conclude is None:
+                conclude = (tc, result)
 
-        return _RoundToolExecution(executed_names=[tc.name for tc, _, _ in prepared])
+        return _RoundToolExecution(
+            executed_names=[tc.name for tc, _, _ in prepared], finish=conclude
+        )
 
     async def _prepare_tool_call(
         self,
@@ -1963,6 +2211,14 @@ class Agent:
             )
         except Exception:
             logger.exception("更新 runtime run 状态失败")
+
+
+def _plan_title(plan: str) -> str:
+    for line in plan.splitlines():
+        match = re.match(r"#{1,6}\s+(.+?)\s*$", line)
+        if match:
+            return match.group(1)
+    return "计划"
 
 
 def _should_skip_pytest_env_mcp(presets: str) -> bool:

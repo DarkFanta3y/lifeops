@@ -14,6 +14,7 @@ _TOOL_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 
 CORE_TOOL_ORDER = {
     "finish_task": -20,
+    "exit_plan_mode": -15,
     "activate_skill": -10,
     "retrieve_knowledge": 0,
     "web_search": 1,

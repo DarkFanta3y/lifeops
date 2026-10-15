@@ -46,6 +46,9 @@ class TraceEventType(str, Enum):
     TODO_UPDATED = "todo_updated"
     TASK_COMPLEXITY_DECIDED = "task_complexity_decided"
     PLAN_GATE_DENIED = "plan_gate_denied"
+    PLAN_MODE_CHANGED = "plan_mode_changed"
+    PLAN_REVIEW_REQUIRED = "plan_review_required"
+    PLAN_REVIEW_RESOLVED = "plan_review_resolved"
 
 
 @dataclass(frozen=True)
