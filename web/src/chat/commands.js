@@ -7,7 +7,18 @@ export const COMMANDS = [
   { name: 'regenerate', label: '重新生成', description: '删除上一轮回答并重新生成' },
   { name: 'rename', label: '重命名对话', description: '修改当前对话标题' },
   { name: 'export', label: '导出对话', description: '把当前对话导出为 Markdown' },
+  { name: 'plan', label: '计划模式', description: '先规划后执行；/plan off 退出，/plan <消息> 进入并发送' },
 ];
+
+// 解析 /plan、/plan off、/plan <消息>；不是 /plan 命令时返回 null。
+export function parsePlanCommand(text) {
+  if (typeof text !== 'string') return null;
+  const match = text.trim().match(/^\/plan(?:\s+([\s\S]*))?$/i);
+  if (!match) return null;
+  const rest = (match[1] || '').trim();
+  if (rest.toLowerCase() === 'off') return { active: false, message: '' };
+  return { active: true, message: rest };
+}
 
 // 草稿以“/”开头且仍在输入命令名（无空白）时返回候选；按命令名前缀或中文名包含匹配。
 export function matchCommands(draft, commands = COMMANDS) {

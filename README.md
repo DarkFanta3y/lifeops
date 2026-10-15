@@ -23,7 +23,7 @@ LifeOps 是一个本地优先的 AI 生活助手智能体。它把流式对话�
 - **流式 AI 对话**：后端通过 SSE 逐 token 返回，前端基于 Element Plus X 实时渲染回复，支持生成中停止；LLM 流式工具参数到齐前会先发送安全预热事件，并兼容需要回传 `reasoning_content` 的思考模式模型。
 - **本地 Web 控制台**：Vue 3 + Element Plus + Element Plus X 控制台提供聊天、历史、上下文洞察、知识库和日志入口。
 - **会话历史管理**：本地保存会话消息和中文短标题，支持按标题搜索、查看详情和删除会话。
-- **「/」命令**：在输入框输入 `/` 弹出命令菜单，支持按命令名或中文名过滤、↑↓ 选择、回车 / Tab 执行、Esc 关闭：`/new` 新建对话、`/search` 搜索对话、`/context` 上下文构成、`/logs` 运行日志、`/regenerate` 重新生成、`/rename` 重命名、`/export` 导出 Markdown。命令只在前端执行，不发给模型；当前不可用的命令不出现在菜单中。
+- **「/」命令**：在输入框输入 `/` 弹出命令菜单，支持按命令名或中文名过滤、↑↓ 选择、回车 / Tab 执行、Esc 关闭：`/new` 新建对话、`/search` 搜索对话、`/context` 上下文构成、`/logs` 运行日志、`/regenerate` 重新生成、`/rename` 重命名、`/export` 导出 Markdown、`/plan` 计划模式（见下文）。除 `/plan` 外命令只在前端执行，不发给模型；当前不可用的命令不出现在菜单中。
 - **工具调用 Logging**：工具调用、工具结果和中间信息进入独立 Logging 弹窗，不打断对话阅读。
 - **Skill 工作流**：自动发现项目级和用户级 Skill，按显式 `$skill-name` 或隐式语义匹配按需激活。
 - **工具统一注册**：内置工具和 MCP Server 工具使用同一套工具注册模型，每轮请求按相关性动态裁剪暴露给模型的工具。
@@ -52,6 +52,15 @@ LLM 流式输出工具调用时，Agent 会监听工具名和参数增量：识�
 ### 任务计划与计划闸门
 
 LifeOps 采用内嵌式 Plan-Execute：入口先由复杂度分类器（低温单问 LLM 调用，失败自动降级为简单任务）判定任务是否为多步骤任务。判定为复杂任务时启用**计划闸门**——在通过 `todo_write` 列出计划清单之前，写入类工具（`bash`、`file_create`、`file_replace`、`file_append`）会被系统直接拒绝并附指引，只读探索工具不受限制；模型据此先规划再动笔。计划清单会以"当前任务计划"段落持续注入每轮上下文，要求模型完成一步更新一步、发现计划不合理时整表修订（就地 replan），前端任务计划卡片照常实时展示。整体开关为 `LIFEOPS_AGENT_PLAN_GATE_ENABLED`（默认开启），trace 记录 `task_complexity_decided` 与 `plan_gate_denied` 事件。
+
+### 计划模式
+
+计划模式参考 DeepSeek Harness 的 plan mode，用于"先出方案、人工确认后再动手"的场景：
+
+- **进入与退出**：输入 `/plan` 进入，`/plan off` 退出，`/plan <消息>` 进入并直接发送该消息；输入框上方显示「计划模式」提示条，可点击退出。模式随下一条消息提交（`POST /api/chat` 的 `plan_mode` 字段），按会话持久化在 `conversations.plan_mode`，刷新或重启后保持。
+- **规划阶段**：系统上下文追加「计划模式」引导段，要求模型只读探索、写出可直接执行的完整计划；写入类工具（`definition.read_only` 为假，含 `bash`、文件写入、非只读 MCP 工具）被硬拦截，子智能体也只能拿到只读工具。此时跳过复杂度分类，计划闸门让路。
+- **提交评审**：模型调用 `exit_plan_mode` 提交以 `# 标题` 开头的 markdown 计划，SSE 发送 `plan_review_required`，对话中出现计划评审卡片：「批准并执行」退出计划模式并在同一次运行内继续执行（已批准的计划满足计划闸门，模型随后用 `todo_write` 拆执行清单）；「继续规划」可附反馈，反馈作为工具错误返回给模型修订后重交；「关闭」、停止运行或超时（`LIFEOPS_AGENT_PLAN_REVIEW_TIMEOUT_SECONDS`，默认 900 秒）则结束本次运行，计划模式保持开启。决策通过 `POST /api/plan-reviews/{request_id}` 提交。
+- **开关与 trace**：`LIFEOPS_AGENT_PLAN_MODE_ENABLED`（默认开启）；trace 记录 `plan_mode_changed`、`plan_review_required`、`plan_review_resolved`，规划阶段的拦截复用 `plan_gate_denied`（`reason=plan_mode`）。
 
 ### Runtime Trace 与工具策略
 

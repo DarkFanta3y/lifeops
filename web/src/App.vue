@@ -25,6 +25,7 @@ const selectedId = ref(null);
 const selectedTitle = ref('');
 const messages = ref([]);
 const intermediate = ref([]);
+const planMode = ref(false);
 const historyLoading = ref(false);
 const error = ref('');
 const searchOpen = ref(false);
@@ -87,6 +88,7 @@ function newChat() {
   ++historyGeneration;
   view.value = 'chat'; selectedId.value = null; selectedTitle.value = '';
   messages.value = []; intermediate.value = []; error.value = ''; historyLoading.value = false;
+  planMode.value = false;
 }
 async function selectConversation(item) {
   if (running.value) return;
@@ -94,7 +96,7 @@ async function selectConversation(item) {
   const generation = ++historyGeneration;
   view.value = 'chat'; selectedId.value = id; selectedTitle.value = item.title || '';
   messages.value = []; intermediate.value = []; error.value = ''; historyLoading.value = true;
-  searchOpen.value = false;
+  searchOpen.value = false; planMode.value = false;
   try {
     let before = null;
     const cursors = new Set();
@@ -102,6 +104,7 @@ async function selectConversation(item) {
     while (true) {
       const payload = await fetchConversationCursor(id, 50, before);
       if (generation !== historyGeneration) return;
+      if (before === null) planMode.value = Boolean(payload.plan_mode);
       history = [...(payload.messages || []), ...history];
       logs = [...(payload.intermediate_messages || []), ...logs];
       if (!payload.has_more) break;
@@ -249,7 +252,7 @@ onUnmounted(() => window.removeEventListener('keydown', shortcut));
         </header>
         <el-alert v-if="error" :title="error" type="error" show-icon closable @close="error = ''" />
         <div class="content" v-loading="historyLoading">
-          <ChatWorkspace v-if="view === 'chat'" v-model:messages="messages" :conversation-id="selectedId"
+          <ChatWorkspace v-if="view === 'chat'" v-model:messages="messages" v-model:plan-mode="planMode" :conversation-id="selectedId"
             :intermediate-messages="intermediate" :disabled="historyLoading" @running="running = $event"
             @done="chatDone" @settled-logs="intermediate = $event" @error="error = $event" @context="openContext" @command="chatCommand" />
           <InsightsWorkspace v-else-if="view === 'insights'" @open="openInsightSession" />

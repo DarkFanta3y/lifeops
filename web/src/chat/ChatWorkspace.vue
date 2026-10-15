@@ -3,20 +3,26 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import BubbleList from '@element-plus-x/BubbleList/index.js';
 import Sender from '@element-plus-x/Sender/index.js';
 import { Document, CopyDocument, Download, Check, Close, Tools, Top, Calendar, Search, EditPen, RefreshRight, Link, Memo, PieChart, Headset, VideoPause } from '@element-plus/icons-vue';
-import { approveRequest, deleteLastTurn, fetchRagSources, sendChatMessage } from '../api.js';
+import { approveRequest, deleteLastTurn, fetchRagSources, reviewPlan, sendChatMessage } from '../api.js';
 import { downloadMarkdown } from '../download.js';
 import MarkdownRenderer from '../MarkdownRenderer.vue';
 import { collectSources, updateStreamParts } from './stream.js';
-import { findCommand, matchCommands } from './commands.js';
+import { findCommand, matchCommands, parsePlanCommand } from './commands.js';
 import { speak, speechSupported, stopSpeaking, toSpeechText } from './speech.js';
 
 const props = defineProps({ messages: { type: Array, default: () => [] },
-  intermediateMessages: { type: Array, default: () => [] }, conversationId: String, disabled: Boolean });
-const emit = defineEmits(['update:messages', 'running', 'done', 'error', 'settled-logs', 'context', 'command']);
+  intermediateMessages: { type: Array, default: () => [] }, conversationId: String, disabled: Boolean,
+  planMode: Boolean });
+const emit = defineEmits(['update:messages', 'update:planMode', 'running', 'done', 'error', 'settled-logs', 'context', 'command']);
 const draft = ref('');
 const sending = ref(false);
 const approval = ref(null);
 const approving = ref(false);
+const review = ref(null);
+const reviewing = ref(false);
+const reviewFeedback = ref('');
+const feedbackOpen = ref(false);
+const PLAN_DECISION_TEXT = { approve: '已批准，开始执行', revise: '已要求继续规划', dismiss: '已关闭评审' };
 const bubbleList = ref(null);
 const composer = ref(null);
 const loggingOpen = ref(false);
@@ -45,6 +51,7 @@ const commandReady = {
   regenerate: () => canRewind.value && props.messages.at(-1)?.role === 'assistant',
   rename: () => Boolean(props.conversationId) && !sending.value,
   export: () => props.messages.length > 0 && !sending.value,
+  plan: () => !sending.value,
 };
 const commandMatches = computed(() => commandDismissed.value ? []
   : matchCommands(draft.value).filter(command => commandReady[command.name]()));
@@ -101,6 +108,10 @@ function receive(type, data) {
   if (type === 'approval_required' || type === 'approval_resolved') {
     approval.value = parts.find(part => part.approval && !part.approval.decision)?.approval || null;
   }
+  if (type === 'plan_review_required' || type === 'plan_review_resolved') {
+    review.value = parts.find(part => part.review && !part.review.decision)?.review || null;
+    reviewFeedback.value = ''; feedbackOpen.value = false;
+  }
   if (type === 'tool_call') streamLogs.value = [...streamLogs.value, { role: 'assistant', tool_calls: [
     { function: { name: data.tool_name, arguments: JSON.stringify(data.args ?? data.params ?? {}) } },
   ] }];
@@ -123,10 +134,13 @@ async function send(text = draft.value, { base = props.messages, logStart = prop
   await nextTick(); bubbleList.value?.scrollToBottom();
   try {
     const payload = await sendChatMessage({ message: text, conversationId: props.conversationId,
-      signal: controller.signal, onToken: data => receive('token', data),
+      planMode: props.planMode, signal: controller.signal, onToken: data => receive('token', data),
       onToolCall: data => receive('tool_call', data), onToolResult: data => receive('tool_result', data),
       onApproval: data => receive('approval_required', data),
-      onApprovalResolved: data => receive('approval_resolved', data) });
+      onApprovalResolved: data => receive('approval_resolved', data),
+      onPlanReview: data => receive('plan_review_required', data),
+      onPlanReviewResolved: data => receive('plan_review_resolved', data),
+      onPlanModeChanged: data => emit('update:planMode', Boolean(data.active)) });
     memory = payload?.memory;
     emit('done', payload);
   } catch (err) {
@@ -141,7 +155,7 @@ async function send(text = draft.value, { base = props.messages, logStart = prop
       && (!retractUser || message.message_id !== user.message_id)));
     emit('settled-logs', [...props.intermediateMessages, ...streamLogs.value]);
     streamLogs.value = [];
-    controller = null; sending.value = false; approval.value = null; emit('running', false);
+    controller = null; sending.value = false; approval.value = null; review.value = null; emit('running', false);
   }
 }
 // 删除后端末轮消息，返回裁剪后的本地消息、日志长度和被删的用户原文。
@@ -166,6 +180,8 @@ async function resend(pickText) {
 const regenerate = () => resend(text => text);
 function submit(text) {
   if (typeof text !== 'string') text = draft.value;
+  const plan = parsePlanCommand(text);
+  if (plan) return runPlanCommand(plan);
   const command = findCommand(text);
   if (command) return runCommand(command);
   if (!editing.value) return send(text);
@@ -179,6 +195,21 @@ async function decide(requestId, decision) {
   try { await approveRequest(requestId, decision); }
   catch (err) { emit('error', `审批提交失败：${err.message}`); }
   finally { approving.value = false; }
+}
+// 计划模式随下一条消息提交给后端；带消息时直接发送。
+function runPlanCommand({ active, message }) {
+  if (sending.value) { ElMessage.warning('运行中无法切换计划模式'); return; }
+  draft.value = ''; editing.value = false;
+  emit('update:planMode', active);
+  if (message) return send(message);
+  ElMessage.info(active ? '已进入计划模式：先规划，批准后再执行' : '已退出计划模式');
+}
+async function decidePlan(decision) {
+  if (reviewing.value || !review.value) return;
+  reviewing.value = true;
+  try { await reviewPlan(review.value.request_id, decision, decision === 'revise' ? reviewFeedback.value.trim() : ''); }
+  catch (err) { emit('error', `计划评审提交失败：${err.message}`); }
+  finally { reviewing.value = false; }
 }
 async function copy(content) {
   try { await navigator.clipboard.writeText(content); ElMessage.success('已复制'); }
@@ -197,6 +228,7 @@ function runCommand(command) {
   if (command.name === 'context') emit('context', 'modal');
   else if (command.name === 'logs') loggingOpen.value = true;
   else if (command.name === 'regenerate') regenerate();
+  else if (command.name === 'plan') runPlanCommand({ active: true, message: '' });
   else emit('command', command.name);
 }
 // 捕获阶段拦截按键，避免回车被 Sender 当作发送。
@@ -249,6 +281,26 @@ onBeforeUnmount(() => { controller?.abort(); stopSpeech(); });
             <template v-else-if="item.parts?.length">
               <template v-for="(part, index) in item.parts" :key="index">
                 <MarkdownRenderer v-if="part.kind === 'text'" :content="part.text" />
+                <div v-else-if="part.toolName === 'exit_plan_mode' && (part.review || part.args?.plan)"
+                  class="plan-card" :role="part.review && !part.review.decision && !part.interrupted ? 'alertdialog' : undefined"
+                  aria-label="计划评审" data-slot="lifeops-plan-review-card">
+                  <div class="plan-head"><strong>{{ part.review?.title || '计划' }}</strong>
+                    <el-tag v-if="part.review?.decision" size="small" :type="part.review.decision === 'approve' ? 'success' : 'info'">
+                      {{ PLAN_DECISION_TEXT[part.review.decision] }}</el-tag>
+                    <el-tag v-else-if="part.interrupted" size="small" type="info">已中断</el-tag>
+                    <el-tag v-else-if="part.isError && !part.review" size="small" type="danger">提交失败</el-tag></div>
+                  <div class="plan-body"><MarkdownRenderer :content="part.review?.plan || part.args.plan" /></div>
+                  <p v-if="part.isError && !part.review" class="plan-error">{{ part.result }}</p>
+                  <template v-if="part.review && !part.review.decision && !part.interrupted">
+                    <el-input v-if="feedbackOpen" v-model="reviewFeedback" type="textarea" :autosize="{ minRows: 2, maxRows: 6 }"
+                      placeholder="说明需要调整的地方（可选）" />
+                    <div class="actions">
+                      <el-button :disabled="reviewing" @click="decidePlan('dismiss')">关闭</el-button>
+                      <el-button v-if="!feedbackOpen" :disabled="reviewing" @click="feedbackOpen = true">继续规划</el-button>
+                      <el-button v-else :loading="reviewing" @click="decidePlan('revise')">提交反馈</el-button>
+                      <el-button type="primary" :loading="reviewing" @click="decidePlan('approve')">批准并执行</el-button></div>
+                  </template>
+                </div>
                 <div v-else-if="part.approval && !part.approval.decision && !part.interrupted"
                   class="approval-card" role="alertdialog" aria-label="工具审批请求" data-slot="lifeops-approval-card">
                   <strong>工具调用需要授权：{{ part.toolName }}</strong>
@@ -298,19 +350,23 @@ onBeforeUnmount(() => { controller?.abort(); stopSpeech(); });
           <code>/{{ command.name }}</code><strong>{{ command.label }}</strong><span>{{ command.description }}</span>
         </li>
       </ul>
+      <div v-if="planMode" class="composer-plan" data-slot="lifeops-plan-mode">
+        <el-tag size="small" type="warning" effect="dark">计划模式</el-tag>
+        <span>只读探索并提交计划，批准后才执行</span>
+        <el-button text size="small" :disabled="sending" @click="runPlanCommand({ active: false, message: '' })">退出</el-button></div>
       <div v-if="editing" class="composer-editing">正在编辑上一条消息，发送后会替换原来的回答
         <el-button text size="small" @click="cancelEdit">取消</el-button></div>
       <Sender :key="messages.length ? 'chat' : 'empty'" v-model="draft" :variant="messages.length ? 'default' : 'updown'"
         :auto-size="{ minRows: messages.length ? 1 : 2, maxRows: 6 }"
         placeholder="有什么想让我帮忙的？输入 / 查看命令"
-        :loading="sending && !approval" :disabled="disabled || Boolean(approval)" :submit-btn-disabled="!draft.trim()"
+        :loading="sending && !approval && !review" :disabled="disabled || Boolean(approval) || Boolean(review)" :submit-btn-disabled="!draft.trim()"
         @submit="submit" @cancel="controller?.abort()">
         <template #action-list>
           <el-button v-if="sending" circle aria-label="停止生成" @click="controller?.abort()"><el-icon><Close /></el-icon></el-button>
           <el-button v-else circle type="primary" :icon="Top" aria-label="发送消息" :disabled="disabled || !draft.trim()" @click="submit()" />
         </template>
       </Sender>
-      <el-button v-if="approval" size="small" class="stop-approval" @click="controller?.abort()">停止运行</el-button>
+      <el-button v-if="approval || review" size="small" class="stop-approval" @click="controller?.abort()">停止运行</el-button>
     </div>
     <div v-if="!messages.length" class="suggestions">
       <button v-for="item in suggestions" :key="item.label" @click="draft = item.prompt">

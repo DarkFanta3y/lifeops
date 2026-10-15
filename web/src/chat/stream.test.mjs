@@ -68,3 +68,20 @@ test('finish_task 不生成工具卡片，其结果事件被忽略', () => {
   parts = updateStreamParts(parts, 'token', 'hi');
   assert.deepEqual(parts, [{ kind: 'text', text: 'hi' }]);
 });
+
+test('计划评审挂到 exit_plan_mode 调用并记录决策', () => {
+  let parts = updateStreamParts([], 'tool_call', { tool_name: 'exit_plan_mode', args: { plan: '# 计划' } });
+  parts = updateStreamParts(parts, 'plan_review_required', { request_id: 'p1', title: '计划', plan: '# 计划' });
+  assert.equal(parts.length, 1);
+  assert.equal(parts[0].review.decision, null);
+  parts = updateStreamParts(parts, 'plan_review_resolved', { request_id: 'p1', decision: 'approve' });
+  assert.equal(parts[0].review.decision, 'approve');
+  parts = updateStreamParts(parts, 'tool_result', { tool_name: 'exit_plan_mode', success: true, output: '已批准' });
+  assert.equal(parts[0].result, '已批准');
+});
+
+test('找不到 exit_plan_mode 调用时单独追加计划卡片', () => {
+  const parts = updateStreamParts([], 'plan_review_required', { request_id: 'p2', title: 'T', plan: '# T' });
+  assert.equal(parts[0].toolName, 'exit_plan_mode');
+  assert.equal(parts[0].args.plan, '# T');
+});

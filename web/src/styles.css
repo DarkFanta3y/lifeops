@@ -106,6 +106,14 @@ h1, h2, h3, p { margin-top: 0; }
 .approval-card .el-tag { margin: 8px; }
 .approval-card .actions { flex-wrap: wrap; }
 .stop-approval { margin-top: 10px; }
+.plan-card { margin: 12px 0; border: 1px solid #b3cdff; border-radius: 12px; padding: 14px; background: #f7faff; font-size: 13px; }
+.plan-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.plan-body { max-height: 420px; overflow: auto; padding: 12px 14px; border-radius: 8px; background: #fff; }
+.plan-card .el-textarea { margin-top: 12px; }
+.plan-card .actions { flex-wrap: wrap; justify-content: flex-end; margin-top: 12px; }
+.plan-error { margin: 10px 0 0; color: #dc2626; }
+.composer-plan { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; padding: 4px 8px 4px 10px; border-radius: 12px; background: #fff7e6; color: #8a5a00; font-size: 12px; }
+.composer-plan .el-button { margin-left: auto; }
 pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; background: #f3f4f6; border-radius: 8px; font-size: 12px; }
 .markdown-body { overflow-wrap: anywhere; line-height: 1.7; font-size: 14px; }
 .markdown-body > :last-child { margin-bottom: 0; }

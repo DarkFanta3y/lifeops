@@ -13,6 +13,19 @@ export function updateStreamParts(parts, type, data) {
     return [...parts, { kind: 'tool', toolName: data.tool_name || data.name,
       args: data.args ?? data.params ?? {} }];
   }
+  // 计划评审挂到最近一个尚无结果的 exit_plan_mode 调用上；找不到时单独追加一张计划卡片
+  if (type === 'plan_review_required') {
+    const index = parts.findLastIndex(part => part.kind === 'tool' && part.toolName === 'exit_plan_mode'
+      && part.result === undefined && !part.review);
+    const review = { ...data, decision: null };
+    return index < 0
+      ? [...parts, { kind: 'tool', toolName: 'exit_plan_mode', args: { plan: data.plan }, review }]
+      : parts.map((part, i) => i === index ? { ...part, review } : part);
+  }
+  if (type === 'plan_review_resolved') {
+    return parts.map(part => part.review?.request_id === data.request_id
+      ? { ...part, review: { ...part.review, decision: data.decision } } : part);
+  }
   if (type === 'approval_resolved') {
     return parts.map(part => part.approval?.request_id === data.request_id
       ? { ...part, approval: { ...part.approval, decision: data.decision } } : part);

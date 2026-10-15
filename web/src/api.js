@@ -54,13 +54,17 @@ export function searchMessages(query, limit = 20, offset = 0) {
 }
 
 export async function sendChatMessage({
-  message, conversationId, signal, onToken, onApproval, onApprovalResolved,
-  onToolCall, onToolResult,
+  message, conversationId, planMode, signal, onToken, onApproval, onApprovalResolved,
+  onToolCall, onToolResult, onPlanReview, onPlanReviewResolved, onPlanModeChanged,
 }) {
   const response = await fetch(`${API_BASE}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, conversation_id: conversationId || undefined }),
+    body: JSON.stringify({
+      message,
+      conversation_id: conversationId || undefined,
+      plan_mode: typeof planMode === "boolean" ? planMode : undefined,
+    }),
     signal,
   });
 
@@ -100,6 +104,18 @@ export async function sendChatMessage({
           if (event.data && typeof event.data === "object") {
             onApprovalResolved?.(event.data);
           }
+        } else if (event.type === "plan_review_required") {
+          if (event.data && typeof event.data === "object") {
+            onPlanReview?.(event.data);
+          }
+        } else if (event.type === "plan_review_resolved") {
+          if (event.data && typeof event.data === "object") {
+            onPlanReviewResolved?.(event.data);
+          }
+        } else if (event.type === "plan_mode_changed") {
+          if (event.data && typeof event.data === "object") {
+            onPlanModeChanged?.(event.data);
+          }
         } else if (event.type === "tool_call") {
           if (event.data && typeof event.data === "object") {
             onToolCall?.(event.data);
@@ -131,6 +147,13 @@ export function approveRequest(requestId, decision) {
   return request(`/api/approvals/${requestId}`, {
     method: "POST",
     body: JSON.stringify({ decision }),
+  });
+}
+
+export function reviewPlan(requestId, decision, feedback = "") {
+  return request(`/api/plan-reviews/${requestId}`, {
+    method: "POST",
+    body: JSON.stringify({ decision, feedback: feedback || undefined }),
   });
 }
 
