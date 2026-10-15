@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from lifeops.agent import APPROVAL_DECISIONS, Agent, AgentServices, ApprovalRequest
 from lifeops.context_insight import ContextSnapshotStore
+from lifeops.context_insight.api import register_context_routes
 from lifeops.core.config import PROJECT_ROOT, AppConfig, clear_proxy_env
 from lifeops.core.context_manager import ContextManager
 from lifeops.llm.types import Message, MessageRole
@@ -198,6 +199,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
     app.state.rag_import_lock = asyncio.Lock()
     app.state.services_started = False
     app.state.mcp_started = False
+    register_context_routes(app)
 
     @app.get("/api/conversations")
     async def list_conversations(
