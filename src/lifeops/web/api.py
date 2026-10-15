@@ -19,6 +19,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
 from lifeops.agent import APPROVAL_DECISIONS, Agent, AgentServices, ApprovalRequest
+from lifeops.context_insight import ContextSnapshotStore
 from lifeops.core.config import PROJECT_ROOT, AppConfig, clear_proxy_env
 from lifeops.core.context_manager import ContextManager
 from lifeops.llm.types import Message, MessageRole
@@ -176,6 +177,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
         app.state.history_store,
         trace_max_payload_chars=app_config.runtime.trace_max_payload_chars,
     )
+    app.state.context_store = ContextSnapshotStore(app.state.history_store)
     app.state.tool_policy_engine = ToolPolicyEngine(
         app_config.tool_policy,
         policy_file=PolicyFileStore(app_config.tool_policy.path),
@@ -767,6 +769,7 @@ def _create_agent_services(config: AppConfig) -> AgentServices:
         max_tokens=config.llm.max_tokens,
         temperature=config.llm.temperature,
         timeout=config.llm.timeout,
+        stream_usage=config.llm.stream_usage,
     )
     return AgentServices(
         llm=llm,
@@ -889,6 +892,7 @@ def _get_or_create_web_agent(
         agent = agents[conversation_id]
         agent.run_id = run_id
         agent.trace_recorder = TraceRecorder(app.state.runtime_store) if run_id else None
+        agent.context_recorder = _context_recorder_for(app, run_id)
         agent.tool_policy_engine = app.state.tool_policy_engine
         agent.messages = _hydrate_messages(
             app.state.history_store.get_messages(conversation_id)
@@ -906,9 +910,17 @@ def _get_or_create_web_agent(
         trace_recorder=TraceRecorder(app.state.runtime_store) if run_id else None,
         tool_policy_engine=app.state.tool_policy_engine,
     )
+    agent.context_recorder = _context_recorder_for(app, run_id)
     agent.messages = _hydrate_messages(app.state.history_store.get_messages(conversation_id))
     agents[conversation_id] = agent
     return agent
+
+
+def _context_recorder_for(app: FastAPI, run_id: str | None) -> ContextSnapshotStore | None:
+    # 快照外键挂在 agent_runs 上，未启用 runtime 时不会建 run，也就不记录快照
+    if not run_id or not app.state.config.runtime.enabled:
+        return None
+    return app.state.context_store
 
 
 def _hydrate_messages(records: list[dict[str, Any]]) -> list[Message]:

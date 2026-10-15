@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from time import perf_counter
+from time import time as epoch_seconds
 from typing import Any, Literal
 from uuid import uuid4
 
@@ -15,7 +16,9 @@ from pydantic import Field, model_validator
 
 from lifeops.core.compression_pipeline import CompressionPipeline
 from lifeops.core.config import AppConfig
-from lifeops.core.context_manager import ContextLayer, ContextManager
+from lifeops.core.context_manager import ContextEntry, ContextLayer, ContextManager
+from lifeops.context_insight import ContextSnapshotStore, SystemPart, build_composition
+from lifeops.context_insight.composition import entry_category
 from lifeops.agent_planner import classify_task_complexity
 from lifeops.agent_subagent import SubAgentRunner
 from lifeops.history import ConversationHistoryStore, HistorySource
@@ -227,6 +230,7 @@ class Agent:
             max_tokens=config.llm.max_tokens,
             temperature=config.llm.temperature,
             timeout=config.llm.timeout,
+            stream_usage=config.llm.stream_usage,
         )
         self.tools = services.base_tool_registry.clone() if services is not None else ToolRegistry()
         self.edit_guard = FileEditGuard()
@@ -258,6 +262,8 @@ class Agent:
         self.memory_service = memory_service
         self.run_id = run_id
         self.trace_recorder = trace_recorder
+        self.context_recorder: ContextSnapshotStore | None = None
+        self._llm_call_ttft_ms: float | None = None
         self.policy_file = PolicyFileStore(config.tool_policy.path)
         self.approval_handler: Any | None = None
         self._last_approval_params: dict[str, Any] = {}
@@ -323,6 +329,8 @@ class Agent:
                 max_iterations=self.config.agent.subagent_max_iterations,
                 run_id=self.run_id,
                 trace_recorder=self.trace_recorder,
+                context_recorder=self.context_recorder,
+                conversation_id=self.conversation_id,
             )
             output = await runner.run(validated.prompt, description=validated.description)
             return ToolResult(
@@ -620,8 +628,8 @@ class Agent:
             for item in self.todos
         )
 
-    def _build_system_context(self, task_instruction: str | None = None) -> str:
-        sections: list[str] = [f"## 当前信息\n当前日期：{datetime.now():%Y-%m-%d}"]
+    def _visible_context_sections(self) -> list[tuple[str, list[ContextEntry]]]:
+        sections = []
         for title, entries in (
             ("L1 常驻上下文", self.context.get_l1_content()),
             ("L2 按需上下文", self.context.get_l2_content()),
@@ -632,15 +640,85 @@ class Agent:
                 for entry in sorted(entries, key=lambda item: item.key)
                 if not entry.key.startswith(("user_", "assistant_", "tool_"))
             ]
-            if not content_entries:
-                continue
-            section = "\n\n".join(entry.content for entry in content_entries)
+            if content_entries:
+                sections.append((title, content_entries))
+        return sections
+
+    def _build_system_context(self, task_instruction: str | None = None) -> str:
+        sections: list[str] = [f"## 当前信息\n当前日期：{datetime.now():%Y-%m-%d}"]
+        for title, entries in self._visible_context_sections():
+            section = "\n\n".join(entry.content for entry in entries)
             sections.append(f"## {title}\n{section}")
         if self.todos:
             sections.append(f"## 当前任务计划\n{self._render_todos()}")
         if task_instruction:
             sections.append(f"## 当前任务闭环\n{task_instruction}")
         return "\n\n".join([self.system_prompt, *sections])
+
+    def _system_parts(self, task_instruction: str | None = None) -> list[SystemPart]:
+        """与 _build_system_context 同源的分段，用于上下文构成快照。"""
+        parts = [
+            SystemPart("system", "系统提示", self.system_prompt),
+            SystemPart("system", "当前信息", f"当前日期：{datetime.now():%Y-%m-%d}"),
+        ]
+        for _, entries in self._visible_context_sections():
+            parts.extend(
+                SystemPart(entry_category(entry.key, entry.layer), entry.key, entry.content)
+                for entry in entries
+            )
+        if self.todos:
+            parts.append(SystemPart("system", "当前任务计划", self._render_todos()))
+        if task_instruction:
+            parts.append(SystemPart("system", "当前任务闭环", task_instruction))
+        return parts
+
+    def _capture_context_snapshot(
+        self,
+        messages: list[Message],
+        tools: list[ToolDefinition] | None,
+        budget: dict[str, int],
+        task_instruction: str | None,
+        iteration: int,
+    ) -> int | None:
+        if self.context_recorder is None or not self.run_id:
+            return None
+        try:
+            elements = build_composition(
+                system_parts=self._system_parts(task_instruction),
+                messages=messages[1:],
+                tools=tools,
+                estimate=self.context.estimate_tokens,
+                estimate_message=self._estimate_message_tokens,
+            )
+        except Exception:
+            logger.exception("构建上下文构成失败")
+            return None
+        return self.context_recorder.capture(
+            run_id=self.run_id,
+            conversation_id=self.conversation_id,
+            elements=elements,
+            iteration=iteration,
+            model=getattr(self.llm, "model", None) or self.config.llm.model,
+            budget=budget.get("context_budget", 0),
+            reserve_ratio=self.config.context.reserve_ratio,
+            estimated_tokens=budget.get("estimated_tokens"),
+            trimmed_count=budget.get("trimmed_message_count", 0),
+            truncated_count=budget.get("truncated_tool_output_count", 0),
+        )
+
+    def _finish_context_snapshot(
+        self, snapshot_id: int | None, response: ChatResponse, started_at: float
+    ) -> None:
+        if snapshot_id is None or self.context_recorder is None:
+            return
+        self.context_recorder.finish(
+            snapshot_id,
+            usage=response.usage,
+            ttft_ms=self._llm_call_ttft_ms,
+            duration_ms=(perf_counter() - started_at) * 1000,
+            text=response.content,
+            calls=[tc.name for tc in response.tool_calls or []],
+        )
 
     def _prepare_llm_messages(
         self,
@@ -751,6 +829,8 @@ class Agent:
             content_parts: list[str] = []
             reasoning_parts: list[str] = []
             stream_tool_calls: list[dict[str, Any]] = []
+            stream_usage: dict[str, int] | None = None
+            attempt_started_at = perf_counter()
             answer_stream = JSONStringFieldStream("answer")
             answer_streamed = False
             stream = self.llm.chat_stream(messages, tools=tools)
@@ -767,6 +847,10 @@ class Agent:
             async for event in stream:
                 event_type = event.get("type") if isinstance(event, dict) else None
                 data = event.get("data") if isinstance(event, dict) else None
+                if self._llm_call_ttft_ms is None and event_type in {
+                    "token", "tool_call_start", "tool_call_delta", "reasoning_content"
+                }:
+                    self._llm_call_ttft_ms = (perf_counter() - attempt_started_at) * 1000
                 if event_type == "token" and isinstance(data, str) and data:
                     content_parts.append(data)
                     if emit_content:
@@ -794,6 +878,8 @@ class Agent:
                     stream_tool_calls.append(data)
                 elif event_type == "reasoning_content" and isinstance(data, str):
                     reasoning_parts.append(data)
+                elif event_type == "usage" and isinstance(data, dict):
+                    stream_usage = data
                 elif event_type == "error":
                     stream_error = self._stream_error_payload(data)
                     break
@@ -812,7 +898,7 @@ class Agent:
                     and attempt == 0
                 ):
                     try:
-                        return await self.llm.chat(messages, tools=tools), False
+                        return await self.llm.chat(messages, tools=tools), False, False
                     except Exception as exc:
                         self._record_trace(
                             TraceEventType.LLM_ERROR,
@@ -862,6 +948,7 @@ class Agent:
                     ChatResponse(
                         content="".join(content_parts),
                         tool_calls=tool_call_results,
+                        usage=stream_usage,
                         reasoning_content=reasoning_content,
                     ),
                     bool((content_parts and emit_content) or stream_tool_calls),
@@ -871,6 +958,7 @@ class Agent:
                 ChatResponse(
                     content="".join(content_parts) if content_parts else None,
                     tool_calls=None,
+                    usage=stream_usage,
                     reasoning_content=reasoning_content,
                 ),
                 bool(content_parts and emit_content),
@@ -1030,6 +1118,11 @@ class Agent:
                     "stage": "answer",
                 },
             )
+            snapshot_id = self._capture_context_snapshot(
+                all_messages, exposed_tool_defs, budget, task_instruction, iteration
+            )
+            call_started_at = perf_counter()
+            self._llm_call_ttft_ms = None
 
             emitted_from_stream = False
             finish_answer_streamed = False
@@ -1068,6 +1161,7 @@ class Agent:
                     "iteration": iteration,
                 },
             )
+            self._finish_context_snapshot(snapshot_id, response, call_started_at)
 
             if response.content and not response.tool_calls and requires_explicit_finish:
                 completion_violations += 1
@@ -1638,6 +1732,8 @@ class Agent:
             TraceEventType.TOOL_RESULT,
             {
                 "tool_name": tc.name,
+                "tool_call_id": tc.id,
+                "ended_at_ms": int(epoch_seconds() * 1000),
                 "success": result.success,
                 "duration_ms": round(duration_ms, 2),
                 "output_length": len(result.output or ""),
