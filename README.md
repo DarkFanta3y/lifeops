@@ -29,6 +29,7 @@ LifeOps 是一个本地优先的 AI 生活助手智能体。它把流式对话�
 - **长期记忆**：持续学习会话摘要、用户偏好和知识图谱，并提供记忆搜索、偏好删除、实体删除和低价值记忆清理能力。
 - **RAG**：索引本地 Markdown 知识库，混合向量检索、BM25、RRF 与 reranker，让回答能引用你的本地资料。
 - **本地知识库管理**：在 DATABASE 页面通过三步向导上传 ZIP，浏览解压目录、预览固定大小或按标题切片，并在后台建立向量与 BM25 索引；完成后重启 LifeOps 加载新知识库。
+- **上下文洞察**：每次 LLM 请求都记录上下文构成快照（系统提示 / 工具定义 / 用户消息 / 注入 / 技能 / 助手 / 工具结果）与厂商实际 usage，对话页抽屉、`/context` 弹窗和「上下文洞察」页可视化构成、趋势、事件、文件活动与子智能体编队。
 - **生产级运行时**：每次请求生成 `run_id`，记录结构化 trace、工具策略决策、失败分类和离线 runtime eval，便于审计与回归测试。
 
 ## 智能体
@@ -123,6 +124,17 @@ SSE 兼容原有 `token`、`tool_call`、`tool_result` 和 `done` 事件，并�
 
 以上 Web 与 Logging 截图使用浏览器验收的隔离示例数据。
 
+### 上下文洞察
+
+上下文洞察移植自 [dsh-context](https://github.com/bowenliang123/dsh-context)（Apache-2.0），把它在 DeepSeek Harness 上的效果做成了 LifeOps 的原生能力，样式表与组件结构尽量照搬。
+
+- **记录**：`Agent` 每次调用 LLM 前，把实际发送的请求拆成元素（系统提示各分段、每个工具 schema、每条消息），按七类估算 token，写入 `context_snapshots`；元素内容按哈希去重存入 `context_blobs`。响应返回后补写厂商 usage（含缓存命中）、首 token 时间与耗时。子智能体（`spawn_agent`）的每次请求也会记录，并挂在主智能体下。流式请求通过 `stream_options.include_usage` 拿 usage，不支持该参数的厂商可设 `LLM_STREAM_USAGE=false`。
+- **对话页抽屉**：顶栏「上下文」按钮打开，分「上下文 / 编队」两页。上下文页包含流向统计、Token 与耗时环图、当前构成（含预留空间遮罩）、每次请求一根柱子的趋势图（步骤 / 轮次、全量 / 增量、自适应、耗时曲线、总览带状图）、步骤简报、上下文浏览器（任选一步按类别展开到原文，与上一步对比增减，矩形树图）、上下文事件（压缩 / 剪枝 / 技能注入 / 模型切换 / 计划）和文件活动（读写搜索聚合、行数增删、跳转到对应工具结果）。编队页展示主智能体与子智能体的网络图、成员卡片（委派提示词、最终回报）和 `todo_write` 任务计划。运行中抽屉每 2 秒刷新。
+- **`/context`**：在输入框发送 `/context` 只在前端打开构成弹窗，不发给模型。
+- **上下文洞察页**：侧栏入口，按 7 天 / 30 天 / 全部统计活跃会话、累计 Token、预估费用、缓存命中、近 7 天用量、汇总构成、8 周活跃热力图和会话卡片；点击卡片打开该会话及其抽屉。
+- **费用**：配置 `LIFEOPS_CONTEXT_PRICE_INPUT_PER_M` / `_OUTPUT_PER_M` / `_CACHE_PER_M`（元/百万 token）后显示估算费用，未配置时不估算。
+- **接口**：`GET /api/conversations/{id}/context`、`/context/files`、`/context/fleet`，`GET /api/context/snapshots/{snapshot_id}`，`GET /api/context/overview?range=7d|30d|all`。功能上线前的旧会话没有快照，不做回填。
+
 ### Skills
 
 `SKILLS` 页面展示当前发现的 Skill 名称、描述和来源。LifeOps 按 Agent Skills 标准扫描项目级 `.agents/skills/` 与用户级 `~/.agents/skills/`，每个 Skill 是包含 `SKILL.md` 的独立目录，并在对话中根据显式 `$skill-name` 或隐式语义匹配按需激活。
@@ -188,6 +200,7 @@ uv run python -m lifeops.rag.index --rebuild
 lifeops/
 ├── src/lifeops/
 │   ├── agent.py                 # Agent 核心调度器
+│   ├── context_insight/         # 上下文快照记录与洞察查询
 │   ├── history.py               # 本地会话历史
 │   ├── core/                    # 配置与分层上下文
 │   ├── llm/                     # OpenAI 兼容 LLM 客户端
@@ -197,7 +210,7 @@ lifeops/
 │   ├── skills/                  # Skill 发现、匹配和加载
 │   ├── tools/                   # 内置工具与 MCP 适配
 │   └── web/                     # FastAPI 本地 Web API
-├── web/                         # Vue 3 + Vite Web 控制台
+├── web/                         # Vue 3 + Vite Web 控制台（web/src/context 为上下文洞察）
 ├── tests/                       # pytest 测试套件
 ├── assets/                      # README Logo 与截图素材
 ├── .agents/skills/              # Agent Skills 标准 Skill 目录
