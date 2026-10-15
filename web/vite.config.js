@@ -36,7 +36,7 @@ export default defineConfig({
         if (/node_modules\/(vue|@vue)\//.test(id)) return 'vue-vendor';
         if (id.includes('node_modules/@element-plus/icons-vue/')) return 'icons-vendor';
         if (id.includes('node_modules/vue-element-plus-x/')) return 'chat-vendor';
-        if (/node_modules\/(markdown-it|dompurify|entities|linkify-it|mdurl|uc.micro|punycode.js)\//.test(id)) return 'markdown-vendor';
+        if (/node_modules\/(markdown-it|highlight.js|dompurify|entities|linkify-it|mdurl|uc.micro|punycode.js)\//.test(id)) return 'markdown-vendor';
         if (id.includes('node_modules/element-plus/')) return 'element-vendor';
       },
     } },

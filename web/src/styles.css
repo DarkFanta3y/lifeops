@@ -119,6 +119,17 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; background:
 .markdown-body h3, .markdown-body h4 { font-size: 15px; }
 .markdown-body > :first-child { margin-top: 0; }
 .markdown-body pre { white-space: pre; overflow-x: auto; max-width: 100%; }
+.code-block { margin: 0 0 12px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; background: #f8f9fb; }
+.code-block-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px 4px 12px; background: #eef0f4; font-size: 12px; color: #6b7280; }
+.code-copy { border: 0; background: transparent; color: inherit; font-size: 12px; padding: 2px 8px; border-radius: 4px; cursor: pointer; }
+.code-copy:hover { background: #dfe3ea; color: #111827; }
+.markdown-body .code-block pre { margin: 0; border-radius: 0; background: transparent; }
+.hljs-comment, .hljs-quote { color: #6b7280; font-style: italic; }
+.hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-built_in { color: #0057ff; }
+.hljs-string, .hljs-attr, .hljs-addition { color: #067d4d; }
+.hljs-number, .hljs-symbol, .hljs-bullet, .hljs-meta { color: #b45309; }
+.hljs-title, .hljs-section, .hljs-name, .hljs-type { color: #7c3aed; }
+.hljs-deletion { color: #dc2626; }
 .markdown-body code { font-family: ui-monospace, Consolas, monospace; font-size: .9em; }
 .markdown-body img { max-width: 100%; height: auto; border-radius: 8px; }
 .markdown-body table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
