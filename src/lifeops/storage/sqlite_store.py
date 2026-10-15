@@ -42,6 +42,7 @@ class ConversationHistoryStoreSQLite:
         self._migrate_schema_v5(cursor)
         self._migrate_schema_v6(cursor, current_version)
         self._migrate_schema_v7(cursor)
+        self._migrate_schema_v8(cursor)
         cursor.execute(
             "CREATE TABLE IF NOT EXISTS schema_version (version INTEGER PRIMARY KEY)"
         )
@@ -203,6 +204,11 @@ class ConversationHistoryStoreSQLite:
         )
         self._add_column_if_missing(
             cursor, "rag_sources", "chunk_size", "INTEGER NOT NULL DEFAULT 900"
+        )
+
+    def _migrate_schema_v8(self, cursor: sqlite3.Cursor) -> None:
+        self._add_column_if_missing(
+            cursor, "conversations", "plan_mode", "INTEGER NOT NULL DEFAULT 0"
         )
 
     def _add_column_if_missing(
@@ -652,6 +658,22 @@ class ConversationHistoryStoreSQLite:
             "SELECT 1 FROM conversations WHERE conversation_id = ?", (conversation_id,)
         )
         return cursor.fetchone() is not None
+
+    def get_plan_mode(self, conversation_id: str) -> bool:
+        cursor = self._conn.cursor()
+        cursor.execute(
+            "SELECT plan_mode FROM conversations WHERE conversation_id = ?", (conversation_id,)
+        )
+        row = cursor.fetchone()
+        return bool(row[0]) if row is not None else False
+
+    def set_plan_mode(self, conversation_id: str, active: bool, source: str = "web") -> None:
+        self._get_or_create_conversation(conversation_id, source)
+        self._conn.execute(
+            "UPDATE conversations SET plan_mode = ? WHERE conversation_id = ?",
+            (int(active), conversation_id),
+        )
+        self._conn.commit()
 
     def get_first_user_message(self, conversation_id: str) -> str | None:
         cursor = self._conn.cursor()
