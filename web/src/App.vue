@@ -1,14 +1,13 @@
 <script setup>
 import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue';
 import zhCn from 'element-plus/es/locale/lang/zh-cn';
-import { Collection, Coin, DataAnalysis, Search, Plus, Fold, Expand, Operation, ArrowDown, EditPen, Download, Delete } from '@element-plus/icons-vue';
+import { Coin, DataAnalysis, Search, Plus, Fold, Expand, ArrowDown, EditPen, Download, Delete } from '@element-plus/icons-vue';
 import Conversations from '@element-plus-x/Conversations/index.js';
 import { fetchConversations, fetchConversationCursor, deleteConversation, renameConversation } from './api.js';
 import { downloadMarkdown } from './download.js';
 import { mergeUniqueById } from './pagination.js';
 
 const ChatWorkspace = defineAsyncComponent(() => import('./chat/ChatWorkspace.vue'));
-const CatalogWorkspace = defineAsyncComponent(() => import('./workspaces/CatalogWorkspace.vue'));
 const DatabaseWorkspace = defineAsyncComponent(() => import('./workspaces/DatabaseWorkspace.vue'));
 const InsightsWorkspace = defineAsyncComponent(() => import('./workspaces/InsightsWorkspace.vue'));
 const ContextDrawer = defineAsyncComponent(() => import('./context/components/ContextDrawer.vue'));
@@ -38,8 +37,6 @@ let listGeneration = 0;
 let historyGeneration = 0;
 let searchGeneration = 0;
 const nav = [
-  { key: 'skills', label: 'Skills', icon: Collection },
-  { key: 'tools', label: '工具与 MCP', icon: Operation },
   { key: 'insights', label: '上下文洞察', icon: DataAnalysis },
   { key: 'database', label: '知识库', icon: Coin },
 ];
@@ -250,7 +247,6 @@ onUnmounted(() => window.removeEventListener('keydown', shortcut));
           <ChatWorkspace v-if="view === 'chat'" v-model:messages="messages" :conversation-id="selectedId"
             :intermediate-messages="intermediate" :disabled="historyLoading" @running="running = $event"
             @done="chatDone" @settled-logs="intermediate = $event" @error="error = $event" @context="openContext" />
-          <CatalogWorkspace v-else-if="view === 'skills' || view === 'tools'" :key="view" :kind="view" />
           <InsightsWorkspace v-else-if="view === 'insights'" @open="openInsightSession" />
           <DatabaseWorkspace v-else />
         </div>

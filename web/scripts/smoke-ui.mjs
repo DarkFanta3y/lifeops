@@ -6,7 +6,6 @@ import { chromium } from 'playwright';
 const BASE = process.env.SMOKE_BASE || 'http://127.0.0.1:5173';
 const screenshots = process.env.SMOKE_SCREENSHOTS || '/tmp/lifeops-ui';
 let sessions = Array.from({ length: 35 }, (_, i) => ({ conversation_id: `c${i}`, title: `历史对话 ${i}`, message_count: 2, last_message: `历史内容 ${i}` }));
-let skills = Array.from({ length: 10 }, (_, i) => ({ name: `skill-${i}`, description: `能力 ${i}`, source: 'project', license: 'MIT', path: `/skills/skill-${i}` }));
 let sources = [{ source_id: 'notes', name: '工作笔记', description: '本地资料', call_when: '查找资料时', enabled: true, path_prefix: 'notes/' }];
 const requests = [], decisions = [];
 let stream, polls = 0, chat, failImport = false, regenerated = 0;
@@ -115,8 +114,6 @@ const server = createServer(async (req, res) => {
     json({ messages: [{ message_id: older ? 'old' : 'latest', role: older ? 'user' : 'assistant', content: older ? '更早消息' : '历史回答' }],
       intermediate_messages: older ? [] : [{ role: 'tool', tool_name: 'todo_write', content: '[completed] 历史任务\n[pending] 后续任务' }], has_more: !older, next_before_id: older ? null : 'older' }); return;
   }
-  if (path === '/api/skills') { if (req.method === 'POST') skills = [...skills, { ...body, source: 'project' }]; json({ skills }); return; }
-  if (path === '/api/tools') { json({ tools: [{ name: 'bash', description: '命令执行', category: 'builtin', parameters: { properties: { command: {} } } }], mcp_servers: [{ name: 'docs', tools: [{ name: 'search_docs', description: '文档检索', parameters: { properties: { query: {} } } }] }] }); return; }
   if (path === '/api/rag/sources') { json({ sources }); return; }
   if (path.startsWith('/api/rag/sources/')) {
     const id = path.split('/').at(-1);
@@ -168,7 +165,7 @@ try {
   console.log('OK 零输出失败撤回消息并恢复草稿');
   await click('新对话'); await page.locator('[data-slot=lifeops-composer] textarea').fill('审批测试'); await page.locator('[data-slot=lifeops-composer] textarea').press('Enter');
   await page.locator('[data-slot=lifeops-approval-card]').waitFor();
-  assert.equal(await page.getByRole('button', { name: 'Skills', exact: true }).isDisabled(), true);
+  assert.equal(await page.getByRole('button', { name: '知识库', exact: true }).isDisabled(), true);
   await click('允许一次'); await waitText('你好，已完成。'); await page.waitForFunction(() => !document.querySelector('[data-slot=lifeops-approval-card]')); await waitText('✓ 验收完成');
   assert.deepEqual(decisions, ['allow_once']); assert.equal(await page.evaluate(() => window.hacked), undefined);
   assert.equal(await page.locator('[data-slot=lifeops-assistant-message] table').count(), 1);
@@ -213,11 +210,7 @@ try {
   console.log('OK 上下文抽屉、编队、/context 弹窗、上下文洞察');
   await page.locator('[data-slot=lifeops-composer] textarea').fill('停止测试'); await page.locator('[data-slot=lifeops-composer] textarea').press('Enter'); await waitText('部分回复');
   await click('停止生成'); await page.getByRole('button', { name: '停止生成', exact: true }).waitFor({ state: 'hidden' }); assert.equal(await page.getByText('不应继续显示').count(), 0);
-  await click('Skills'); await waitText('skill-0'); await page.locator('.el-pagination .btn-next').click(); await waitText('skill-8');
-  await click('新增 Skill'); await page.getByRole('textbox', { name: 'Skill 名称' }).fill('weekly-review'); await page.getByRole('textbox', { name: 'Skill 描述' }).fill('周复盘'); await page.getByRole('textbox', { name: 'SKILL 内容' }).fill('# 周复盘\n整理工作');
-  await click('保存'); await page.getByRole('dialog').waitFor({ state: 'hidden' }); assert.equal(skills.at(-1).name, 'weekly-review');
-  await click('工具与 MCP'); await waitText('bash'); await page.getByText('MCP', { exact: true }).click(); await waitText('docs'); await page.locator('.el-table__expand-icon').click(); await waitText('search_docs');
-  console.log('OK 停止、Skills 创建分页、工具与 MCP');
+  console.log('OK 停止生成');
   await click('知识库'); await waitText('工作笔记'); await page.getByRole('button', { name: '查看 工作笔记 详情' }).press('Enter'); await waitText('notes/'); await click('编辑数据源');
   await page.locator('#source-name').fill('工作记录'); await click('保存'); await waitText('工作记录'); assert.equal(sources[0].name, '工作记录');
   await click('新增本地知识库'); await page.locator('#import-id').fill('imported'); await page.locator('#import-name').fill('导入资料'); await page.locator('#import-description').fill('说明'); await page.locator('#import-condition').fill('资料问题');

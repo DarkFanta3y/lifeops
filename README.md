@@ -21,11 +21,11 @@ LifeOps 是一个本地优先的 AI 生活助手智能体。它把流式对话�
 ## 功能亮点
 
 - **流式 AI 对话**：后端通过 SSE 逐 token 返回，前端基于 Element Plus X 实时渲染回复，支持生成中停止；LLM 流式工具参数到齐前会先发送安全预热事件，并兼容需要回传 `reasoning_content` 的思考模式模型。
-- **本地 Web 控制台**：Vue 3 + Element Plus + Element Plus X 控制台提供聊天、历史、Skill、工具、记忆和日志入口。
+- **本地 Web 控制台**：Vue 3 + Element Plus + Element Plus X 控制台提供聊天、历史、上下文洞察、知识库和日志入口。
 - **会话历史管理**：本地保存会话消息和中文短标题，支持按标题搜索、查看详情和删除会话。
 - **工具调用 Logging**：工具调用、工具结果和中间信息进入独立 Logging 弹窗，不打断对话阅读。
-- **Skill 工作流**：自动发现项目级和用户级 Skill，可在控制台查看元数据，也可直接新增项目级 Skill。
-- **工具统一展示**：内置工具和 MCP Server 工具使用同一套工具注册与展示模型，控制台可按 `TOOL` / `MCP` 切换查看。
+- **Skill 工作流**：自动发现项目级和用户级 Skill，按显式 `$skill-name` 或隐式语义匹配按需激活。
+- **工具统一注册**：内置工具和 MCP Server 工具使用同一套工具注册模型，每轮请求按相关性动态裁剪暴露给模型的工具。
 - **长期记忆**：持续学习会话摘要、用户偏好和知识图谱，并提供记忆搜索、偏好删除、实体删除和低价值记忆清理能力。
 - **RAG**：索引本地 Markdown 知识库，混合向量检索、BM25、RRF 与 reranker，让回答能引用你的本地资料。
 - **本地知识库管理**：在 DATABASE 页面通过三步向导上传 ZIP，浏览解压目录、预览固定大小或按标题切片，并在后台建立向量与 BM25 索引；完成后重启 LifeOps 加载新知识库。
@@ -116,7 +116,7 @@ LifeOps 的主要入口是本地 Web 控制台。后端由 FastAPI 提供会话�
 
 聊天界面固定在视口内，侧边栏用于新建对话、搜索标题和切换历史会话。新会话的 `done` 事件会先返回基于首条用户消息的即时标题，真实中文短标题在后台生成并写入历史；已有会话如果缺少标题，也会在继续对话后后台补齐。
 
-前端以 [ruoyi-element-ai](https://github.com/element-plus-x/ruoyi-element-ai) 为基础重构，采用 Vue 3、Element Plus 与 Element Plus X：浅灰蓝色侧栏、Conversations 历史列表、居中 BubbleList 对话流和 Sender 输入框。聊天、Skills、工具/MCP、知识库页面均迁移到 Vue，继续接入 LifeOps 的 FastAPI/SSE 接口。工具调用以可折叠卡片内联展示，`todo_write` 计划渲染为任务卡片，高风险工具触发内联审批卡片（允许一次 / 总是允许 / 拒绝），审批期间输入区自动禁用；生成中可随时停止。完整的工具调用记录和中间信息仍归档到 Logging 弹窗（对话中点击顶栏「运行日志」打开），便于排查。空状态提供按时段问候和快捷建议胶囊；快捷键 `⌘/Ctrl + K` 搜索对话，`⌘/Ctrl + Shift + O` 新建对话。对话中最后一轮支持「重新生成」和「编辑后重发」，两者都会调用 `DELETE /api/conversations/{id}/last-turn` 真正删除末轮消息后再生成；回答下方会标注用到的知识库 / 联网来源，新生成的回答还会显示本轮载入的长期记忆条数。侧栏历史按「今天 / 昨天 / 7 天内 / 更早」分组，顶栏标题菜单提供重命名（`PATCH /api/conversations/{id}`）、导出整段对话和删除。Markdown 默认禁用原始 HTML 并经过 DOMPurify 清洗；本地图片继续通过后端资源接口展示。模板的 MIT 许可保留在 `web/public/licenses/ruoyi-element-ai.txt`。
+前端以 [ruoyi-element-ai](https://github.com/element-plus-x/ruoyi-element-ai) 为基础重构，采用 Vue 3、Element Plus 与 Element Plus X：浅灰蓝色侧栏、Conversations 历史列表、居中 BubbleList 对话流和 Sender 输入框。聊天、知识库页面均迁移到 Vue，继续接入 LifeOps 的 FastAPI/SSE 接口。工具调用以可折叠卡片内联展示，`todo_write` 计划渲染为任务卡片，高风险工具触发内联审批卡片（允许一次 / 总是允许 / 拒绝），审批期间输入区自动禁用；生成中可随时停止。完整的工具调用记录和中间信息仍归档到 Logging 弹窗（对话中点击顶栏「运行日志」打开），便于排查。空状态提供按时段问候和快捷建议胶囊；快捷键 `⌘/Ctrl + K` 搜索对话，`⌘/Ctrl + Shift + O` 新建对话。对话中最后一轮支持「重新生成」和「编辑后重发」，两者都会调用 `DELETE /api/conversations/{id}/last-turn` 真正删除末轮消息后再生成；回答下方会标注用到的知识库 / 联网来源，新生成的回答还会显示本轮载入的长期记忆条数。侧栏历史按「今天 / 昨天 / 7 天内 / 更早」分组，顶栏标题菜单提供重命名（`PATCH /api/conversations/{id}`）、导出整段对话和删除。Markdown 默认禁用原始 HTML 并经过 DOMPurify 清洗；本地图片继续通过后端资源接口展示。模板的 MIT 许可保留在 `web/public/licenses/ruoyi-element-ai.txt`。
 
 SSE 兼容原有 `token`、`tool_call`、`tool_result` 和 `done` 事件，并新增 `tool_prepare` 与 `skill_prepare` 事件用于调试面板观察预热状态；现有前端可以继续忽略这些新增事件。最终 token 发出后，`done` 会尽快关闭连接，短标题落库和长期记忆学习会通过后台任务继续完成。
 
@@ -137,15 +137,13 @@ SSE 兼容原有 `token`、`tool_call`、`tool_result` 和 `done` 事件，并�
 
 ### Skills
 
-`SKILLS` 页面展示当前发现的 Skill 名称、描述和来源。LifeOps 按 Agent Skills 标准扫描项目级 `.agents/skills/` 与用户级 `~/.agents/skills/`，每个 Skill 是包含 `SKILL.md` 的独立目录，并在对话中根据显式 `$skill-name` 或隐式语义匹配按需激活。
+LifeOps 按 Agent Skills 标准扫描项目级 `.agents/skills/` 与用户级 `~/.agents/skills/`，每个 Skill 是包含 `SKILL.md` 的独立目录，并在对话中根据显式 `$skill-name` 或隐式语义匹配按需激活。
 
 Skill 系统启用时，Agent 会额外暴露只读低风险内部工具 `activate_skill`。模型可通过该伪工具请求激活目录中的 Skill；流式阶段只预读取并校验 Skill，最终工具执行成功后才把完整 Skill 正文注入 L2 上下文并写入 Skill 使用 trace。
 
-控制台也支持通过刷新按钮旁的加号新增项目级 Skill，保存为 `.agents/skills/<name>/SKILL.md`，支持标准的 `license`、`compatibility`、空格分隔 `allowed-tools` 和 YAML `metadata`。
-
 ### Tools 与 MCP
 
-`TOOLS` 页面默认展示内置工具，包括命令执行（支持后台任务：长时命令 `run_in_background` 启动后用 `bash_output` 读取输出、`bash_kill` 终止；超时自动 kill，输出超限保留头尾）、文件读取、文件创建/替换/追加、代码搜索（`grep` 正则匹配与 `glob` 文件查找）、网页搜索和本地知识库检索。文件编辑有安全网保护：修改已有文件前必须先用 `file_read` 读过该文件（会话级 `FileEditGuard` 强制），`file_replace` 的 `old_text` 必须在文件中唯一，编辑结果以 unified diff 写入工具结果 metadata 并可在 Logging 弹窗查看。工具参数 schema 会保留 `minLength`、`minimum`、`maximum`、`enum`、`pattern`、`additionalProperties: false` 等约束，便于前端展示和模型调用校验。切换到 `MCP` 后，可以按 Server 展开查看已连接 MCP 工具及参数。
+内置工具包括命令执行（支持后台任务：长时命令 `run_in_background` 启动后用 `bash_output` 读取输出、`bash_kill` 终止；超时自动 kill，输出超限保留头尾）、文件读取、文件创建/替换/追加、代码搜索（`grep` 正则匹配与 `glob` 文件查找）、网页搜索和本地知识库检索。文件编辑有安全网保护：修改已有文件前必须先用 `file_read` 读过该文件（会话级 `FileEditGuard` 强制），`file_replace` 的 `old_text` 必须在文件中唯一，编辑结果以 unified diff 写入工具结果 metadata 并可在 Logging 弹窗查看。工具参数 schema 会保留 `minLength`、`minimum`、`maximum`、`enum`、`pattern`、`additionalProperties: false` 等约束，便于模型调用校验。
 
 Agent 运行时不需要区分工具来源。内置工具、MCP 工具和内部 Skill 伪工具都会注册到统一工具表中，执行层始终保留完整 registry，执行结果再写入上下文和 Logging。`/api/tools` 仍返回完整工具清单，便于管理和调试。
 
@@ -184,7 +182,6 @@ LIFEOPS_WEB_PORT=8082
 ```
 
 修改端口后必须同步前端 `web/.env.local` 的 `VITE_API_URL`（例如 `VITE_API_URL=http://127.0.0.1:8082`），两者不一致时页面请求会报 `Failed to fetch`。本机 `.env` 使用 `8082`，因为 `8081` 已被其他项目的前端 dev server 占用。
-
 
 常用开发命令：
 
