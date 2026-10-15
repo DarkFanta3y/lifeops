@@ -135,6 +135,12 @@ SSE 兼容原有 `token`、`tool_call`、`tool_result` 和 `done` 事件，并�
 - **费用**：配置 `LIFEOPS_CONTEXT_PRICE_INPUT_PER_M` / `_OUTPUT_PER_M` / `_CACHE_PER_M`（元/百万 token）后显示估算费用，未配置时不估算。
 - **接口**：`GET /api/conversations/{id}/context`、`/context/files`、`/context/fleet`，`GET /api/context/snapshots/{snapshot_id}`，`GET /api/context/overview?range=7d|30d|all`。功能上线前的旧会话没有快照，不做回填。
 
+![对话页上下文抽屉](assets/context-drawer.png)
+
+![编队：主智能体与子智能体](assets/context-fleet.png)
+
+![上下文洞察页](assets/context-insights.png)
+
 ### Skills
 
 LifeOps 按 Agent Skills 标准扫描项目级 `.agents/skills/` 与用户级 `~/.agents/skills/`，每个 Skill 是包含 `SKILL.md` 的独立目录，并在对话中根据显式 `$skill-name` 或隐式语义匹配按需激活。

@@ -84,7 +84,7 @@ const paged = computed(() => visible.value.slice(page.value * PAGE_SIZE, (page.v
               <div class="lc-stat lc-ov-kpi">
                 <span class="lc-stat-label">{{ t('ov.kpi.cacheHit') }}</span>
                 <span class="lc-stat-value">{{ kpi.cacheHit === null ? '—' : (kpi.cacheHit * 100).toFixed(1) + '%' }}</span>
-                <span class="lc-stat-sub">{{ t('stats.cacheHitTip') }}</span>
+                <span class="lc-stat-sub" :title="t('stats.cacheHitTip')">{{ t('ov.kpi.cacheSub') }}</span>
               </div>
               <div class="lc-stat lc-ov-kpi">
                 <span class="lc-stat-label">{{ t('ov.kpi.requests') }}</span>

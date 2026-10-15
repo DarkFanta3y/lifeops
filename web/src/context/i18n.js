@@ -278,6 +278,7 @@ const DICT = {
   'ov.kpi.sessionsSub': '含 {n} 个会话',
   'ov.kpi.costSub': '按配置单价估算',
   'ov.kpi.costUnset': '未配置单价',
+  'ov.kpi.cacheSub': '缓存读取 / 计费输入',
   'ov.stats.empty': '统计范围内暂无 Token 用量',
   'ov.usage.title': '近 7 天用量',
   'ov.usage.tokens': 'Token',
