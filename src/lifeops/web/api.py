@@ -18,7 +18,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
-from lifeops.agent import APPROVAL_DECISIONS, Agent, AgentServices, ApprovalRequest
+from lifeops.agent import (
+    APPROVAL_DECISIONS,
+    PLAN_REVIEW_DECISIONS,
+    Agent,
+    AgentServices,
+    ApprovalRequest,
+    PlanReviewDecision,
+    PlanReviewRequest,
+)
 from lifeops.context_insight import ContextSnapshotStore
 from lifeops.context_insight.api import register_context_routes
 from lifeops.core.config import PROJECT_ROOT, AppConfig, clear_proxy_env
@@ -72,6 +80,7 @@ _SkillYamlDumper.add_representer(str, _represent_skill_string)
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1)
     conversation_id: str | None = None
+    plan_mode: bool | None = None
 
 
 class RenameConversationRequest(BaseModel):
@@ -80,6 +89,11 @@ class RenameConversationRequest(BaseModel):
 
 class ApprovalDecisionRequest(BaseModel):
     decision: str = Field(min_length=1)
+
+
+class PlanReviewDecisionRequest(BaseModel):
+    decision: str = Field(min_length=1)
+    feedback: str | None = None
 
 
 class ChatResponse(BaseModel):
@@ -185,6 +199,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
     )
     app.state.web_agents = {}
     app.state.pending_approvals: dict[str, tuple[asyncio.Future, ApprovalRequest]] = {}
+    app.state.pending_plan_reviews: dict[str, tuple[asyncio.Future, PlanReviewRequest]] = {}
     app.state.services = _create_agent_services(app_config)
     app.state.memory_service = MemoryService(
         app.state.history_store,
@@ -257,6 +272,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
             intermediate_messages = [m for m in all_messages if _is_intermediate_message(m)]
             return {
                 "conversation_id": conversation_id,
+                "plan_mode": _conversation_plan_mode(app, conversation_id),
                 "messages": _strip_private_message_fields(messages),
                 "intermediate_messages": _strip_private_message_fields(intermediate_messages),
             }
@@ -266,6 +282,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
         intermediate_messages = [m for m in items if _is_intermediate_message(m)]
         return {
             "conversation_id": conversation_id,
+            "plan_mode": _conversation_plan_mode(app, conversation_id),
             "messages": _strip_private_message_fields(messages),
             "intermediate_messages": _strip_private_message_fields(intermediate_messages),
             "total": all_messages["total"],
@@ -460,6 +477,8 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
                 run_id=run_id,
             )
         agent = _get_or_create_web_agent(app, conversation_id, run_id=run_id)
+        if request.plan_mode is not None:
+            agent.set_plan_mode(request.plan_mode, source="user")
         title_task = None
         if is_new_conversation:
             logger.info(f"Web 新会话进入标题生成: conversation_id={conversation_id}")
@@ -482,6 +501,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
                 resume_from=resume_from,
                 background_tasks=app.state.background_tasks,
                 pending_approvals=app.state.pending_approvals,
+                pending_plan_reviews=app.state.pending_plan_reviews,
             ),
             media_type="text/event-stream",
         )
@@ -502,6 +522,20 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
             "decision": decision,
             "tool_name": approval_request.tool_name,
         }
+
+    @app.post("/api/plan-reviews/{request_id}")
+    async def resolve_plan_review(
+        request_id: str, request: PlanReviewDecisionRequest
+    ) -> dict[str, Any]:
+        pending = app.state.pending_plan_reviews.get(request_id)
+        if pending is None:
+            raise HTTPException(status_code=404, detail="计划评审不存在或已结束")
+        if request.decision not in PLAN_REVIEW_DECISIONS:
+            raise HTTPException(status_code=422, detail=f"无效的评审决策: {request.decision}")
+        future, _ = pending
+        if not future.done():
+            future.set_result(PlanReviewDecision(request.decision, request.feedback))
+        return {"request_id": request_id, "decision": request.decision}
 
     @app.get("/api/runs/{run_id}")
     async def get_run(run_id: str) -> dict[str, Any]:
@@ -914,8 +948,23 @@ def _get_or_create_web_agent(
     )
     agent.context_recorder = _context_recorder_for(app, run_id)
     agent.messages = _hydrate_messages(app.state.history_store.get_messages(conversation_id))
+    agent.load_plan_mode(_conversation_plan_mode(app, conversation_id))
     agents[conversation_id] = agent
     return agent
+
+
+def _conversation_plan_mode(app: FastAPI, conversation_id: str) -> bool:
+    agent = app.state.web_agents.get(conversation_id)
+    if agent is not None:
+        return agent.plan_mode
+    store = app.state.history_store
+    if not hasattr(store, "get_plan_mode"):
+        return False
+    try:
+        return store.get_plan_mode(conversation_id)
+    except Exception:
+        logger.exception("读取计划模式失败")
+        return False
 
 
 def _context_recorder_for(app: FastAPI, run_id: str | None) -> ContextSnapshotStore | None:
@@ -1088,6 +1137,7 @@ async def _generate_sse_messages(
     resume_from: int | None = None,
     background_tasks: set[asyncio.Task] | None = None,
     pending_approvals: dict[str, tuple[asyncio.Future, ApprovalRequest]] | None = None,
+    pending_plan_reviews: dict[str, tuple[asyncio.Future, PlanReviewRequest]] | None = None,
 ):
     queue: asyncio.Queue[str] = asyncio.Queue()
     next_event_id = 0
@@ -1096,6 +1146,9 @@ async def _generate_sse_messages(
     previous_on_tool_result = getattr(agent, "on_tool_result", None)
     previous_on_token = getattr(agent, "on_token", None)
     previous_approval_handler = getattr(agent, "approval_handler", None)
+    previous_plan_review_handler = getattr(agent, "plan_review_handler", None)
+    previous_on_plan_mode_change = getattr(agent, "on_plan_mode_change", None)
+    own_plan_reviews: set[str] = set()
 
     def make_sse(event_type: str, data: Any, *, always_send: bool = False) -> str | None:
         nonlocal next_event_id
@@ -1206,7 +1259,42 @@ async def _generate_sse_messages(
     agent.on_tool_call = on_tool_call
     agent.on_tool_result = on_tool_result
     agent.on_token = on_token
+    async def plan_review_handler(request: PlanReviewRequest) -> PlanReviewDecision:
+        if pending_plan_reviews is None:
+            return PlanReviewDecision("dismiss")
+        future: asyncio.Future = asyncio.get_running_loop().create_future()
+        pending_plan_reviews[request.request_id] = (future, request)
+        own_plan_reviews.add(request.request_id)
+        line = make_sse(
+            "plan_review_required",
+            {"request_id": request.request_id, "title": request.title, "plan": request.plan},
+            always_send=True,
+        )
+        if line is not None:
+            await queue.put(line)
+        decision = PlanReviewDecision("dismiss")
+        try:
+            decision = await future
+        finally:
+            pending_plan_reviews.pop(request.request_id, None)
+            own_plan_reviews.discard(request.request_id)
+            line = make_sse(
+                "plan_review_resolved",
+                {"request_id": request.request_id, "decision": decision.decision},
+                always_send=True,
+            )
+            if line is not None:
+                await queue.put(line)
+        return decision
+
+    async def on_plan_mode_change(active: bool) -> None:
+        line = make_sse("plan_mode_changed", {"active": active}, always_send=True)
+        if line is not None:
+            await queue.put(line)
+
     agent.approval_handler = approval_handler
+    agent.plan_review_handler = plan_review_handler
+    agent.on_plan_mode_change = on_plan_mode_change
     run_task = asyncio.create_task(agent.run(user_message))
 
     try:
@@ -1311,6 +1399,14 @@ async def _generate_sse_messages(
         agent.on_tool_result = previous_on_tool_result
         agent.on_token = previous_on_token
         agent.approval_handler = previous_approval_handler
+        agent.plan_review_handler = previous_plan_review_handler
+        agent.on_plan_mode_change = previous_on_plan_mode_change
+        # 客户端停止运行时，本连接挂起的计划评审按关闭处理，计划模式保持开启
+        if pending_plan_reviews is not None:
+            for request_id in list(own_plan_reviews):
+                pending = pending_plan_reviews.get(request_id)
+                if pending is not None and not pending[0].done():
+                    pending[0].set_result(PlanReviewDecision("dismiss"))
 
 
 def _memory_bootstrap_counts(
