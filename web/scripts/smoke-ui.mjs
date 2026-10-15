@@ -138,12 +138,14 @@ const server = createServer(async (req, res) => {
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const mockBase = `http://127.0.0.1:${server.address().port}`;
+// 拦截前端实际请求的后端地址（与 web/.env.local 的 VITE_API_URL 一致，可用 SMOKE_API_BASE 覆盖）
+const API_BASE = process.env.SMOKE_API_BASE || 'http://127.0.0.1:8082';
 const browser = await chromium.launch();
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ['clipboard-read', 'clipboard-write'] });
 const page = await context.newPage(), errors = [];
 page.on('pageerror', error => errors.push(error.message));
 page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
-await page.route('http://127.0.0.1:8081/**', route => route.continue({ url: route.request().url().replace('http://127.0.0.1:8081', mockBase) }));
+await page.route(`${API_BASE}/**`, route => route.continue({ url: route.request().url().replace(API_BASE, mockBase) }));
 const waitText = text => page.getByText(text, { exact: true }).first().waitFor();
 const click = name => page.getByRole('button', { name, exact: true }).click();
 try {

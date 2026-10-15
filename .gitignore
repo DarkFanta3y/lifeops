@@ -12,6 +12,7 @@ data/
 .lifeops/chroma/
 .lifeops/conversations.jsonl
 .playwright-mcp/
+web/.playwright-browsers/
 *.egg-info/
 dist/
 build/

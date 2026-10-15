@@ -1791,4 +1791,4 @@ def main() -> None:
     clear_proxy_env()
     config = AppConfig()
     setup_logger(level=config.log_level)
-    uvicorn.run(create_app(config), host="127.0.0.1", port=8081)
+    uvicorn.run(create_app(config), host=config.web.host, port=config.web.port)

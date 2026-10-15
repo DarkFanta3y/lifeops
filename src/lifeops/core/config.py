@@ -200,6 +200,18 @@ class AgentConfig(BaseSettings):
     }
 
 
+class WebConfig(BaseSettings):
+    host: str = "127.0.0.1"
+    port: int = Field(default=8081, ge=1, le=65535)
+
+    model_config = {
+        "env_prefix": "LIFEOPS_WEB_",
+        "env_file": _ENV_FILE,
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+    }
+
+
 class AppConfig(BaseSettings):
     llm: LLMConfig = Field(default_factory=LLMConfig)
     context: ContextConfig = Field(default_factory=ContextConfig)
@@ -211,6 +223,7 @@ class AppConfig(BaseSettings):
     runtime: RuntimeConfig = Field(default_factory=RuntimeConfig)
     tool_policy: ToolPolicyConfig = Field(default_factory=ToolPolicyConfig)
     agent: AgentConfig = Field(default_factory=AgentConfig)
+    web: WebConfig = Field(default_factory=WebConfig)
     history_path: str = ".lifeops/conversations.jsonl"
     db_path: str = ".lifeops/conversations.db"
     debug: bool = False

@@ -175,6 +175,17 @@ npm run dev
 
 默认后端地址为 `http://127.0.0.1:8081`，前端地址为 `http://127.0.0.1:5173`。
 
+后端监听地址可通过环境变量覆盖（前缀 `LIFEOPS_WEB_`）：
+
+```bash
+# .env
+LIFEOPS_WEB_HOST=127.0.0.1
+LIFEOPS_WEB_PORT=8082
+```
+
+修改端口后必须同步前端 `web/.env.local` 的 `VITE_API_URL`（例如 `VITE_API_URL=http://127.0.0.1:8082`），两者不一致时页面请求会报 `Failed to fetch`。本机 `.env` 使用 `8082`，因为 `8081` 已被其他项目的前端 dev server 占用。
+
+
 常用开发命令：
 
 ```bash

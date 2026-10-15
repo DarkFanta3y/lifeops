@@ -1,4 +1,4 @@
-// 聊天 UI 冒烟测试：需要本地起后端(8081)与前端 dev(5173)。
+// 聊天 UI 冒烟测试：需要本地起后端(默认 8082，见 .env 的 LIFEOPS_WEB_PORT)与前端 dev(5173)。
 // 用法: node scripts/smoke-chat.mjs [消息文本] [期望文本片段]
 import { chromium } from "playwright";
 
