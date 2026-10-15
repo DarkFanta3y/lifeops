@@ -83,19 +83,38 @@ class ChatResponse:
                 )
                 for tc in choice.message.tool_calls
             ]
-        usage = None
-        if hasattr(response, "usage") and response.usage:
-            usage = {
-                "prompt_tokens": response.usage.prompt_tokens,
-                "completion_tokens": response.usage.completion_tokens,
-                "total_tokens": response.usage.total_tokens,
-            }
         return cls(
             content=content,
             tool_calls=tool_calls,
-            usage=usage,
+            usage=usage_to_dict(getattr(response, "usage", None)),
             reasoning_content=reasoning_content,
         )
+
+
+def _int_or_none(value: Any) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
+
+
+def usage_to_dict(usage: Any) -> dict[str, int] | None:
+    """把 OpenAI 兼容的 usage 对象规整为字典；缓存命中兼容 OpenAI 与 DeepSeek 两种字段。"""
+    if not usage:
+        return None
+    result: dict[str, int] = {}
+    for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
+        value = _int_or_none(getattr(usage, key, None))
+        if value is not None:
+            result[key] = value
+    prompt_details = getattr(usage, "prompt_tokens_details", None)
+    cached = _int_or_none(getattr(prompt_details, "cached_tokens", None))
+    if cached is None:
+        cached = _int_or_none(getattr(usage, "prompt_cache_hit_tokens", None))
+    if cached is not None:
+        result["cached_tokens"] = cached
+    completion_details = getattr(usage, "completion_tokens_details", None)
+    reasoning = _int_or_none(getattr(completion_details, "reasoning_tokens", None))
+    if reasoning is not None:
+        result["reasoning_tokens"] = reasoning
+    return result or None
 
 
 @dataclass

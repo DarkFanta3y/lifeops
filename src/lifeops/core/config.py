@@ -41,6 +41,7 @@ class LLMConfig(BaseSettings):
     max_tokens: int = 4096
     temperature: float = 0.7
     timeout: float = 60.0
+    stream_usage: bool = True
 
     model_config = {
         "env_prefix": "LLM_",
@@ -56,6 +57,10 @@ class ContextConfig(BaseSettings):
     l2_budget_ratio: float = 0.60
     l3_budget_ratio: float = 0.20
     reserve_ratio: float = 0.10
+    # 上下文洞察的费用估算单价（元/百万 token），未配置时不显示费用
+    price_input_per_m: float | None = None
+    price_output_per_m: float | None = None
+    price_cache_per_m: float | None = None
 
     model_config = {
         "env_prefix": "LIFEOPS_CONTEXT_",

@@ -253,6 +253,37 @@ CREATE TABLE IF NOT EXISTS agent_trace_events (
     FOREIGN KEY (run_id) REFERENCES agent_runs(run_id) ON DELETE CASCADE
 );
 
+-- context_snapshots: 每次 LLM 请求的上下文构成快照（上下文洞察）
+CREATE TABLE IF NOT EXISTS context_snapshots (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id          TEXT    NOT NULL,
+    conversation_id TEXT    NOT NULL,
+    agent_id        TEXT    NOT NULL DEFAULT 'main',
+    parent_agent_id TEXT,
+    iteration       INTEGER NOT NULL DEFAULT 0,
+    model           TEXT,
+    budget          INTEGER NOT NULL DEFAULT 0,
+    reserve_ratio   REAL    NOT NULL DEFAULT 0,
+    estimated_tokens INTEGER NOT NULL DEFAULT 0,
+    categories_json TEXT    NOT NULL,
+    elements_json   TEXT    NOT NULL,
+    usage_json      TEXT,
+    response_json   TEXT,
+    trimmed_count   INTEGER NOT NULL DEFAULT 0,
+    truncated_count INTEGER NOT NULL DEFAULT 0,
+    started_at_ms   INTEGER NOT NULL,
+    ttft_ms         INTEGER,
+    duration_ms     INTEGER,
+    created_at      TEXT    NOT NULL,
+    FOREIGN KEY (run_id) REFERENCES agent_runs(run_id) ON DELETE CASCADE
+);
+
+-- context_blobs: 快照元素内容，按内容哈希去重
+CREATE TABLE IF NOT EXISTS context_blobs (
+    hash            TEXT PRIMARY KEY,
+    content         TEXT NOT NULL
+);
+
 -- tool_usage_events: 工具使用明细
 CREATE TABLE IF NOT EXISTS tool_usage_events (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -294,6 +325,12 @@ CREATE INDEX IF NOT EXISTS idx_agent_trace_events_run_sequence
 
 CREATE INDEX IF NOT EXISTS idx_agent_runs_conversation_started
     ON agent_runs(conversation_id, started_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_context_snapshots_conversation
+    ON context_snapshots(conversation_id, id);
+
+CREATE INDEX IF NOT EXISTS idx_context_snapshots_run
+    ON context_snapshots(run_id, id);
 
 CREATE INDEX IF NOT EXISTS idx_tool_usage_events_run
     ON tool_usage_events(run_id, created_at DESC);

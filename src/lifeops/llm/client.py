@@ -6,7 +6,7 @@ import httpx
 from httpx import Timeout
 from openai import APIConnectionError, APITimeoutError, AsyncOpenAI
 
-from lifeops.llm.types import ChatResponse, LLMError, LLMErrorInfo, Message
+from lifeops.llm.types import ChatResponse, LLMError, LLMErrorInfo, Message, usage_to_dict
 from lifeops.tools.base import ToolDefinition
 from lifeops.tools.schema import openai_tool_schema, select_llm_tools
 from lifeops.utils.logging import get_logger
@@ -64,8 +64,10 @@ class LLMClient:
         max_tokens: int = 4096,
         temperature: float = 0.7,
         timeout: float = 60.0,
+        stream_usage: bool = True,
     ):
         self.model = model
+        self.stream_usage = stream_usage
         self.max_tokens = max_tokens
         self.temperature = temperature
         self._client = AsyncOpenAI(
@@ -151,6 +153,8 @@ class LLMClient:
                 "stream": True,
                 **kwargs,
             }
+            if self.stream_usage:
+                request_kwargs["stream_options"] = {"include_usage": True}
             if tools:
                 request_kwargs["tools"] = self._build_tool_schemas(tools)
 
@@ -163,7 +167,10 @@ class LLMClient:
             started_indexes: set[int] = set()
             ready_indexes: set[int] = set()
             reasoning_parts: list[str] = []
+            usage: dict[str, int] | None = None
             async for chunk in response:
+                # include_usage 的 usage 块不带 choices，部分厂商把 usage 挂在最后一个内容块上
+                usage = usage_to_dict(getattr(chunk, "usage", None)) or usage
                 if not chunk.choices:
                     continue
                 delta = chunk.choices[0].delta
@@ -258,5 +265,7 @@ class LLMClient:
                 }
             if reasoning_parts:
                 yield {"type": "reasoning_content", "data": "".join(reasoning_parts)}
+            if usage:
+                yield {"type": "usage", "data": usage}
         except Exception as error:
             yield _error_event(_classify_error(error))
