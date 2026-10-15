@@ -1,0 +1,21 @@
+/* LifeOps 自有补充样式：dsh-context 中由宿主提供、LifeOps 需要自己补的部分。 */
+.lc-info { display: grid; gap: 8px; padding: 2px 2px 4px; }
+.lc-info-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; font-size: 12px; }
+.lc-info-row span { flex: none; color: var(--dsw-alias-label-secondary); }
+.lc-info-row b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-variant-numeric: tabular-nums; }
+.lc-drawer .el-drawer__header { margin-bottom: 0; padding: 14px 20px 10px; }
+.lc-drawer .el-drawer__body { padding: 0; }
+.lc-drawer-head { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.lc-drawer-head strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
+.lc-drawer-head .lc-gran { margin-left: 0; }
+.lc-state-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--dsw-alias-label-tertiary); flex: none; }
+.lc-state-ongoing { background: var(--color-green-500); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-green-500) 25%, transparent); animation: lc-state-pulse 1.4s ease-in-out infinite; }
+.lc-state-done { background: var(--color-green-500); }
+@keyframes lc-state-pulse { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--color-green-500) 10%, transparent); } }
+.workspace.lc-ov-page { padding: 0; }
+.lc-member-foot .lc-member-tasks { flex: none; white-space: nowrap; }
+.lc-member-foot .lc-member-tasks-none { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lc-drawer-head .lc-gran-btn { white-space: nowrap; }
+/* dsh 用测量量出能放下的工具数；这里改为固定数量 + 允许换行，避免窄屏溢出到相邻节点 */
+.lc-flow-pills.lc-flow-pills-tools { flex-wrap: wrap; overflow: hidden; }
+.lc-flow-pills-tools .lc-flow-pill { max-width: 100%; }
