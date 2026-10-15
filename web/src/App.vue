@@ -148,6 +148,11 @@ async function titleCommand(command) {
 function openContext(kind) {
   if (kind === 'modal') contextModal.value = true; else contextDrawer.value = true;
 }
+function chatCommand(name) {
+  if (name === 'new') newChat();
+  else if (name === 'search') openSearch();
+  else titleCommand(name);
+}
 async function openInsightSession(id) {
   const item = conversations.value.find(row => row.conversation_id === id) || { conversation_id: id };
   await selectConversation(item);
@@ -246,7 +251,7 @@ onUnmounted(() => window.removeEventListener('keydown', shortcut));
         <div class="content" v-loading="historyLoading">
           <ChatWorkspace v-if="view === 'chat'" v-model:messages="messages" :conversation-id="selectedId"
             :intermediate-messages="intermediate" :disabled="historyLoading" @running="running = $event"
-            @done="chatDone" @settled-logs="intermediate = $event" @error="error = $event" @context="openContext" />
+            @done="chatDone" @settled-logs="intermediate = $event" @error="error = $event" @context="openContext" @command="chatCommand" />
           <InsightsWorkspace v-else-if="view === 'insights'" @open="openInsightSession" />
           <DatabaseWorkspace v-else />
         </div>

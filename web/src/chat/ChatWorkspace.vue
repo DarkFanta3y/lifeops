@@ -7,12 +7,12 @@ import { approveRequest, deleteLastTurn, fetchRagSources, sendChatMessage } from
 import { downloadMarkdown } from '../download.js';
 import MarkdownRenderer from '../MarkdownRenderer.vue';
 import { collectSources, updateStreamParts } from './stream.js';
+import { findCommand, matchCommands } from './commands.js';
 import { speak, speechSupported, stopSpeaking, toSpeechText } from './speech.js';
 
 const props = defineProps({ messages: { type: Array, default: () => [] },
   intermediateMessages: { type: Array, default: () => [] }, conversationId: String, disabled: Boolean });
-const emit = defineEmits(['update:messages', 'running', 'done', 'error', 'settled-logs', 'context']);
-const CONTEXT_COMMAND = '/context';
+const emit = defineEmits(['update:messages', 'running', 'done', 'error', 'settled-logs', 'context', 'command']);
 const draft = ref('');
 const sending = ref(false);
 const approval = ref(null);
@@ -32,11 +32,22 @@ const editing = ref(false);
 const rewinding = ref(false);
 const sourceNames = ref(null);
 const speakingId = ref(null);
+const commandIndex = ref(0);
+const commandDismissed = ref(false);
 let controller;
 let parts = [];
 let assistantId;
 let turnLogStart = null;
 const canRewind = computed(() => Boolean(props.conversationId) && !sending.value && !rewinding.value && !props.disabled);
+// 命令可用条件；不可用的命令不出现在候选里。
+const commandReady = {
+  new: () => !sending.value, search: () => !sending.value, context: () => true, logs: () => true,
+  regenerate: () => canRewind.value && props.messages.at(-1)?.role === 'assistant',
+  rename: () => Boolean(props.conversationId) && !sending.value,
+  export: () => props.messages.length > 0 && !sending.value,
+};
+const commandMatches = computed(() => commandDismissed.value ? []
+  : matchCommands(draft.value).filter(command => commandReady[command.name]()));
 // 历史消息没有 parts，按自增 message_id 取上一条可见消息与本条之间的中间工具调用。
 function sourcesOf(message, index) {
   if (message.parts?.length) return collectSources(message.parts.filter(part => part.kind === 'tool')
@@ -100,8 +111,6 @@ function receive(type, data) {
 async function send(text = draft.value, { base = props.messages, logStart = props.intermediateMessages.length } = {}) {
   text = text.trim();
   if (!text || sending.value || props.disabled) return;
-  // /context 只在前端打开上下文弹窗，不发给模型
-  if (text === CONTEXT_COMMAND) { draft.value = ''; emit('context', 'modal'); return; }
   draft.value = ''; editing.value = false; stopSpeech();
   sending.value = true; emit('running', true); emit('error', '');
   parts = []; turnLogStart = logStart;
@@ -157,6 +166,8 @@ async function resend(pickText) {
 const regenerate = () => resend(text => text);
 function submit(text) {
   if (typeof text !== 'string') text = draft.value;
+  const command = findCommand(text);
+  if (command) return runCommand(command);
   if (!editing.value) return send(text);
   if (text.trim()) return resend(() => text);
 }
@@ -179,6 +190,28 @@ function toggleSpeak(item) {
   speakingId.value = item.key;
   speak(toSpeechText(item.content), { onEnd: () => { speakingId.value = null; } });
 }
+// “/”命令只在前端执行，不发给模型；new/search/rename/export 交给 App 处理。
+function runCommand(command) {
+  if (!commandReady[command.name]()) { ElMessage.warning(`当前无法使用 /${command.name}`); return; }
+  draft.value = ''; editing.value = false;
+  if (command.name === 'context') emit('context', 'modal');
+  else if (command.name === 'logs') loggingOpen.value = true;
+  else if (command.name === 'regenerate') regenerate();
+  else emit('command', command.name);
+}
+// 捕获阶段拦截按键，避免回车被 Sender 当作发送。
+function commandKeydown(event) {
+  const count = commandMatches.value.length;
+  if (!count || event.isComposing) return;
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    commandIndex.value = (commandIndex.value + (event.key === 'ArrowDown' ? 1 : count - 1)) % count;
+  } else if ((event.key === 'Enter' && !event.shiftKey) || event.key === 'Tab') {
+    runCommand(commandMatches.value[Math.min(commandIndex.value, count - 1)]);
+  } else if (event.key === 'Escape') commandDismissed.value = true;
+  else return;
+  event.preventDefault(); event.stopPropagation();
+}
+watch(draft, () => { commandIndex.value = 0; commandDismissed.value = false; });
 function print(value) { return typeof value === 'string' ? value : JSON.stringify(value, null, 2); }
 watch(() => props.conversationId, () => { stopSpeech(); if (!sending.value && !props.messages.some(message => message.message_id === assistantId)) { streamLogs.value = []; draft.value = ''; editing.value = false; turnLogStart = null; } });
 watch(() => !sourceNames.value && items.value.some(item => item.sources.some(source => source.kind === 'knowledge')), async needed => {
@@ -257,12 +290,19 @@ onBeforeUnmount(() => { controller?.abort(); stopSpeech(); });
         </template>
       </BubbleList>
     </div>
-    <div ref="composer" class="composer" data-slot="lifeops-composer">
+    <div ref="composer" class="composer" data-slot="lifeops-composer" @keydown.capture="commandKeydown">
+      <ul v-if="commandMatches.length" class="command-menu" role="listbox" aria-label="命令">
+        <li v-for="(command, index) in commandMatches" :key="command.name" role="option"
+          :aria-selected="index === commandIndex" :class="{ active: index === commandIndex }"
+          @mouseenter="commandIndex = index" @mousedown.prevent="runCommand(command)">
+          <code>/{{ command.name }}</code><strong>{{ command.label }}</strong><span>{{ command.description }}</span>
+        </li>
+      </ul>
       <div v-if="editing" class="composer-editing">正在编辑上一条消息，发送后会替换原来的回答
         <el-button text size="small" @click="cancelEdit">取消</el-button></div>
       <Sender :key="messages.length ? 'chat' : 'empty'" v-model="draft" :variant="messages.length ? 'default' : 'updown'"
         :auto-size="{ minRows: messages.length ? 1 : 2, maxRows: 6 }"
-        placeholder="有什么想让我帮忙的？"
+        placeholder="有什么想让我帮忙的？输入 / 查看命令"
         :loading="sending && !approval" :disabled="disabled || Boolean(approval)" :submit-btn-disabled="!draft.trim()"
         @submit="submit" @cancel="controller?.abort()">
         <template #action-list>

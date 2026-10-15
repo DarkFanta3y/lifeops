@@ -23,6 +23,7 @@ LifeOps 是一个本地优先的 AI 生活助手智能体。它把流式对话�
 - **流式 AI 对话**：后端通过 SSE 逐 token 返回，前端基于 Element Plus X 实时渲染回复，支持生成中停止；LLM 流式工具参数到齐前会先发送安全预热事件，并兼容需要回传 `reasoning_content` 的思考模式模型。
 - **本地 Web 控制台**：Vue 3 + Element Plus + Element Plus X 控制台提供聊天、历史、上下文洞察、知识库和日志入口。
 - **会话历史管理**：本地保存会话消息和中文短标题，支持按标题搜索、查看详情和删除会话。
+- **「/」命令**：在输入框输入 `/` 弹出命令菜单，支持按命令名或中文名过滤、↑↓ 选择、回车 / Tab 执行、Esc 关闭：`/new` 新建对话、`/search` 搜索对话、`/context` 上下文构成、`/logs` 运行日志、`/regenerate` 重新生成、`/rename` 重命名、`/export` 导出 Markdown。命令只在前端执行，不发给模型；当前不可用的命令不出现在菜单中。
 - **工具调用 Logging**：工具调用、工具结果和中间信息进入独立 Logging 弹窗，不打断对话阅读。
 - **Skill 工作流**：自动发现项目级和用户级 Skill，按显式 `$skill-name` 或隐式语义匹配按需激活。
 - **工具统一注册**：内置工具和 MCP Server 工具使用同一套工具注册模型，每轮请求按相关性动态裁剪暴露给模型的工具。
@@ -130,7 +131,7 @@ SSE 兼容原有 `token`、`tool_call`、`tool_result` 和 `done` 事件，并�
 
 - **记录**：`Agent` 每次调用 LLM 前，把实际发送的请求拆成元素（系统提示各分段、每个工具 schema、每条消息），按七类估算 token，写入 `context_snapshots`；元素内容按哈希去重存入 `context_blobs`。响应返回后补写厂商 usage（含缓存命中）、首 token 时间与耗时。子智能体（`spawn_agent`）的每次请求也会记录，并挂在主智能体下。流式请求通过 `stream_options.include_usage` 拿 usage，不支持该参数的厂商可设 `LLM_STREAM_USAGE=false`。
 - **对话页抽屉**：顶栏「上下文」按钮打开，分「上下文 / 编队」两页。上下文页包含流向统计、Token 与耗时环图、当前构成（含预留空间遮罩）、每次请求一根柱子的趋势图（步骤 / 轮次、全量 / 增量、自适应、耗时曲线、总览带状图）、步骤简报、上下文浏览器（任选一步按类别展开到原文，与上一步对比增减，矩形树图）、上下文事件（压缩 / 剪枝 / 技能注入 / 模型切换 / 计划）和文件活动（读写搜索聚合、行数增删、跳转到对应工具结果）。编队页展示主智能体与子智能体的网络图、成员卡片（委派提示词、最终回报）和 `todo_write` 任务计划。运行中抽屉每 2 秒刷新。
-- **`/context`**：在输入框发送 `/context` 只在前端打开构成弹窗，不发给模型。
+- **`/context`**：在输入框发送 `/context`（或从「/」命令菜单选择）只在前端打开构成弹窗，不发给模型。
 - **上下文洞察页**：侧栏入口，按 7 天 / 30 天 / 全部统计活跃会话、累计 Token、预估费用、缓存命中、近 7 天用量、汇总构成、8 周活跃热力图和会话卡片；点击卡片打开该会话及其抽屉。
 - **费用**：配置 `LIFEOPS_CONTEXT_PRICE_INPUT_PER_M` / `_OUTPUT_PER_M` / `_CACHE_PER_M`（元/百万 token）后显示估算费用，未配置时不估算。
 - **接口**：`GET /api/conversations/{id}/context`、`/context/files`、`/context/fleet`，`GET /api/context/snapshots/{snapshot_id}`，`GET /api/context/overview?range=7d|30d|all`。功能上线前的旧会话没有快照，不做回填。
