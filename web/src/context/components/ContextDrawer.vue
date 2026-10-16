@@ -1,5 +1,5 @@
 <script setup>
-// 对话页右侧抽屉：对应 dsh-context 的「上下文 / 编队」两个会话标签页。
+// 对话页上下文弹窗：与「运行日志」一致，以居中弹窗展示（对应 dsh-context 的「上下文 / 编队」两个会话标签页）。
 import { defineAsyncComponent, ref, watch } from 'vue';
 import '../styles/index.js';
 import { t } from '../i18n.js';
@@ -13,10 +13,10 @@ watch(() => props.conversationId, () => { tab.value = 'context'; });
 </script>
 
 <template>
-  <el-drawer :model-value="modelValue" size="min(1180px, 96vw)" class="lc-drawer" destroy-on-close
+  <el-dialog :model-value="modelValue" width="min(1180px, 96vw)" top="6vh" class="lc-context-dialog" destroy-on-close
     @update:model-value="emit('update:modelValue', $event)">
     <template #header>
-      <div class="lc-drawer-head">
+      <div class="lc-dialog-head">
         <strong>{{ title || t('cmd.label') }}</strong>
         <span class="lc-gran" role="tablist">
           <button type="button" class="lc-gran-btn" :class="{ 'lc-gran-on': tab === 'context' }" @click="tab = 'context'">上下文</button>
@@ -29,5 +29,5 @@ watch(() => props.conversationId, () => { tab.value = 'context'; });
       <FleetView v-else :conversation-id="conversationId" :running="running" />
     </template>
     <div v-else class="lc-root"><div class="lc-empty">{{ t('trend.empty') }}</div></div>
-  </el-drawer>
+  </el-dialog>
 </template>
