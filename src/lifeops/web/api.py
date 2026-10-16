@@ -1391,6 +1391,9 @@ async def _generate_sse_messages(
             "run_id": run_id,
             "status": status_value,
         }
+        run_usage = getattr(agent, "last_run_usage", None)
+        if run_usage:
+            done_payload["usage"] = run_usage
         memory_counts = _memory_bootstrap_counts(runtime_store, run_id)
         if memory_counts is not None:
             done_payload["memory"] = memory_counts

@@ -26,7 +26,7 @@ from lifeops.history import ConversationHistoryStore, HistorySource
 from lifeops.storage import create_history_store
 from lifeops.llm.client import LLMClient
 from lifeops.llm.json_stream import JSONStringFieldStream
-from lifeops.llm.types import ChatResponse, LLMError, Message, MessageRole, ToolCallResult
+from lifeops.llm.types import ChatResponse, LLMError, Message, MessageRole, ToolCallResult, merge_usage
 from lifeops.runtime.errors import AgentRuntimeError, RuntimeErrorType
 from lifeops.runtime.policy import ToolPolicyContext, ToolPolicyEngine, ToolPolicyResult
 from lifeops.runtime.policy_file import PolicyFileStore
@@ -310,6 +310,8 @@ class Agent:
         self.trace_recorder = trace_recorder
         self.context_recorder: ContextSnapshotStore | None = None
         self._llm_call_ttft_ms: float | None = None
+        # 本次 run 累计的真实 usage，供 Web done 事件回传给前端状态栏
+        self.last_run_usage: dict[str, int] | None = None
         self.policy_file = PolicyFileStore(config.tool_policy.path)
         self.approval_handler: Any | None = None
         self._last_approval_params: dict[str, Any] = {}
@@ -1282,6 +1284,7 @@ class Agent:
 
         used_tool_names: list[str] = []
         completion_violations = 0
+        self.last_run_usage = None
 
         for iteration in range(self.max_iterations):
             requires_explicit_finish = bool(used_tool_names)
@@ -1380,6 +1383,7 @@ class Agent:
                     "iteration": iteration,
                 },
             )
+            self.last_run_usage = merge_usage(self.last_run_usage, response.usage)
             self._finish_context_snapshot(snapshot_id, response, call_started_at)
 
             if response.content and not response.tool_calls and requires_explicit_finish:

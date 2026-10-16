@@ -75,7 +75,7 @@ h1, h2, h3, p { margin-top: 0; }
 .welcome img { width: 72px; height: 72px; margin-bottom: 16px; }
 .welcome h2 { font-size: 30px; font-weight: 600; letter-spacing: -1px; margin-bottom: 12px; }
 .welcome p { color: #9096a0; font-size: 14px; }
-.composer { position: relative; flex-shrink: 0; width: 100%; max-width: 768px; padding-top: 12px; }
+.composer { position: relative; flex-shrink: 0; width: 100%; max-width: 768px; padding-top: 12px; padding-bottom: 16px; }
 .composer::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 24px; background: linear-gradient(#fff0, #fff); pointer-events: none; }
 .chat-empty .composer::before { display: none; }
 .composer-editing { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; padding: 6px 8px 6px 14px; border-radius: 12px; background: #edf3ff; color: #4b5563; font-size: 12px; }

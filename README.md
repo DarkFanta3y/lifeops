@@ -25,6 +25,7 @@ LifeOps 是一个本地优先的 AI 生活助手智能体。它把流式对话�
 - **会话历史管理**：本地保存会话消息和中文短标题，支持按标题搜索、查看详情和删除会话。
 - **「/」命令**：在输入框输入 `/` 弹出命令菜单，支持按命令名或中文名过滤、↑↓ 选择、回车 / Tab 执行、Esc 关闭：`/new` 新建对话、`/search` 搜索对话、`/context` 上下文构成、`/logs` 运行日志、`/regenerate` 重新生成、`/rename` 重命名、`/export` 导出 Markdown、`/plan` 计划模式（见下文）。除 `/plan` 外命令只在前端执行，不发给模型；当前不可用的命令不出现在菜单中。
 - **工具调用 Logging**：工具调用、工具结果和中间信息进入独立 Logging 弹窗，不打断对话阅读。
+- **运行状态栏**：对话输入框上方实时显示本次运行的执行轮次与步骤、生成速率（tok/s）、Token 消耗总量（K/M 缩写）、缓存命中率与环形进度，运行中由 SSE 事件驱动更新，结束时以后端真实 usage 校正，亮暗主题自适应。
 - **Skill 工作流**：自动发现项目级和用户级 Skill，按显式 `$skill-name` 或隐式语义匹配按需激活。
 - **工具统一注册**：内置工具和 MCP Server 工具使用同一套工具注册模型，每轮请求按相关性动态裁剪暴露给模型的工具。
 - **长期记忆**：持续学习会话摘要、用户偏好和知识图谱，并提供记忆搜索、偏好删除、实体删除和低价值记忆清理能力。
@@ -117,9 +118,9 @@ LifeOps 的主要入口是本地 Web 控制台。后端由 FastAPI 提供会话�
 
 聊天界面固定在视口内，侧边栏用于新建对话、搜索标题和切换历史会话。新会话的 `done` 事件会先返回基于首条用户消息的即时标题，真实中文短标题在后台生成并写入历史；已有会话如果缺少标题，也会在继续对话后后台补齐。
 
-前端以 [ruoyi-element-ai](https://github.com/element-plus-x/ruoyi-element-ai) 为基础重构，采用 Vue 3、Element Plus 与 Element Plus X：浅灰蓝色侧栏、Conversations 历史列表、居中 BubbleList 对话流和 Sender 输入框。聊天、知识库页面均迁移到 Vue，继续接入 LifeOps 的 FastAPI/SSE 接口。工具调用以可折叠卡片内联展示，`todo_write` 计划渲染为任务卡片，高风险工具触发内联审批卡片（允许一次 / 总是允许 / 拒绝），审批期间输入区自动禁用；生成中可随时停止。完整的工具调用记录和中间信息仍归档到 Logging 弹窗（对话中点击顶栏「运行日志」打开），便于排查。空状态提供按时段问候和快捷建议胶囊；快捷键 `⌘/Ctrl + K` 搜索对话，`⌘/Ctrl + Shift + O` 新建对话。对话中最后一轮支持「重新生成」和「编辑后重发」，两者都会调用 `DELETE /api/conversations/{id}/last-turn` 真正删除末轮消息后再生成；回答下方会标注用到的知识库 / 联网来源，新生成的回答还会显示本轮载入的长期记忆条数。助手回答操作栏提供「朗读」按钮，使用浏览器内置语音（Web Speech API）读出回答，代码块会被略过，再点即停止。侧栏历史按「今天 / 昨天 / 7 天内 / 更早」分组，顶栏标题菜单提供重命名（`PATCH /api/conversations/{id}`）、导出整段对话和删除。Markdown 默认禁用原始 HTML 并经过 DOMPurify 清洗；围栏代码块带语言标签与「复制」按钮，并用 highlight.js 对常用语言（bash / python / js / ts / json / sql / yaml / css / xml / diff）做语法高亮；本地图片继续通过后端资源接口展示。模板的 MIT 许可保留在 `web/public/licenses/ruoyi-element-ai.txt`。
+前端以 [ruoyi-element-ai](https://github.com/element-plus-x/ruoyi-element-ai) 为基础重构，采用 Vue 3、Element Plus 与 Element Plus X：浅灰蓝色侧栏、Conversations 历史列表、居中 BubbleList 对话流和 Sender 输入框。聊天、知识库页面均迁移到 Vue，继续接入 LifeOps 的 FastAPI/SSE 接口。工具调用以可折叠卡片内联展示，`todo_write` 计划渲染为任务卡片，高风险工具触发内联审批卡片（允许一次 / 总是允许 / 拒绝），审批期间输入区自动禁用；生成中可随时停止。完整的工具调用记录和中间信息仍归档到 Logging 弹窗（对话中点击顶栏「运行日志」打开），便于排查。输入框上方常驻一条运行状态栏，横向紧凑地展示本次运行的轮次与步骤（`X 轮 Y 步`）、生成速率（tok/s，滑动窗口估算）、Token 消耗总量（K/M 缩写）、缓存命中率和环形进度（当前轮次 / 50 轮上限）；运行中随 SSE 事件实时刷新，结束后以 `done` 事件携带的真实 usage 校正 Token 与缓存命中率，拿不到时退回前端估算，亮暗主题自适应。空状态提供按时段问候和快捷建议胶囊；快捷键 `⌘/Ctrl + K` 搜索对话，`⌘/Ctrl + Shift + O` 新建对话。对话中最后一轮支持「重新生成」和「编辑后重发」，两者都会调用 `DELETE /api/conversations/{id}/last-turn` 真正删除末轮消息后再生成；回答下方会标注用到的知识库 / 联网来源，新生成的回答还会显示本轮载入的长期记忆条数。助手回答操作栏提供「朗读」按钮，使用浏览器内置语音（Web Speech API）读出回答，代码块会被略过，再点即停止。侧栏历史按「今天 / 昨天 / 7 天内 / 更早」分组，顶栏标题菜单提供重命名（`PATCH /api/conversations/{id}`）、导出整段对话和删除。Markdown 默认禁用原始 HTML 并经过 DOMPurify 清洗；围栏代码块带语言标签与「复制」按钮，并用 highlight.js 对常用语言（bash / python / js / ts / json / sql / yaml / css / xml / diff）做语法高亮；本地图片继续通过后端资源接口展示。模板的 MIT 许可保留在 `web/public/licenses/ruoyi-element-ai.txt`。
 
-SSE 兼容原有 `token`、`tool_call`、`tool_result` 和 `done` 事件，并新增 `tool_prepare` 与 `skill_prepare` 事件用于调试面板观察预热状态；现有前端可以继续忽略这些新增事件。最终 token 发出后，`done` 会尽快关闭连接，短标题落库和长期记忆学习会通过后台任务继续完成。
+SSE 兼容原有 `token`、`tool_call`、`tool_result` 和 `done` 事件，并新增 `tool_prepare` 与 `skill_prepare` 事件用于调试面板观察预热状态；现有前端可以继续忽略这些新增事件。`done` 事件自本版本起可携带本次运行累计的真实 `usage`（prompt / completion / total / cached tokens），供前端状态栏展示；最终 token 发出后，`done` 会尽快关闭连接，短标题落库和长期记忆学习会通过后台任务继续完成。
 
 ![工具调用 Logging](assets/logging.png)
 

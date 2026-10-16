@@ -117,6 +117,20 @@ def usage_to_dict(usage: Any) -> dict[str, int] | None:
     return result or None
 
 
+def merge_usage(total: dict[str, int] | None, usage: dict[str, int] | None) -> dict[str, int] | None:
+    """累计一次 ReAct 运行中多次 LLM 调用的 usage；total_tokens 缺失时用 prompt+completion 兜底。"""
+    if not usage:
+        return total
+    merged = dict(total or {})
+    for key in ("prompt_tokens", "completion_tokens", "total_tokens", "cached_tokens", "reasoning_tokens"):
+        value = _int_or_none(usage.get(key))
+        if value is not None:
+            merged[key] = merged.get(key, 0) + value
+    if "total_tokens" not in merged and ("prompt_tokens" in merged or "completion_tokens" in merged):
+        merged["total_tokens"] = merged.get("prompt_tokens", 0) + merged.get("completion_tokens", 0)
+    return merged or None
+
+
 @dataclass
 class Message:
     role: MessageRole

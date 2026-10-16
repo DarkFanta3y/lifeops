@@ -6,7 +6,9 @@ import { Document, CopyDocument, Download, Check, Close, Tools, Top, Calendar, S
 import { approveRequest, deleteLastTurn, fetchRagSources, reviewPlan, sendChatMessage } from '../api.js';
 import { downloadMarkdown } from '../download.js';
 import MarkdownRenderer from '../MarkdownRenderer.vue';
+import RunStatusBar from './RunStatusBar.vue';
 import { collectSources, updateStreamParts } from './stream.js';
+import { createRunTracker, createSpeedMeter, estimateTokens, usageStats } from './runMetrics.js';
 import { findCommand, matchCommands, parsePlanCommand } from './commands.js';
 import { speak, speechSupported, stopSpeaking, toSpeechText } from './speech.js';
 
@@ -44,6 +46,19 @@ let controller;
 let parts = [];
 let assistantId;
 let turnLogStart = null;
+// 运行状态栏：轮次/步骤/速率/Token 从 SSE 流实时累计，结束时用后端真实 usage 校正。
+const MAX_ROUNDS = 50; // 与后端 AgentConfig.max_iterations 默认值一致
+const runTracker = createRunTracker({ maxRounds: MAX_ROUNDS });
+const speedMeter = createSpeedMeter();
+const runStats = ref({ rounds: 1, steps: 0, speed: 0, tokens: 0, cacheHit: null, progress: 2 });
+function resetRunStats() {
+  runTracker.reset(); speedMeter.reset();
+  runStats.value = { rounds: 1, steps: 0, speed: 0, tokens: 0, cacheHit: null, progress: runTracker.progress() };
+}
+function trackRunStats() {
+  runStats.value = { ...runStats.value, rounds: runTracker.rounds, steps: runTracker.steps,
+    progress: runTracker.progress(), speed: speedMeter.rate() };
+}
 const canRewind = computed(() => Boolean(props.conversationId) && !sending.value && !rewinding.value && !props.disabled);
 // 命令可用条件；不可用的命令不出现在候选里。
 const commandReady = {
@@ -105,6 +120,9 @@ function receive(type, data) {
   parts = updateStreamParts(parts, type, data);
   updateAssistant(message => ({ ...message, parts, pending: false,
     content: parts.filter(part => part.kind === 'text').map(part => part.text).join('') }));
+  if (type === 'token') { speedMeter.add(data); runTracker.onToken(); trackRunStats(); }
+  if (type === 'tool_call') { runTracker.onToolCall(data.tool_name || data.name); trackRunStats(); }
+  if (type === 'tool_result') runTracker.onToolResult();
   if (type === 'approval_required' || type === 'approval_resolved') {
     approval.value = parts.find(part => part.approval && !part.approval.decision)?.approval || null;
   }
@@ -124,6 +142,7 @@ async function send(text = draft.value, { base = props.messages, logStart = prop
   if (!text || sending.value || props.disabled) return;
   draft.value = ''; editing.value = false; stopSpeech();
   sending.value = true; emit('running', true); emit('error', '');
+  resetRunStats();
   parts = []; turnLogStart = logStart;
   assistantId = crypto.randomUUID();
   const user = { message_id: crypto.randomUUID(), role: 'user', content: text };
@@ -142,6 +161,8 @@ async function send(text = draft.value, { base = props.messages, logStart = prop
       onPlanReviewResolved: data => receive('plan_review_resolved', data),
       onPlanModeChanged: data => emit('update:planMode', Boolean(data.active)) });
     memory = payload?.memory;
+    const usage = usageStats(payload?.usage);
+    if (usage) runStats.value = { ...runStats.value, tokens: usage.tokens, cacheHit: usage.cacheHit };
     emit('done', payload);
   } catch (err) {
     if (err.name !== 'AbortError') emit('error', err.message);
@@ -245,7 +266,8 @@ function commandKeydown(event) {
 }
 watch(draft, () => { commandIndex.value = 0; commandDismissed.value = false; });
 function print(value) { return typeof value === 'string' ? value : JSON.stringify(value, null, 2); }
-watch(() => props.conversationId, () => { stopSpeech(); if (!sending.value && !props.messages.some(message => message.message_id === assistantId)) { streamLogs.value = []; draft.value = ''; editing.value = false; turnLogStart = null; } });
+// 新会话首轮结束后 conversationId 才落地，此时消息里仍带着本次回答，不能重置运行指标。
+watch(() => props.conversationId, () => { stopSpeech(); if (!sending.value && !props.messages.some(message => message.message_id === assistantId)) { resetRunStats(); streamLogs.value = []; draft.value = ''; editing.value = false; turnLogStart = null; } });
 watch(() => !sourceNames.value && items.value.some(item => item.sources.some(source => source.kind === 'knowledge')), async needed => {
   if (!needed) return;
   sourceNames.value = {};
@@ -342,6 +364,9 @@ onBeforeUnmount(() => { controller?.abort(); stopSpeech(); });
         </template>
       </BubbleList>
     </div>
+    <RunStatusBar v-if="messages.length" :rounds="runStats.rounds" :steps="runStats.steps"
+      :speed="runStats.speed" :tokens="runStats.tokens" :cache-hit="runStats.cacheHit"
+      :progress="runStats.progress" :running="sending" />
     <div ref="composer" class="composer" data-slot="lifeops-composer" @keydown.capture="commandKeydown">
       <ul v-if="commandMatches.length" class="command-menu" role="listbox" aria-label="命令">
         <li v-for="(command, index) in commandMatches" :key="command.name" role="option"
@@ -372,7 +397,6 @@ onBeforeUnmount(() => { controller?.abort(); stopSpeech(); });
       <button v-for="item in suggestions" :key="item.label" @click="draft = item.prompt">
         <el-icon><component :is="item.icon" /></el-icon>{{ item.label }}</button>
     </div>
-    <p class="composer-note">AI 回答可能有误，请核实重要信息。</p>
     <el-dialog v-model="loggingOpen" title="回答中间信息" width="min(1000px, 94vw)" destroy-on-close>
       <el-empty v-if="!logs.length" description="暂无中间信息" />
       <div v-else class="logging-entries"><details v-for="(log, index) in logs" :key="index" :open="index === 0">

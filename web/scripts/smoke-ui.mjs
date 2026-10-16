@@ -81,7 +81,8 @@ const server = createServer(async (req, res) => {
     setTimeout(() => {
       sse(stream, 'token', '已完成。\n\n|列|值|\n|---|---|\n|A|1|\n\n<script>window.hacked=1</script>');
       sessions = [{ conversation_id: 'new', title: '新测试会话', message_count: 2 }, ...sessions.filter(item => item.conversation_id !== 'new')];
-      sse(stream, 'done', { conversation_id: chat.conversation_id || 'new', title: '新测试会话' }); stream.end();
+      sse(stream, 'done', { conversation_id: chat.conversation_id || 'new', title: '新测试会话',
+        usage: { prompt_tokens: 127000, completion_tokens: 400, cached_tokens: 107000, total_tokens: 127400 } }); stream.end();
     }, 100); return;
   }
   if (path === '/api/conversations') {
@@ -137,7 +138,7 @@ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const mockBase = `http://127.0.0.1:${server.address().port}`;
 // 拦截前端实际请求的后端地址（与 web/.env.local 的 VITE_API_URL 一致，可用 SMOKE_API_BASE 覆盖）
 const API_BASE = process.env.SMOKE_API_BASE || 'http://127.0.0.1:8082';
-const browser = await chromium.launch();
+const browser = await chromium.launch({ channel: process.env.SMOKE_CHROMIUM_CHANNEL || undefined });
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, permissions: ['clipboard-read', 'clipboard-write'] });
 const page = await context.newPage(), errors = [];
 page.on('pageerror', error => errors.push(error.message));
@@ -175,6 +176,15 @@ try {
   await page.screenshot({ path: `${screenshots}/logging.png` });
   await page.getByRole('dialog').getByRole('button', { name: '关闭此对话框' }).click(); await page.getByRole('dialog').waitFor({ state: 'hidden' });
   await page.screenshot({ path: `${screenshots}/chat.png` }); console.log('OK SSE、审批、工具、计划、Markdown、复制导出、Logging');
+  // 运行状态栏：bash + todo_write 两批工具 → 3 轮 2 步；done 的 usage 校正为真实 Token 与缓存命中率
+  const runStatus = page.locator('.run-status');
+  await runStatus.waitFor();
+  await page.waitForFunction(() => document.querySelector('.run-status')?.textContent.includes('127K tok'));
+  const statusText = await runStatus.textContent();
+  assert.match(statusText, /3 轮 2 步/); assert.match(statusText, /tok\/s/); assert.match(statusText, /127K tok/);
+  assert.match(statusText, /缓存命中率 84%/); assert.match(statusText, /6%/);
+  assert.equal(await page.locator('.run-status .rs-ring').count(), 1);
+  await page.screenshot({ path: `${screenshots}/run-status.png` }); console.log('OK 运行状态栏指标与环形进度');
   await page.locator('[data-slot=lifeops-composer] textarea').fill('双审批测试');
   await page.locator('[data-slot=lifeops-composer] textarea').press('Enter');
   await page.waitForFunction(() => document.querySelectorAll('[data-slot=lifeops-approval-card]').length === 2);
@@ -207,7 +217,7 @@ try {
   await click('上下文洞察'); await waitText('活跃会话'); await waitText('洞察会话');
   await page.screenshot({ path: `${screenshots}/insights.png` }); await page.locator('.lc-ov-session').first().click(); await waitText('上下文统计');
   await page.keyboard.press('Escape'); await page.locator('.lc-drawer').waitFor({ state: 'hidden' });
-  console.log('OK 上下文抽屉、编队、/context 弹窗、上下文洞察');
+  console.log('OK 上下文弹窗、编队、/context 弹窗、上下文洞察');
   await page.locator('[data-slot=lifeops-composer] textarea').fill('停止测试'); await page.locator('[data-slot=lifeops-composer] textarea').press('Enter'); await waitText('部分回复');
   await click('停止生成'); await page.getByRole('button', { name: '停止生成', exact: true }).waitFor({ state: 'hidden' }); assert.equal(await page.getByText('不应继续显示').count(), 0);
   console.log('OK 停止生成');
