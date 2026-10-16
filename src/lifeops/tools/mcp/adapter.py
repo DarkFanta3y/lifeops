@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from types import UnionType
 from typing import Any
 
 from pydantic import create_model
@@ -117,7 +118,7 @@ class MCPRegistryAdapter:
         )
 
 
-def _json_schema_type_to_python(schema: dict[str, Any]) -> type:
+def _json_schema_type_to_python(schema: dict[str, Any]) -> type | UnionType:
     """将 JSON Schema 类型映射为 Python 类型。"""
     json_type = schema.get("type", "string")
 
@@ -128,6 +129,16 @@ def _json_schema_type_to_python(schema: dict[str, Any]) -> type:
         "boolean": bool,
         "array": list,
         "object": dict,
+        "null": type(None),
     }
+
+    if isinstance(json_type, list):
+        members = [type_map.get(item, str) for item in json_type]
+        if not members:
+            return str
+        result = members[0]
+        for member in members[1:]:
+            result = result | member
+        return result
 
     return type_map.get(json_type, str)

@@ -42,7 +42,7 @@ from lifeops.runtime.policy_file import PolicyFileStore
 from lifeops.runtime.policy_rules import default_policy_summary
 from lifeops.runtime.store import RuntimeStore
 from lifeops.runtime.types import RunStatus, TraceEventType, TraceRecorder
-from lifeops.storage import ConversationHistoryStoreSQLite, auto_migrate
+from lifeops.storage import ConversationHistoryStoreSQLite, auto_migrate, create_history_store
 from lifeops.skills.manager import SkillManager
 from lifeops.tools.builtin import register_all_builtin_tools
 from lifeops.tools.mcp.manager import MCPManager
@@ -187,7 +187,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
     )
 
     app.state.config = app_config
-    app.state.history_store = ConversationHistoryStoreSQLite(app_config.db_path)
+    app.state.history_store = create_history_store(app_config)
     app.state.runtime_store = RuntimeStore(
         app.state.history_store,
         trace_max_payload_chars=app_config.runtime.trace_max_payload_chars,
@@ -845,7 +845,9 @@ async def _ensure_services_initialized(app: FastAPI, *, include_mcp: bool = True
 
         jsonl_path = object.__getattribute__(config, "history_path")
         try:
-            migration_result = auto_migrate(jsonl_path, config.db_path)
+            migration_result = (
+                None if config.database_url.strip() else auto_migrate(jsonl_path, config.db_path)
+            )
             if migration_result is not None:
                 logger.info(
                     "Web 启动 JSONL 迁移完成: 成功 %d 条, 失败 %d 条",

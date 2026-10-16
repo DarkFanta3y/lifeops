@@ -23,6 +23,7 @@ from lifeops.context_insight.composition import entry_category
 from lifeops.agent_planner import classify_task_complexity
 from lifeops.agent_subagent import SubAgentRunner
 from lifeops.history import ConversationHistoryStore, HistorySource
+from lifeops.storage import create_history_store
 from lifeops.llm.client import LLMClient
 from lifeops.llm.json_stream import JSONStringFieldStream
 from lifeops.llm.types import ChatResponse, LLMError, Message, MessageRole, ToolCallResult
@@ -299,7 +300,9 @@ class Agent:
         self.skill_matcher: SkillMatcher | None = None
         self.rag_router: Any | None = None
         self._mcp_tools_registered = services is not None
-        self.history_store = history_store or ConversationHistoryStore(config.history_path)
+        self.history_store = (
+            history_store if history_store is not None else create_history_store(config)
+        )
         self.source = source
         self.conversation_id = conversation_id or self._new_conversation_id()
         self.memory_service = memory_service

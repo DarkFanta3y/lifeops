@@ -114,6 +114,8 @@ class RAGConfig(BaseSettings):
     enabled: bool = True
     data_dirs: str = ".lifeops/knowledge"
     chroma_path: str = ".lifeops/chroma"
+    chroma_host: str = ""
+    chroma_port: int = 8000
     collection: str = "lifeops_knowledge"
     model_cache_dir: str = "models"
     embedding_model: str = "BAAI/bge-small-zh-v1.5"
@@ -228,6 +230,8 @@ class AppConfig(BaseSettings):
     web: WebConfig = Field(default_factory=WebConfig)
     history_path: str = ".lifeops/conversations.jsonl"
     db_path: str = ".lifeops/conversations.db"
+    # 配置后使用 MySQL；留空仅用于兼容本地 SQLite 测试和旧数据迁移。
+    database_url: str = Field(default="", repr=False)
     debug: bool = False
     log_level: str = "INFO"
 

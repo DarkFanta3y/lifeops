@@ -143,7 +143,7 @@ class ContextInsightQueries:
     def _runs(self, conversation_id: str) -> list[sqlite3.Row]:
         return self._conn.execute(
             "SELECT run_id, status, user_input, started_at, ended_at FROM agent_runs "
-            "WHERE conversation_id = ? ORDER BY started_at, rowid",
+            "WHERE conversation_id = ? ORDER BY started_at, run_id",
             (conversation_id,),
         ).fetchall()
 

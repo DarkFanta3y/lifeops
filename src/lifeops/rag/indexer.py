@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import pickle
-import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -10,6 +9,7 @@ from uuid import uuid4
 
 from lifeops.core.config import RAGConfig
 from lifeops.rag.bm25 import BM25ChunkIndex
+from lifeops.rag.chroma_client import create_chroma_client
 from lifeops.rag.embeddings import EmbeddingProvider, SentenceTransformerEmbeddingProvider
 from lifeops.rag.loader import load_markdown_documents
 from lifeops.rag.splitter import split_markdown
@@ -31,18 +31,21 @@ class RAGIndexer:
         self.source_configs = source_configs or []
 
     def rebuild(self) -> dict[str, int]:
-        chroma_path = Path(self.config.chroma_path)
-        if chroma_path.exists():
-            shutil.rmtree(chroma_path)
-        chroma_path.mkdir(parents=True, exist_ok=True)
-
         documents = load_markdown_documents(self._data_dirs())
         chunks = self._split_documents(documents)
 
+        from chromadb.errors import NotFoundError
+
+        client = create_chroma_client(self.config)
+        try:
+            client.delete_collection(self.config.collection)
+        except NotFoundError:
+            pass
+        client.create_collection(self.config.collection, embedding_function=None)
+        self._write_chroma(chunks)
         self._write_parent_documents(documents)
         self._write_chunks_index(chunks)
         self._write_bm25(chunks)
-        self._write_chroma(chunks)
         self._write_index_state(len(documents), len(chunks))
         return {"documents": len(documents), "chunks": len(chunks)}
 
@@ -54,6 +57,19 @@ class RAGIndexer:
         documents = load_markdown_documents(self._data_dirs())
         old_parents = self._load_parent_documents()
         old_chunks = self._load_chunks_index()
+        # 本地缓存仍在但服务数据卷丢失时，不能把空向量库误判为无需同步。
+        from chromadb.errors import NotFoundError
+
+        try:
+            collection = create_chroma_client(self.config).get_collection(
+                self.config.collection, embedding_function=None
+            )
+            vectors_complete = collection.count() == len(old_chunks)
+        except NotFoundError:
+            vectors_complete = False
+        if not vectors_complete:
+            summary = self.rebuild()
+            return {**summary, "mode": "rebuild"}
         current_documents = {document.doc_id: document for document in documents}
 
         new_or_updated = [
@@ -96,10 +112,10 @@ class RAGIndexer:
         replacement_chunks = self._split_documents(new_or_updated)
         chunks = [*retained_chunks, *replacement_chunks]
 
+        self._write_chroma(replacement_chunks)
         self._write_parent_documents(documents)
         self._write_chunks_index(chunks)
         self._write_bm25(chunks)
-        self._write_chroma(replacement_chunks)
         self._write_index_state(len(documents), len(chunks))
 
         return {
@@ -136,18 +152,22 @@ class RAGIndexer:
     def _write_chroma(self, chunks: list[KnowledgeChunk]) -> None:
         if not chunks:
             return
-        import chromadb
-
-        client = chromadb.PersistentClient(path=self.config.chroma_path)
-        collection = client.get_or_create_collection(self.config.collection)
-        texts = [_chunk_embedding_text(chunk) for chunk in chunks]
-        embeddings = self.embedding_provider.embed_documents(texts)
-        collection.add(
-            ids=[chunk.chunk_id for chunk in chunks],
-            embeddings=embeddings,
-            documents=[chunk.content for chunk in chunks],
-            metadatas=[_chunk_metadata(chunk) for chunk in chunks],
+        client = create_chroma_client(self.config)
+        collection = client.get_or_create_collection(
+            self.config.collection, embedding_function=None
         )
+        batch_size = min(256, client.get_max_batch_size())
+        for start in range(0, len(chunks), batch_size):
+            batch = chunks[start : start + batch_size]
+            embeddings = self.embedding_provider.embed_documents(
+                [_chunk_embedding_text(chunk) for chunk in batch]
+            )
+            collection.upsert(
+                ids=[chunk.chunk_id for chunk in batch],
+                embeddings=embeddings,
+                documents=[chunk.content for chunk in batch],
+                metadatas=[_chunk_metadata(chunk) for chunk in batch],
+            )
 
     def _split_documents(self, documents: list[KnowledgeDocument]) -> list[KnowledgeChunk]:
         chunks: list[KnowledgeChunk] = []
@@ -184,14 +204,11 @@ class RAGIndexer:
     def _delete_chroma_chunks(self, chunk_ids: list[str]) -> None:
         if not chunk_ids:
             return
-        try:
-            import chromadb
-
-            client = chromadb.PersistentClient(path=self.config.chroma_path)
-            collection = client.get_collection(self.config.collection)
-            collection.delete(ids=chunk_ids)
-        except Exception:
-            return
+        client = create_chroma_client(self.config)
+        collection = client.get_collection(self.config.collection, embedding_function=None)
+        batch_size = min(256, client.get_max_batch_size())
+        for start in range(0, len(chunk_ids), batch_size):
+            collection.delete(ids=chunk_ids[start : start + batch_size])
 
     def _missing_required_indexes(self) -> bool:
         return not all(

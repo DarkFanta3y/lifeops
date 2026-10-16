@@ -1,0 +1,114 @@
+services:
+  backend:
+    build: .
+    image: lifeops-backend:local
+    working_dir: /workspace
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    depends_on:
+      mysql:
+        condition: service_healthy
+      chroma:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      TZ: Asia/Shanghai
+      LIFEOPS_WEB_HOST: 0.0.0.0
+      LIFEOPS_WEB_PORT: "8082"
+      LIFEOPS_DATABASE_URL: mysql://lifeops:${LIFEOPS_MYSQL_PASSWORD:?请在 .env 配置数据库密码}@mysql:3306/lifeops
+      LIFEOPS_RAG_DATA_DIRS: /app/.lifeops/knowledge
+      LIFEOPS_RAG_CHROMA_PATH: /app/.lifeops/chroma
+      LIFEOPS_RAG_CHROMA_HOST: chroma
+      LIFEOPS_RAG_CHROMA_PORT: "8000"
+      LIFEOPS_RAG_MODEL_CACHE_DIR: /app/models
+      LIFEOPS_MEMORY_OFFLOAD_DIR: /app/.lifeops/offload
+      LIFEOPS_TOOL_POLICY_PATH: /app/.lifeops/tool-policy.json
+      LIFEOPS_SKILLS_PROJECT_DIR: /workspace/.agents/skills
+      LIFEOPS_FILESYSTEM_MCP_ROOTS: /workspace
+      LIFEOPS_AGENT_PROJECT_MEMORY_FILES: /workspace/AGENTS.md,/workspace/LIFEOPS.md
+      GOOGLE_MCP_CREDENTIALS_DIR: /var/lib/lifeops/google-mcp
+      MEMORY_FILE_PATH: /app/.lifeops/mcp-memory.jsonl
+      PLAYWRIGHT_BROWSERS_PATH: /opt/playwright
+      TOKENIZERS_PARALLELISM: "false"
+      ANONYMIZED_TELEMETRY: "False"
+      UV_CACHE_DIR: /var/cache/uv
+      UV_PROJECT_ENVIRONMENT: /app/.venv
+    ports:
+      - "127.0.0.1:8082:8082"
+    volumes:
+      - ./.lifeops:/app/.lifeops
+      - ./models:/app/models:ro
+      - .:/workspace
+      - mcp-cache:/var/cache/uv
+      - google-credentials:/var/lib/lifeops/google-mcp
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8082/api/rag/sources', timeout=5).read()"]
+      interval: 30s
+      timeout: 10s
+      start_period: 180s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  chroma:
+    image: chromadb/chroma:1.5.7
+    restart: unless-stopped
+    stop_grace_period: 30s
+    environment:
+      TZ: Asia/Shanghai
+      CHROMA_PERSIST_PATH: /data
+      ANONYMIZED_TELEMETRY: "False"
+    ports:
+      - "127.0.0.1:8004:8000"
+    volumes:
+      - chroma-data:/data
+    healthcheck:
+      # 官方精简镜像没有 curl；通过 Bash 读取心跳接口的 HTTP 状态。
+      test: [CMD, bash, -ec, 'exec 3<>/dev/tcp/127.0.0.1/8000; printf "GET /api/v2/heartbeat HTTP/1.0\r\nHost: localhost\r\n\r\n" >&3; head -n 1 <&3 | grep -q " 200 "']
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 12
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    stop_grace_period: 60s
+    environment:
+      TZ: Asia/Shanghai
+      MYSQL_DATABASE: lifeops
+      MYSQL_USER: lifeops
+      MYSQL_PASSWORD: ${LIFEOPS_MYSQL_PASSWORD:?请在 .env 配置数据库密码}
+      MYSQL_ROOT_PASSWORD: ${LIFEOPS_MYSQL_ROOT_PASSWORD:?请在 .env 配置数据库管理员密码}
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_bin"]
+    ports:
+      - "127.0.0.1:3307:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: [CMD-SHELL, 'MYSQL_PWD="$${MYSQL_ROOT_PASSWORD}" mysql --protocol=TCP -h 127.0.0.1 -u root -e "SELECT 1" >/dev/null']
+      interval: 10s
+      timeout: 5s
+      start_period: 40s
+      retries: 12
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  mcp-cache:
+  google-credentials:
+  mysql-data:
+  chroma-data:

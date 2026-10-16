@@ -70,16 +70,7 @@ Web API 会为每次 `/api/chat` 创建独立 `run_id`，并记录 `run_started`
 
 Runtime 还把 LLM 解析失败、工具失败、策略拒绝、RAG 失败和迭代上限等情况分类写入 trace。离线 eval 覆盖普通问答、危险工具拒绝等核心路径，避免后续 prompt、policy 或 memory 改动破坏基础可靠性。
 
-Runtime 相关配置默认开启：
-
-```bash
-LIFEOPS_RUNTIME_ENABLED=true
-LIFEOPS_RUNTIME_TRACE_MAX_PAYLOAD_CHARS=12000
-LIFEOPS_TOOL_POLICY_MODE=balanced
-LIFEOPS_TOOL_POLICY_PATH=.lifeops/tool-policy.json
-LIFEOPS_TOOL_POLICY_PERMISSION_MODE=default
-LIFEOPS_TOOL_POLICY_APPROVAL_TIMEOUT_SECONDS=120
-```
+Runtime 与工具策略默认开启，日常只需关注权限偏好 `LIFEOPS_TOOL_POLICY_PERMISSION_MODE`（`default` / `accept_edits` / `yolo`）。其余参数（`LIFEOPS_RUNTIME_*`、`LIFEOPS_TOOL_POLICY_MODE` / `_PATH` / `_APPROVAL_TIMEOUT_SECONDS`）保持默认即可，需要时参见 `src/lifeops/core/config.py` 中的配置类与默认值；`.env.example` 仅保留常用项。
 
 运行后可直接查询：
 
@@ -103,7 +94,7 @@ curl http://127.0.0.1:8081/api/tools/policy
 
 ![本地 Markdown RAG](assets/rag.png)
 
-RAG 系统会把本地 Markdown 知识库索引到 ChromaDB 与 BM25。DATABASE 页面新增知识库时，服务端安全解压 ZIP、展示目录树，并预览首个 Markdown 的切片结果；固定大小支持 150–900 字符，按标题切块时超长章节自动拆分。索引完成后写入完成标识和 SQLite 配置，重启时清理未完成导入并加载已完成知识库；覆盖已有知识库前会要求二次确认，失败时恢复旧目录。删除只删除配置，不删除本地文件或索引文件。主 LLM 需要本地资料时调用唯一公开工具 `retrieve_knowledge`，传入工具描述中的顶级 `source`：`source="recipes"` 检索 `dishes/` 菜谱，`source="islamic_culture"` 检索 `伊斯兰文化知识库/`；工具内部再由 `RAGRouter` 分发到对应 Retriever。
+RAG 系统会把本地 Markdown 知识库索引到 ChromaDB 与 BM25。DATABASE 页面新增知识库时，服务端安全解压 ZIP、展示目录树，并预览首个 Markdown 的切片结果；固定大小支持 150–900 字符，按标题切块时超长章节自动拆分。索引完成后写入完成标识和业务数据库配置，重启时清理未完成导入并加载已完成知识库；覆盖已有知识库前会要求二次确认，失败时恢复旧目录。删除只删除配置，不删除本地文件或索引文件。主 LLM 需要本地资料时调用唯一公开工具 `retrieve_knowledge`，传入工具描述中的顶级 `source`：`source="recipes"` 检索 `dishes/` 菜谱，`source="islamic_culture"` 检索 `伊斯兰文化知识库/`；工具内部再由 `RAGRouter` 分发到对应 Retriever。
 
 返回结果按父 Markdown 文件聚合，并保留证据片段。Markdown 中的本地图片会通过只读资源接口安全展示在前端消息里。
 
@@ -112,7 +103,7 @@ RAG 系统会把本地 Markdown 知识库索引到 ChromaDB 与 BM25。DATABASE 
 
 ### 记忆管理
 
-LifeOps 会把跨会话信息写入本地 SQLite，包括会话摘要、用户偏好、知识图谱实体与关系、工具/Skill 使用统计和上下文压缩事件。
+LifeOps 会把跨会话信息写入 Docker 管理的 MySQL，包括会话摘要、用户偏好、知识图谱实体与关系、工具/Skill 使用统计和上下文压缩事件。
 
 ![长期记忆](assets/memory.png)
 
@@ -175,7 +166,7 @@ Agent 运行时不需要区分工具来源。内置工具、MCP 工具和内部 
 
 ```bash
 uv sync
-export LLM_API_KEY=your-key-here
+cp .env.example .env   # 填写 LLM_API_KEY，核对模型与端点；其他常用项按需取消注释
 uv run lifeops-web
 ```
 
@@ -198,6 +189,102 @@ LIFEOPS_WEB_PORT=8082
 ```
 
 修改端口后必须同步前端 `web/.env.local` 的 `VITE_API_URL`（例如 `VITE_API_URL=http://127.0.0.1:8082`），两者不一致时页面请求会报 `Failed to fetch`。本机 `.env` 使用 `8082`，因为 `8081` 已被其他项目的前端 dev server 占用。
+
+### 使用 Docker Compose 管理后端、MySQL 和 Chroma
+
+在 Docker Desktop 已启动、`.env` 已填写 LLM 配置及两个独立的 MySQL 随机密码后运行：
+
+```bash
+docker compose build
+# 已有 SQLite 数据时先执行下文迁移步骤，再启动新版后端。
+docker compose up -d
+docker compose ps
+docker compose logs -f backend
+```
+
+后端地址固定为 `http://127.0.0.1:8082`，前端 `web/.env.local` 使用
+`VITE_API_URL=http://127.0.0.1:8082`，前端继续通过 `npm run dev` 运行。
+Compose 会覆盖容器监听地址为 `0.0.0.0`，宿主机仅向本机开放端口。
+服务异常退出后自动重启；Mac 重启后需先启动 Docker Desktop。
+
+会话、长期记忆、知识库配置、运行轨迹和上下文快照保存在 MySQL 8.4 的
+`mysql-data` 命名卷中。后端等待数据库健康后启动，连接失败时直接报错，
+不会回退写入 SQLite。MySQL 仅向本机开放 `127.0.0.1:3307`，容器内使用 `mysql:3306`。
+向量由独立的 Chroma 1.5.7 服务管理，保存在 `chroma-data` 命名卷的 `/data` 中；
+后端通过 `chroma:8000` 连接，宿主机仅开放 `127.0.0.1:8004`。后端等待两个数据库健康后启动。
+知识库原文、BM25/父文档/切片缓存和审批文件仍保存在宿主机 `.lifeops/`；已有 `models/`
+只读挂载复用。首次使用需先准备完整模型文件，模型缓存只读，不在运行中下载到该目录。
+Linux 依赖使用 CPU 版 PyTorch，不安装 CUDA。
+项目目录挂载到 `/workspace`，项目 Skill、Filesystem MCP 和 Agent 文件工具可访问该目录；
+其他 Mac 目录（例如 Obsidian vault）需要通过本地 Compose 覆盖文件显式挂载。
+Agent 的 shell 命令在 Linux 容器内执行，修改源码后需重新构建镜像。
+
+镜像预装 Node.js、Chromium、现有 MCP 程序及 GitHub MCP 可执行文件，
+`docker/entrypoint.py` 在启动时适配 `.env` 中的 MCP 命令，不需要挂载 Docker socket，
+不改写原有 `.env`。Google 凭据默认存放在 `google-credentials` 卷中；迁移已有凭据时，
+可通过忽略提交的 `compose.override.yaml` 把宿主机凭据目录挂载到
+`/var/lib/lifeops/google-mcp`，授权范围沿用 `.env`。
+
+MCP 参数适配支持 `type: ["boolean", "null"]` 等联合类型，
+避免 Sequential Thinking 等工具因可空字段注册失败；必填约束仍然保留。
+
+```bash
+docker compose restart backend    # 重启后端
+docker compose up -d --build      # 更新源码后重建并启动
+docker compose down              # 停止，保留挂载的数据与命名卷
+```
+
+容器日志自动轮转，最多保留 3 个 10 MB 文件。`healthcheck` 检查知识库 API，
+健康检查失败用于显示状态；自动重启策略仅在进程退出时生效。
+本机直接运行后端时，`LIFEOPS_DATABASE_URL` 指向本机的 MySQL 端口；
+本机的 Chroma 参数为 `LIFEOPS_RAG_CHROMA_HOST=127.0.0.1`、`LIFEOPS_RAG_CHROMA_PORT=8004`；
+Compose 自动覆盖为内部地址。`LIFEOPS_RAG_CHROMA_PATH` 在服务模式下只保存 BM25 等本地缓存。
+HOST 留空才使用旧嵌入式 Chroma；已配置服务时不会因连接失败而回退创建本地向量库。
+消息搜索使用 MySQL 的字面子串查询，支持中文、单字和标点；
+SQLite FTS5 的派生索引无需迁移。
+
+已有 SQLite 数据可在停止后端后迁移，目标必须为空库：
+
+```bash
+docker compose up -d mysql --wait
+docker compose stop backend
+docker compose run --rm --no-deps backend python -m lifeops.storage.mysql_migration \
+  --sqlite /app/.lifeops/conversations.db \
+  --report /workspace/.codex/mysql-migration-report.json
+docker compose up -d --wait
+```
+
+迁移工具检查全部 22 张数据表的行数和全部字段 SHA-256（包括二进制向量），
+提交后重新连接复核；目标已有不同数据时拒绝覆盖。旧 JSONL 不会在 MySQL 启动时重新导入。
+旧库的删除应在接口读写、MySQL 导出及恢复校验通过之后执行；知识库与 Chroma 索引保留。
+SQLite 仅保留为兼容测试与旧数据迁移的实现。
+
+导出 MySQL 备份（备份包含个人数据，请保存到本机受限目录）：
+
+```bash
+umask 077
+docker compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysqldump -u root --single-transaction --hex-blob --no-tablespaces --set-gtid-purged=OFF "$MYSQL_DATABASE"' > lifeops-mysql.sql
+```
+
+已有嵌入式 Chroma 可在停止后端后直接迁移向量，无需重新下载模型或计算 embedding：
+
+```bash
+docker compose stop backend
+docker compose up -d chroma --wait
+docker compose run --rm --no-deps backend python -m lifeops.rag.chroma_migration \
+  --source /app/.lifeops/chroma --backup-dir /workspace/.codex/chroma-export
+docker compose up -d --wait
+```
+
+迁移要求目标 Chroma 为空；工具先生成受限权限的 `collection-*.jsonl.gz` 导出备份，
+再逐条比较 ID、正文、元数据、URI 与 float32 向量 SHA-256，并保留集合索引参数。
+恢复到空服务时使用 `--restore /workspace/.codex/chroma-export` 代替 `--source` 和 `--backup-dir`。
+验证后可把旧 `chroma.sqlite3` 与 UUID 向量目录移出活动索引目录归档，
+必须保留三个 `.pkl` 缓存及 `index_state.json`。Chroma 自身的数据卷内部仍使用 SQLite/HNSW，
+它与 MySQL 业务库用途不同。部署方式见 [Chroma 官方 Docker 文档](https://docs.trychroma.com/guides/deploy/docker)。
+
+索引重建只删除当前集合，保留其他集合和本地文件。向量按批次写入；增量删除失败会报错，
+避免静默留下旧向量。同步发现集合缺失或向量数量与切片缓存不符时，会重新生成索引。
 
 常用开发命令：
 

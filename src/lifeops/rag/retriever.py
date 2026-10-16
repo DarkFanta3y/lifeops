@@ -13,6 +13,7 @@ from urllib.parse import quote, urlsplit
 
 from lifeops.core.config import RAGConfig
 from lifeops.rag.bm25 import BM25ChunkIndex
+from lifeops.rag.chroma_client import create_chroma_client
 from lifeops.rag.embeddings import (
     EmbeddingProvider,
     SentenceTransformerEmbeddingProvider,
@@ -305,13 +306,13 @@ class RAGRetriever:
         chroma_client = None
         chroma_collection = None
         try:
-            import chromadb
-
             collection_name = (
                 str(signature[2]) if signature[0] == "generation" else self.config.collection
             )
-            chroma_client = chromadb.PersistentClient(path=self.config.chroma_path)
-            chroma_collection = chroma_client.get_collection(collection_name)
+            chroma_client = create_chroma_client(self.config)
+            chroma_collection = chroma_client.get_collection(
+                collection_name, embedding_function=None
+            )
         except Exception as exc:
             logger.warning("RAG vector cache load failed, fallback to BM25 only: %s", exc)
 

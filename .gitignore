@@ -26,6 +26,7 @@ CLAUDE.md
 PROJECT.md.ecc-hooks-disable
 .ecc-hooks-disable
 .codex
+compose.override.yaml
 .zcode/
 .sisyphus/
 .understand-anything/
