@@ -41,8 +41,10 @@ const server = createServer(async (req, res) => {
     chat = body; res.writeHead(200, { 'Content-Type': 'text/event-stream' }); res.flushHeaders();
     if (body.message === '失败测试') { sse(res, 'error', '连接暂时失败'); res.end(); return; }
     if (body.message === '重生成测试') {
+      sse(res, 'usage', { prompt_tokens: 600, completion_tokens: 40, cached_tokens: 450, total_tokens: 640 });
       sse(res, 'tool_call', { tool_name: 'retrieve_knowledge', args: { query: 'q', source: 'notes' } });
       sse(res, 'tool_result', { tool_name: 'retrieve_knowledge', output: '片段', success: true });
+      sse(res, 'usage', { prompt_tokens: 400, completion_tokens: 60, cached_tokens: 300, total_tokens: 460 });
       sse(res, 'token', `第 ${++regenerated} 次回答`);
       sse(res, 'done', { conversation_id: 'new', title: '新测试会话', memory: { preferences: 3, summaries: 1, entities: 0 } }); res.end(); return;
     }
@@ -167,7 +169,15 @@ try {
   await click('新对话'); await page.locator('[data-slot=lifeops-composer] textarea').fill('审批测试'); await page.locator('[data-slot=lifeops-composer] textarea').press('Enter');
   await page.locator('[data-slot=lifeops-approval-card]').waitFor();
   assert.equal(await page.getByRole('button', { name: '知识库', exact: true }).isDisabled(), true);
-  await click('允许一次'); await waitText('你好，已完成。'); await page.waitForFunction(() => !document.querySelector('[data-slot=lifeops-approval-card]')); await waitText('✓ 验收完成');
+  await click('允许一次'); await waitText('你好，已完成。'); await page.waitForFunction(() => !document.querySelector('[data-slot=lifeops-approval-card]'));
+  // 标准模式完成后工作过程默认折叠，展开后再核对任务计划；详细模式则本来就展开。
+  const processToggle = page.locator('.activity-turn-head button').first();
+  if (await processToggle.count() && await processToggle.getAttribute('aria-expanded') === 'false') await processToggle.click();
+  const groupToggle = page.locator('.activity-group-head').first();
+  if (await groupToggle.count() && await groupToggle.getAttribute('aria-expanded') === 'false') await groupToggle.click();
+  const todoToggle = page.locator('.activity-tool-summary').filter({ hasText: '更新任务计划' }).first();
+  if (await todoToggle.count() && await todoToggle.getAttribute('aria-expanded') === 'false') await todoToggle.click();
+  await page.locator('[data-slot=lifeops-todo-card]').getByText('验收完成', { exact: false }).waitFor();
   assert.deepEqual(decisions, ['allow_once']); assert.equal(await page.evaluate(() => window.hacked), undefined);
   assert.equal(await page.locator('[data-slot=lifeops-assistant-message] table').count(), 1);
   await click('复制回答'); assert.match(await page.evaluate(() => navigator.clipboard.readText()), /你好/);
@@ -184,6 +194,9 @@ try {
   assert.match(statusText, /3 轮 2 步/); assert.match(statusText, /tok\/s/); assert.match(statusText, /127K tok/);
   assert.match(statusText, /缓存命中率 84%/); assert.match(statusText, /6%/);
   assert.equal(await page.locator('.run-status .rs-ring').count(), 1);
+  // 状态栏在输入框下方：底边不与 Sender 重叠
+  const runBox = await runStatus.boundingBox(), composerBox = await page.locator('[data-slot=lifeops-composer]').boundingBox();
+  assert.ok(runBox.y >= composerBox.y + composerBox.height - 1, '状态栏应位于输入框下方');
   await page.screenshot({ path: `${screenshots}/run-status.png` }); console.log('OK 运行状态栏指标与环形进度');
   await page.locator('[data-slot=lifeops-composer] textarea').fill('双审批测试');
   await page.locator('[data-slot=lifeops-composer] textarea').press('Enter');
@@ -199,6 +212,10 @@ try {
   await waitText('第 1 次回答'); await waitText('来源：工作笔记'); await waitText('已载入记忆：偏好 3 · 摘要 1');
   const turns = await page.locator('[data-slot=lifeops-user-message]').count();
   await click('重新生成'); await waitText('第 2 次回答');
+  // done 未带 usage 时，运行中的 usage 事件也要累计出 Token 与缓存命中率
+  await page.waitForFunction(() => document.querySelector('.run-status')?.textContent.includes('1.1K tok'));
+  const usageText = await runStatus.textContent();
+  assert.match(usageText, /1\.1K tok/); assert.match(usageText, /缓存命中率 75%/);
   assert.equal(await page.getByText('第 1 次回答').count(), 0); assert.equal(await page.locator('[data-slot=lifeops-user-message]').count(), turns);
   await click('编辑消息'); await waitText('取消'); await page.locator('[data-slot=lifeops-composer] textarea').press('Enter'); await waitText('第 3 次回答');
   assert.equal(await page.getByText('第 2 次回答').count(), 0);
@@ -221,6 +238,28 @@ try {
   await page.locator('[data-slot=lifeops-composer] textarea').fill('停止测试'); await page.locator('[data-slot=lifeops-composer] textarea').press('Enter'); await waitText('部分回复');
   await click('停止生成'); await page.getByRole('button', { name: '停止生成', exact: true }).waitFor({ state: 'hidden' }); assert.equal(await page.getByText('不应继续显示').count(), 0);
   console.log('OK 停止生成');
+  // 对话快速导航：每轮用户提问一个横条，悬停预览，点击定位，滚动/点击后当前轮高亮。
+  const navItems = page.locator('.turn-nav-item');
+  await page.locator('.turn-nav').waitFor();
+  const navCount = await page.locator('[data-slot=lifeops-user-message]').count();
+  const lastNav = navItems.nth(navCount - 1);
+  assert.equal(await navItems.count(), navCount);
+  assert.equal(await lastNav.getAttribute('aria-current'), 'true');
+  await lastNav.hover(); await page.locator('.el-popper.turn-nav-popper').waitFor();
+  assert.match(await page.locator('.el-popper.turn-nav-popper').innerText(), /停止测试/);
+  // 对话刚好铺满视口时没有可滚动距离，点击横条不会改变阅读位置；只在可滚动时校验点击定位。
+  const scrollable = await page.evaluate(() => {
+    const list = document.querySelector('.lifeops-message-list');
+    return list.scrollHeight - list.clientHeight > 120;
+  });
+  if (scrollable) {
+    await navItems.nth(0).click(); await page.waitForTimeout(900);
+    assert.equal(await navItems.nth(0).getAttribute('aria-current'), 'true');
+    assert.equal(await page.evaluate(() => document.querySelector('.lifeops-message-list').scrollTop < 100), true);
+  }
+  await lastNav.click(); await page.waitForTimeout(900);
+  assert.equal(await lastNav.getAttribute('aria-current'), 'true');
+  console.log('OK 对话快速导航：横条、悬停预览、点击定位与当前轮高亮');
   await click('知识库'); await waitText('工作笔记'); await page.getByRole('button', { name: '查看 工作笔记 详情' }).press('Enter'); await waitText('notes/'); await click('编辑数据源');
   await page.locator('#source-name').fill('工作记录'); await click('保存'); await waitText('工作记录'); assert.equal(sources[0].name, '工作记录');
   await click('新增本地知识库'); await page.locator('#import-id').fill('imported'); await page.locator('#import-name').fill('导入资料'); await page.locator('#import-description').fill('说明'); await page.locator('#import-condition').fill('资料问题');
