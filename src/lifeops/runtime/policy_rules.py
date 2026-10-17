@@ -32,8 +32,8 @@ BASH_ALLOW_PREFIXES = (
     "sed",
     "git status",
     "git log",
-    "uv run pytest",
-    "uv run ruff check",
+    "python -m pytest",
+    "python -m ruff check",
 )
 
 BASH_DENY_PATTERNS = (

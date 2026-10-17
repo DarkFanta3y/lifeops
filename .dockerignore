@@ -1,7 +1,6 @@
 # 仅允许构建后端所需文件，排除密钥、数据、模型和本机依赖。
 *
 !pyproject.toml
-!uv.lock
 !README.md
 !src/
 !src/**

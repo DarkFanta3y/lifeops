@@ -22,7 +22,7 @@ TOOL_TIER_ENV_VAR = "LIFEOPS_GOOGLE_WORKSPACE_MCP_TOOL_TIER"
 
 
 def create_google_workspace_mcp_config() -> MCPServerConfig:
-    """创建 Google Workspace MCP Server 的默认配置（uvx stdio 模式）。
+    """创建 Google Workspace MCP Server 的默认配置（pip 安装的 stdio 命令）。
 
     默认只启用 Gmail 草稿权限，避免未经显式配置直接发送邮件。
 
@@ -47,9 +47,8 @@ def create_google_workspace_mcp_config() -> MCPServerConfig:
 
     return MCPServerConfig(
         transport="stdio",
-        command="uvx",
+        command=GOOGLE_WORKSPACE_MCP_PACKAGE,
         args=[
-            GOOGLE_WORKSPACE_MCP_PACKAGE,
             "--single-user",
             "--permissions",
             permissions,

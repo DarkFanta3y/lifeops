@@ -37,8 +37,6 @@ def container_servers(raw: str, presets: str) -> dict:
                 if arg.startswith("ghcr.io/github/github-mcp-server")
             )
             config.update(command="github-mcp-server", args=args[image_index + 1:] or ["stdio"])
-        elif command == "uvx" and args and args[0] == "workspace-mcp":
-            config.update(command="workspace-mcp", args=args[1:])
         elif command == "npx":
             arguments = [arg for arg in args if arg not in ("-y", "--yes")]
             if arguments:

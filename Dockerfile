@@ -1,22 +1,20 @@
 FROM node:22-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS node
 FROM ghcr.io/github/github-mcp-server@sha256:ffced0d76e77428532a2ced185516992d77fd146d69eec2f244e6237d1a97796 AS github-mcp
-FROM ghcr.io/astral-sh/uv:0.12.23@sha256:61d393e44e249f2e4b526b6c7ddcecce245946826e608e11c93ad4f5bba55b21 AS uv
 
 FROM python:3.13-slim-bookworm@sha256:a1165e272e578941b84abc79e4ab38a0305cd12803a5c4247979ac7655f4d641
 
-COPY --from=uv /uv /uvx /usr/local/bin/
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
 COPY --from=github-mcp /server/github-mcp-server /usr/local/bin/github-mcp-server
 
 ENV PYTHONUNBUFFERED=1 \
-    UV_LINK_MODE=copy \
     PLAYWRIGHT_BROWSERS_PATH=/opt/playwright \
     PATH="/app/.venv/bin:/root/.local/bin:$PATH"
 
 WORKDIR /app
 
-RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+RUN python -m venv /app/.venv \
+    && ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
     && apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates libgomp1 git \
@@ -43,16 +41,16 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 RUN python -c "from pathlib import Path; files = [p for p in Path('/opt/playwright').rglob('*') if p.is_file() and p.name in ('headless_shell', 'chrome-headless-shell')]; assert len(files) == 1, files; Path('/usr/local/bin/lifeops-chromium').symlink_to(files[0])"
 
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv tool install --python /usr/local/bin/python workspace-mcp==2.1.0
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -m pip install \
+      --index-url https://download.pytorch.org/whl/cpu \
+      --extra-index-url https://pypi.org/simple \
+      torch==2.11.0
 
-COPY pyproject.toml uv.lock README.md ./
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked --no-dev --no-install-project
-
+COPY pyproject.toml README.md ./
 COPY src/ ./src/
 COPY docker/ ./docker/
-RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked --no-dev
+RUN --mount=type=cache,target=/root/.cache/pip python -m pip install ".[workspace]"
 
 EXPOSE 8082
 ENTRYPOINT ["python", "/app/docker/entrypoint.py"]

@@ -5,7 +5,6 @@
 **AI 驱动的生活助手智能体**
 
 [![Python](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://python.org)
-[![uv](https://img.shields.io/badge/uv-package_manager-6E39C6.svg)](https://github.com/astral-sh/uv)
 [![Ruff](https://img.shields.io/badge/linter-ruff-FCC624.svg)](https://docs.astral.sh/ruff/)
 
 [功能亮点](#功能亮点) · [Web 控制台](#web-控制台) · [智能体能力](#智能体能力) · [快速开始](#快速开始) · [项目结构](#项目结构)
@@ -166,10 +165,20 @@ Agent 运行时不需要区分工具来源。内置工具、MCP 工具和内部 
 ## 快速开始
 
 ```bash
-uv sync
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
 cp .env.example .env   # 填写 LLM_API_KEY，核对模型与端点；其他常用项按需取消注释
-uv run lifeops-web
+lifeops-web
 ```
+
+Linux 上如需避免安装 CUDA 版 PyTorch，请在安装项目依赖前先从 CPU wheel 源安装：
+
+```bash
+python -m pip install torch==2.11.0 --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple
+```
+
+需要启用 Google Workspace MCP 时，额外安装 `workspace` 依赖组：`python -m pip install -e ".[workspace]"`。
 
 另开一个终端启动前端：
 
@@ -290,9 +299,9 @@ docker compose up -d --wait
 常用开发命令：
 
 ```bash
-uv run pytest tests/ -v
-uv run pytest tests/evals -v
-uv run ruff check src/ tests/
+python -m pytest tests/ -v
+python -m pytest tests/evals -v
+python -m ruff check src/ tests/
 
 cd web
 npm run build
@@ -303,7 +312,7 @@ npm run test:ui          # 启动前端后，串行浏览器检查（隔离 HTTP
 如需重建本地 Markdown RAG 索引：
 
 ```bash
-uv run python -m lifeops.rag.index --rebuild
+python -m lifeops.rag.index --rebuild
 ```
 
 ## 项目结构

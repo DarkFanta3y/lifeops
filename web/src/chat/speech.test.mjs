@@ -7,7 +7,7 @@ test('Markdown 转朗读文本：去掉标记、代码块与链接地址', () =>
     '## 今日计划',
     '',
     '- **整理**待办，参考 [文档](https://example.com/a)',
-    '1. 运行 `uv sync`',
+    '1. 运行 `pip install -e .`',
     '> 注意休息',
     '![图](/img.png)',
     '```bash',
@@ -19,7 +19,7 @@ test('Markdown 转朗读文本：去掉标记、代码块与链接地址', () =>
     '详见 https://example.com/b 。',
   ].join('\n');
   assert.equal(toSpeechText(markdown), [
-    '今日计划', '整理待办，参考 文档', '运行 uv sync', '注意休息', '（代码略）', '项目 状态', '周报 完成', '详见 。',
+    '今日计划', '整理待办，参考 文档', '运行 pip install -e .', '注意休息', '（代码略）', '项目 状态', '周报 完成', '详见 。',
   ].join('\n'));
 });
 

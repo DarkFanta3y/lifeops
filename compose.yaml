@@ -33,15 +33,12 @@ services:
       PLAYWRIGHT_BROWSERS_PATH: /opt/playwright
       TOKENIZERS_PARALLELISM: "false"
       ANONYMIZED_TELEMETRY: "False"
-      UV_CACHE_DIR: /var/cache/uv
-      UV_PROJECT_ENVIRONMENT: /app/.venv
     ports:
       - "127.0.0.1:8082:8082"
     volumes:
       - ./.lifeops:/app/.lifeops
       - ./models:/app/models:ro
       - .:/workspace
-      - mcp-cache:/var/cache/uv
       - google-credentials:/var/lib/lifeops/google-mcp
     healthcheck:
       test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8082/api/rag/sources', timeout=5).read()"]
@@ -108,7 +105,6 @@ services:
         max-file: "3"
 
 volumes:
-  mcp-cache:
   google-credentials:
   mysql-data:
   chroma-data:
