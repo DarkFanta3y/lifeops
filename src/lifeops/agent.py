@@ -1250,6 +1250,12 @@ class Agent:
         self._fail_run(RuntimeErrorType.CONTEXT_ERROR.value, message or "context_error")
         return "context_error"
 
+    async def _emit_usage(self, usage: dict[str, int] | None) -> None:
+        """把单次 LLM 调用的 usage 推给前端，供状态栏实时累计 Token 与缓存命中率。"""
+        if not usage or self.on_activity is None:
+            return
+        await self.activity.emit("usage", dict(usage))
+
     async def _emit_token(self, text: str) -> None:
         self.activity.pending_text += text
         if self.on_token is not None:
@@ -1441,6 +1447,7 @@ class Agent:
                 },
             )
             self.last_run_usage = merge_usage(self.last_run_usage, response.usage)
+            await self._emit_usage(response.usage)
             self._finish_context_snapshot(snapshot_id, response, call_started_at)
 
             if response.content and not response.tool_calls and requires_explicit_finish:
