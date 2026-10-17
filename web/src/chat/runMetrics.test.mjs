@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRunTracker, createSpeedMeter, estimateTokens, formatTokens, usageStats } from './runMetrics.js';
+import { createRunTracker, createSpeedMeter, createUsageMeter, estimateTokens, formatTokens, usageStats } from './runMetrics.js';
 
 test('Token 缩写：小数位随量级收敛并去掉多余的 .0', () => {
   assert.equal(formatTokens(0), '0');
@@ -75,4 +75,25 @@ test('usage 统计：缓存命中率取 prompt 占比，缺数字时退回 null'
   assert.equal(usageStats({ prompt_tokens: 100 })?.cacheHit, 0);
   assert.equal(usageStats(null), null);
   assert.equal(usageStats({}), null);
+});
+
+test('运行中用量表：按调用累加真实 usage，未结算的字符按估算补齐', () => {
+  const meter = createUsageMeter();
+  assert.deepEqual(meter.snapshot(), { tokens: 0, cacheHit: null });
+  // 首次调用尚未结算：只有流式字符估算
+  meter.addText('x'.repeat(100));
+  assert.deepEqual(meter.snapshot(), { tokens: 50, cacheHit: null });
+  // 首次调用结算：估算被真实 usage 取代
+  meter.addUsage({ prompt_tokens: 800, completion_tokens: 100, cached_tokens: 600, total_tokens: 900 });
+  assert.deepEqual(meter.snapshot(), { tokens: 900, cacheHit: 0.75 });
+  // 第二次调用进行中继续用估算，结算后再累加
+  meter.addText('x'.repeat(40));
+  assert.deepEqual(meter.snapshot(), { tokens: 920, cacheHit: 0.75 });
+  meter.addUsage({ prompt_tokens: 200, completion_tokens: 60, cached_tokens: 0 });
+  assert.deepEqual(meter.snapshot(), { tokens: 1160, cacheHit: 0.6 });
+  // 单次调用缺 total_tokens 时用 prompt + completion 兜底
+  meter.addUsage({ prompt_tokens: 100, completion_tokens: 20 });
+  assert.deepEqual(meter.snapshot(), { tokens: 1280, cacheHit: 600 / 1100 });
+  meter.reset();
+  assert.deepEqual(meter.snapshot(), { tokens: 0, cacheHit: null });
 });

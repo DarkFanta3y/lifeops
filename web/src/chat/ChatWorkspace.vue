@@ -2,15 +2,16 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import BubbleList from './ChatMessageList.vue';
 import TurnContent from './TurnContent.vue';
+import TurnNav from './TurnNav.vue';
 import './activity.css';
 import Sender from '@element-plus-x/Sender/index.js';
-import { Document, CopyDocument, Download, Close, Top, Calendar, Search, EditPen, RefreshRight, Link, Memo, PieChart, Headset, VideoPause } from '@element-plus/icons-vue';
+import { Document, CopyDocument, Download, Close, Top, EditPen, RefreshRight, Link, Memo, PieChart, Headset, VideoPause } from '@element-plus/icons-vue';
 import { approveRequest, deleteLastTurn, fetchRagSources, reviewPlan, sendChatMessage } from '../api.js';
 import { downloadMarkdown } from '../download.js';
 import MarkdownRenderer from '../MarkdownRenderer.vue';
 import RunStatusBar from './RunStatusBar.vue';
 import { collectSources, settleStreamParts, updateStreamParts } from './stream.js';
-import { createRunTracker, createSpeedMeter, estimateTokens, usageStats } from './runMetrics.js';
+import { createRunTracker, createSpeedMeter, createUsageMeter, usageStats } from './runMetrics.js';
 import { findCommand, matchCommands, parsePlanCommand } from './commands.js';
 import { speak, speechSupported, stopSpeaking, toSpeechText } from './speech.js';
 
@@ -44,11 +45,6 @@ function setDetailMode(mode) {
 }
 const hour = new Date().getHours();
 const greeting = hour < 5 ? '夜深了' : hour < 12 ? '上午好' : hour < 18 ? '下午好' : '晚上好';
-const suggestions = [
-  { label: '整理今日待办', icon: Calendar, prompt: '帮我整理今天的待办，按优先级列出计划' },
-  { label: '查找知识库资料', icon: Search, prompt: '从知识库查找与我的问题有关的资料' },
-  { label: '写一份周复盘', icon: EditPen, prompt: '帮我复盘这一周，整理完成的工作和下周行动' },
-];
 const editing = ref(false);
 const rewinding = ref(false);
 const sourceNames = ref(null);
@@ -63,13 +59,14 @@ let turnLogStart = null;
 const MAX_ROUNDS = 50; // 与后端 AgentConfig.max_iterations 默认值一致
 const runTracker = createRunTracker({ maxRounds: MAX_ROUNDS });
 const speedMeter = createSpeedMeter();
+const usageMeter = createUsageMeter();
 const runStats = ref({ rounds: 1, steps: 0, speed: 0, tokens: 0, cacheHit: null, progress: 2 });
 function resetRunStats() {
-  runTracker.reset(); speedMeter.reset();
+  runTracker.reset(); speedMeter.reset(); usageMeter.reset();
   runStats.value = { rounds: 1, steps: 0, speed: 0, tokens: 0, cacheHit: null, progress: runTracker.progress() };
 }
 function trackRunStats() {
-  runStats.value = { ...runStats.value, rounds: runTracker.rounds, steps: runTracker.steps,
+  runStats.value = { ...runStats.value, ...usageMeter.snapshot(), rounds: runTracker.rounds, steps: runTracker.steps,
     progress: runTracker.progress(), speed: speedMeter.rate() };
 }
 const canRewind = computed(() => Boolean(props.conversationId) && !sending.value && !rewinding.value && !props.disabled);
@@ -114,6 +111,11 @@ const items = computed(() => {
   });
 });
 const logs = computed(() => [...props.intermediateMessages, ...streamLogs.value]);
+// 对话快速导航：每轮用户提问一个锚点，当前轮次由消息列表随滚动测量后回传。
+const turns = computed(() => props.messages.filter(message => message.role === 'user')
+  .map(message => ({ key: String(message.message_id), preview: message.content })));
+const activeTurnKey = ref(null);
+function goTurn(key) { bubbleList.value?.scrollToKey(key); }
 const historicalTodos = computed(() => {
   if (props.messages.some(message => message.parts?.some(part => part.toolName === 'todo_write'))) return [];
   for (const log of [...props.intermediateMessages].reverse()) {
@@ -131,6 +133,8 @@ function updateAssistant(updater) {
   emit('update:messages', props.messages.map(message => message.message_id === assistantId ? updater(message) : message));
 }
 function receive(type, data) {
+  // usage 只是指标，不参与正文渲染：累加后立即刷新状态栏。
+  if (type === 'usage') { usageMeter.addUsage(data); trackRunStats(); return; }
   if (type === 'run_finished') activeStatus.value = data.status;
   const update = () => {
     parts = updateStreamParts(parts, type, data);
@@ -141,7 +145,7 @@ function receive(type, data) {
       content: (final.length ? final : parts.filter(part => part.kind === 'text')).map(part => part.text).join('') }));
   };
   if (type === 'run_finished') preserveLayout(update); else update();
-  if (type === 'token') { speedMeter.add(data); runTracker.onToken(); trackRunStats(); }
+  if (type === 'token') { speedMeter.add(data); usageMeter.addText(data); runTracker.onToken(); trackRunStats(); }
   if (type === 'tool_call') { runTracker.onToolCall(data.tool_name || data.name); trackRunStats(); }
   if (type === 'tool_result') runTracker.onToolResult();
   if (type === 'approval_required' || type === 'approval_resolved') {
@@ -175,6 +179,7 @@ async function send(text = draft.value, { base = props.messages, logStart = prop
   try {
     const payload = await sendChatMessage({ message: text, conversationId: props.conversationId,
       planMode: props.planMode, signal: controller.signal, onToken: data => receive('token', data),
+      onUsage: data => receive('usage', data),
       onToolCall: data => receive('tool_call', data), onToolResult: data => receive('tool_result', data),
       onActivity: (type, data) => receive(type, data),
       onApproval: data => receive('approval_required', data),
@@ -325,7 +330,8 @@ onBeforeUnmount(() => { controller?.abort(); stopSpeech(); });
       <div v-if="historicalTodos.length" class="history-todos"><strong>任务计划</strong>
         <p v-for="(todo, index) in historicalTodos" :key="index">{{ todo.status === 'completed' ? '✓' : '○' }} {{ todo.content }}</p>
       </div>
-      <BubbleList ref="bubbleList" :list="items" max-height="100%" :show-back-button="true">
+      <BubbleList ref="bubbleList" :list="items" max-height="100%" :show-back-button="true"
+        @turn-change="activeTurnKey = $event">
         <template #content="{ item }">
           <div :data-slot="item.role === 'assistant' ? 'lifeops-assistant-message' : 'lifeops-user-message'">
             <div v-if="item.role === 'user'" class="user-content">{{ item.content }}</div>
@@ -383,10 +389,8 @@ onBeforeUnmount(() => { controller?.abort(); stopSpeech(); });
             <el-button v-if="item.isLastUser && canRewind" text :icon="EditPen" title="编辑后重新发送" aria-label="编辑消息" @click="startEdit(item.content)" /></div>
         </template>
       </BubbleList>
+      <TurnNav v-if="turns.length > 1" :turns="turns" :active-key="activeTurnKey" @select="goTurn" />
     </div>
-    <RunStatusBar v-if="messages.length" :rounds="runStats.rounds" :steps="runStats.steps"
-      :speed="runStats.speed" :tokens="runStats.tokens" :cache-hit="runStats.cacheHit"
-      :progress="runStats.progress" :running="sending" />
     <div ref="composer" class="composer" data-slot="lifeops-composer" @keydown.capture="commandKeydown">
       <ul v-if="commandMatches.length" class="command-menu" role="listbox" aria-label="命令">
         <li v-for="(command, index) in commandMatches" :key="command.name" role="option"
@@ -413,10 +417,9 @@ onBeforeUnmount(() => { controller?.abort(); stopSpeech(); });
       </Sender>
       <el-button v-if="approval || review" size="small" class="stop-approval" @click="controller?.abort()">停止运行</el-button>
     </div>
-    <div v-if="!messages.length" class="suggestions">
-      <button v-for="item in suggestions" :key="item.label" @click="draft = item.prompt">
-        <el-icon><component :is="item.icon" /></el-icon>{{ item.label }}</button>
-    </div>
+    <RunStatusBar v-if="messages.length" :rounds="runStats.rounds" :steps="runStats.steps"
+      :speed="runStats.speed" :tokens="runStats.tokens" :cache-hit="runStats.cacheHit"
+      :progress="runStats.progress" :running="sending" />
     <el-dialog v-model="loggingOpen" title="回答中间信息" width="min(1000px, 94vw)" destroy-on-close>
       <el-empty v-if="!logs.length" description="暂无中间信息" />
       <div v-else class="logging-entries"><details v-for="(log, index) in logs" :key="index" :open="index === 0">

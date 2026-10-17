@@ -58,8 +58,8 @@ h1, h2, h3, p { margin-top: 0; }
 .content { flex: 1; min-height: 0; overflow: hidden; }
 .workspace { height: 100%; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
 .muted { color: #9096a0; font-size: 13px; }
-.chat-workspace { position: relative; padding: 0 24px; align-items: center; }
-.chat-stream { width: 100%; max-width: 768px; min-height: 0; flex: 1; display: flex; flex-direction: column; }
+.chat-workspace { position: relative; padding: 0 24px; align-items: center; container-type: inline-size; }
+.chat-stream { position: relative; width: 100%; max-width: 768px; min-height: 0; flex: 1; display: flex; flex-direction: column; }
 .chat-stream > .el-bubble-list { min-height: 0; flex: 1; padding-top: 20px; }
 .chat-stream .el-bubble { padding: 0 6px 24px; }
 /* 用户消息的操作悬浮在气泡下方，不占用纵向空间。 */
@@ -75,7 +75,7 @@ h1, h2, h3, p { margin-top: 0; }
 .welcome img { width: 72px; height: 72px; margin-bottom: 16px; }
 .welcome h2 { font-size: 30px; font-weight: 600; letter-spacing: -1px; margin-bottom: 12px; }
 .welcome p { color: #9096a0; font-size: 14px; }
-.composer { position: relative; flex-shrink: 0; width: 100%; max-width: 768px; padding-top: 12px; padding-bottom: 16px; }
+.composer { position: relative; flex-shrink: 0; width: 100%; max-width: 768px; padding-top: 12px; padding-bottom: 6px; }
 .composer::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 24px; background: linear-gradient(#fff0, #fff); pointer-events: none; }
 .chat-empty .composer::before { display: none; }
 .composer-editing { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; padding: 6px 8px 6px 14px; border-radius: 12px; background: #edf3ff; color: #4b5563; font-size: 12px; }
@@ -83,10 +83,6 @@ h1, h2, h3, p { margin-top: 0; }
 .composer .el-button--primary.is-disabled { background: #a6c3ff; border-color: #a6c3ff; }
 .composer-note { flex-shrink: 0; color: #b0b4bc; font-size: 11px; text-align: center; margin: 10px 0 14px; }
 .chat-empty .composer-note { margin-top: auto; padding-top: 20px; }
-.suggestions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; width: 100%; max-width: 768px; margin-top: 16px; flex-shrink: 0; }
-.suggestions button { padding: 8px 14px; background: #fff; border: 1px solid #e6e9ee; border-radius: 999px; color: #616975; font-size: 13px; display: flex; align-items: center; gap: 6px; }
-.suggestions button:hover { background: #edf3ff; border-color: #d2e0ff; color: #0057ff; }
-.suggestions .el-icon { color: #0057ff; }
 .chat-empty .composer { padding-top: 0; }
 .message-actions { display: flex; gap: 2px; margin-top: 6px; opacity: 0; transition: opacity .15s; }
 .el-bubble:hover .message-actions, .message-actions:focus-within, .message-actions.pinned { opacity: 1; }
@@ -209,7 +205,6 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; background:
   .table-body, .database-body { padding: 0 16px 20px; }
   .database-card-grid { grid-template-columns: 1fr; }
   .import-columns, .form-columns { grid-template-columns: 1fr; }
-  .suggestions { gap: 8px; }
   .chat-empty { overflow-y: auto; }
   .el-dialog { padding: 18px; }
 }
@@ -221,3 +216,6 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; background:
 .command-menu strong { font-weight: 500; color: #1f2937; white-space: nowrap; }
 .command-menu span { color: #9ca3af; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-empty .command-menu { bottom: auto; top: calc(100% + 6px); }
+/* 对话快速导航的悬停预览由 Element Plus 传送到 body，样式需保持全局。 */
+.el-popper.turn-nav-popper { max-width: min(320px, 70vw); padding: 10px 12px; border-color: #e6e9ee; border-radius: 10px; box-shadow: 0 8px 24px #00000014; color: #4b5563; font-size: 12px; line-height: 1.6; }
+.turn-nav-popper .turn-nav-preview { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; overflow-wrap: anywhere; }

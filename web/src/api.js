@@ -54,7 +54,7 @@ export function searchMessages(query, limit = 20, offset = 0) {
 }
 
 export async function sendChatMessage({
-  message, conversationId, planMode, signal, onToken, onApproval, onApprovalResolved,
+  message, conversationId, planMode, signal, onToken, onUsage, onApproval, onApprovalResolved,
   onToolCall, onToolResult, onActivity, onPlanReview, onPlanReviewResolved, onPlanModeChanged,
 }) {
   const response = await fetch(`${API_BASE}/api/chat`, {
@@ -96,6 +96,11 @@ export async function sendChatMessage({
         if (event.type === "token") {
           const tokenData = event.data ?? event.content ?? "";
           onToken?.(tokenData);
+        } else if (event.type === "usage") {
+          // 单次 LLM 调用的真实 usage：运行中实时累计 Token 与缓存命中率
+          if (event.data && typeof event.data === "object") {
+            onUsage?.(event.data);
+          }
         } else if (event.type === "approval_required") {
           if (event.data && typeof event.data === "object") {
             onApproval?.(event.data);

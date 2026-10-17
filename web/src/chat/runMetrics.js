@@ -2,8 +2,12 @@
 // 从 ChatWorkspace 的 SSE 事件中抽取，保持无依赖，便于 node --test 直接测试。
 
 // 中英混合文本的粗略 Token 估算：中文约 1 字 ≈ 0.6~1 token，英文约 4 字符 ≈ 1 token，取 chars/2 作为折中。
+function charsToTokens(chars) {
+  return Math.ceil(chars / 2);
+}
+
 export function estimateTokens(text) {
-  return Math.ceil((text || '').length / 2);
+  return charsToTokens((text || '').length);
 }
 
 // 大数值缩写：940 → "940"，127400 → "127.4K"，2400000 → "2.4M"；去掉多余的 .0。
@@ -71,15 +75,43 @@ export function createRunTracker({ maxRounds = 50 } = {}) {
   };
 }
 
+// 运行中的用量表：每次 LLM 调用结束都会推送一条真实 usage，累加得到实时总 Token 与缓存命中率；
+// 调用尚未结束时用已流入字符数估算补齐，避免状态栏长时间停在 0。
+export function createUsageMeter() {
+  let prompt = 0;
+  let completion = 0;
+  let cached = 0;
+  let total = 0;
+  let pendingChars = 0;
+  return {
+    addText(text) { pendingChars += (text || '').length; },
+    addUsage(usage) {
+      if (!usage || typeof usage !== 'object') return;
+      const callPrompt = Number(usage.prompt_tokens) || 0;
+      const callCompletion = Number(usage.completion_tokens) || 0;
+      prompt += callPrompt;
+      completion += callCompletion;
+      cached += Number(usage.cached_tokens) || 0;
+      total += Number(usage.total_tokens) || callPrompt + callCompletion;
+      pendingChars = 0;
+    },
+    snapshot() {
+      return {
+        tokens: total + charsToTokens(pendingChars),
+        cacheHit: prompt > 0 ? Math.min(1, cached / prompt) : null,
+      };
+    },
+    reset() { prompt = 0; completion = 0; cached = 0; total = 0; pendingChars = 0; },
+  };
+}
+
 // 运行结束时优先采用后端真实 usage，拿不到再退回前端估算。
 export function usageStats(usage) {
   if (!usage || typeof usage !== 'object') return null;
   const prompt = Number(usage.prompt_tokens) || 0;
-  const cached = Number(usage.cached_tokens) || 0;
   const total = Number(usage.total_tokens) || 0;
   if (prompt <= 0 && total <= 0) return null;
-  return {
-    tokens: total || prompt + (Number(usage.completion_tokens) || 0),
-    cacheHit: prompt > 0 ? Math.min(1, cached / prompt) : null,
-  };
+  const meter = createUsageMeter();
+  meter.addUsage(usage);
+  return meter.snapshot();
 }

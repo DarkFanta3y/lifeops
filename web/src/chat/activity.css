@@ -56,7 +56,9 @@
 .activity-mode { display: inline-flex; border: 1px solid var(--el-border-color-lighter, #e9ecf0); border-radius: 6px; padding: 2px; gap: 2px; margin-right: 8px; }
 .activity-mode button { font-size: 12px; border: 0; background: transparent; color: var(--el-text-color-secondary, #858b94); border-radius: 4px; padding: 4px 8px; }
 .activity-mode button[aria-pressed=true] { background: var(--el-color-primary-light-9); color: var(--el-color-primary); }
-.lifeops-message-list { overflow-anchor: none; overflow-y: auto; position: relative; }
+/* 对话滚动区不显示原生滚动条：仍可用滚轮、触控板、键盘和「回到最新」按钮滚动。 */
+.lifeops-message-list { overflow-anchor: none; overflow-y: auto; position: relative; scrollbar-width: none; }
+.lifeops-message-list::-webkit-scrollbar { width: 0; height: 0; }
 .activity-back-bottom { position: sticky; bottom: 10px; display: block; margin: 0 auto; padding: 6px 14px; border: 1px solid var(--el-border-color-lighter); border-radius: 18px; color: var(--el-color-primary); background: var(--el-bg-color, white); font-size: 12px; }
 @keyframes activity-pulse { 50% { opacity: .55; } }
 @media (prefers-reduced-motion: reduce) { .activity-tool .activity-tool-target { animation: none !important; } }

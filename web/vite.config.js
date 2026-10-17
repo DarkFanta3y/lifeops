@@ -23,8 +23,8 @@ export default defineConfig({
   ],
   // 预热懒加载页面的组件样式，避免首次切页触发依赖重优化并刷新会话。
   optimizeDeps: { include: [
-    ...'base loading config-provider dialog empty input alert icon button message-box message tag form form-item pagination table table-column radio-group radio-button result input-number slider tree upload steps step switch drawer descriptions descriptions-item dropdown dropdown-menu dropdown-item'.split(' ').map(name => `element-plus/es/components/${name}/style/css`),
-    ...'loading config-provider dialog empty input alert icon button message-box message tag form pagination table radio result input-number slider tree upload steps switch drawer descriptions dropdown'.split(' ').map(name => `element-plus/es/components/${name}/index.mjs`),
+    ...'base loading config-provider dialog empty input alert icon button message-box message tag form form-item pagination table table-column radio-group radio-button result input-number slider tree upload steps step switch drawer descriptions descriptions-item dropdown dropdown-menu dropdown-item tooltip'.split(' ').map(name => `element-plus/es/components/${name}/style/css`),
+    ...'loading config-provider dialog empty input alert icon button message-box message tag form pagination table radio result input-number slider tree upload steps switch drawer descriptions dropdown tooltip'.split(' ').map(name => `element-plus/es/components/${name}/index.mjs`),
   ] },
   // 1.3.0 根入口有 Markdown/高亮副作用，按模板实际使用的三个组件加载。
   resolve: { alias: { '@element-plus-x': new URL('./node_modules/vue-element-plus-x/dist/es', import.meta.url).pathname } },

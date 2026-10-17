@@ -31,10 +31,10 @@ const dashOffset = computed(() =>
       <el-icon :size="13"><Timer /></el-icon>{{ rounds }} 轮 {{ steps }} 步
     </span>
     <span class="rs-item" title="按滑动窗口估算的实时生成速率"><span class="rs-sep">·</span>{{ speedText }}</span>
-    <span class="rs-item" title="本次运行消耗的 Token 总量（后端统计，缺失时为估算值）">
+    <span class="rs-item" title="本次运行消耗的 Token 总量（每次 LLM 调用结算后累计，调用进行中按已流入字符估算）">
       <span class="rs-sep">·</span><el-icon :size="13"><Coin /></el-icon>{{ tokenText }} tok
     </span>
-    <span class="rs-item" title="提示词缓存命中占比"><span class="rs-sep">·</span>缓存命中率 {{ hitText }}</span>
+    <span class="rs-item" title="命中提示词缓存的 Token 占全部提示词 Token 的比例（运行中随已结算的调用刷新）"><span class="rs-sep">·</span>缓存命中率 {{ hitText }}</span>
     <span class="rs-item" title="任务进度（当前轮次 / 最大轮次上限）">
       <span class="rs-sep">·</span>
       <svg class="rs-ring" :class="{ running }" viewBox="0 0 20 20" aria-hidden="true">
@@ -73,18 +73,17 @@ const dashOffset = computed(() =>
 .run-status {
   display: flex;
   align-items: center;
+  justify-content: center;
   flex-wrap: wrap;
   gap: 4px 10px;
   width: 100%;
   max-width: 768px;
   flex-shrink: 0;
-  /* 盖过输入框上方的白色渐隐遮罩，避免文字被洗掉 */
-  position: relative;
-  z-index: 1;
-  padding: 0 6px 2px;
+  padding: 2px 6px 14px;
   color: var(--rs-text);
   font-size: 12px;
   line-height: 18px;
+  text-align: center;
   user-select: none;
 }
 .rs-item { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
