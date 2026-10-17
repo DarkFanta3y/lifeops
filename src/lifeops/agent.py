@@ -44,6 +44,7 @@ from lifeops.tools.mcp.manager import MCPManager
 from lifeops.tools.mcp.types import MCPServerConfig
 from lifeops.tools.registry import ToolRegistry
 from lifeops.tools.schema import ToolSelectionContext, openai_tool_schema, select_llm_tools
+from lifeops.tool_activity import ToolActivity, active_call
 from lifeops.utils.logging import get_logger
 from lifeops.utils.text import sanitize_unicode_text
 
@@ -120,6 +121,7 @@ class PlanReviewRequest:
     request_id: str
     plan: str
     title: str
+    call_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -174,6 +176,7 @@ class ApprovalRequest:
     params: dict[str, Any]
     reason: str
     risk_level: str
+    call_id: str | None = None
 
     def params_preview(self) -> str:
         try:
@@ -296,6 +299,9 @@ class Agent:
         self.on_tool_call: Any | None = None
         self.on_tool_result: Any | None = None
         self.on_token: Any | None = None
+        self.on_activity: Any | None = None
+        self.activity = ToolActivity(self)
+        self._tool_index = 0
         self.skill_manager: SkillManager | None = None
         self.skill_matcher: SkillMatcher | None = None
         self.rag_router: Any | None = None
@@ -522,8 +528,12 @@ class Agent:
 
     async def _review_plan(self, plan: str) -> ToolResult:
         request = PlanReviewRequest(
-            request_id=uuid4().hex, plan=plan, title=_plan_title(plan)
+            request_id=uuid4().hex, plan=plan, title=_plan_title(plan), call_id=active_call.get()
         )
+        await self.activity.update(request.call_id, status="waiting_approval", review={
+            "request_id": request.request_id, "title": request.title, "plan": plan,
+            "decision": None,
+        })
         self._record_trace(
             TraceEventType.PLAN_REVIEW_REQUIRED,
             {
@@ -551,6 +561,10 @@ class Agent:
         if not isinstance(review, PlanReviewDecision) or review.decision not in PLAN_REVIEW_DECISIONS:
             review = PlanReviewDecision("dismiss")
         feedback = (review.feedback or "").strip()
+        await self.activity.update(request.call_id, review={
+            "request_id": request.request_id, "title": request.title, "plan": plan,
+            "decision": review.decision, "feedback": feedback, "timed_out": timed_out,
+        })
         self._record_trace(
             TraceEventType.PLAN_REVIEW_RESOLVED,
             {
@@ -1062,7 +1076,7 @@ class Agent:
                 if event_type == "token" and isinstance(data, str) and data:
                     content_parts.append(data)
                     if emit_content:
-                        await self.on_token(data)
+                        await self._emit_token(data)
                 elif (
                     event_type == "tool_call_delta"
                     and isinstance(data, dict)
@@ -1070,13 +1084,19 @@ class Agent:
                     and data.get("name") == "finish_task"
                 ):
                     # 仅首个 finish_task 调用的答案会被执行，边收边推给用户
+                    if not answer_streamed:
+                        await self.activity.emit("answer_start", {})
                     text = answer_stream.feed(str(data.get("arguments") or ""))
                     if text:
                         answer_streamed = True
-                        await self.on_token(text)
+                        await self._emit_token(text)
                 elif event_type == "tool_call_start" and isinstance(data, dict):
+                    await self.activity.prepare(data.get("name", ""), None, data.get("index", 0))
                     await self._prepare_tool_call(data.get("name", ""), None, status="started")
                 elif event_type == "tool_call_ready" and isinstance(data, dict):
+                    await self.activity.prepare(
+                        data.get("name", ""), data.get("args"), data.get("index", 0)
+                    )
                     await self._prepare_tool_call(
                         data.get("name", ""),
                         data.get("args") if isinstance(data.get("args"), dict) else None,
@@ -1146,7 +1166,7 @@ class Agent:
             if stream_tool_calls:
                 tool_call_results = [
                     ToolCallResult(
-                        id=tc.get("id") or f"tc_{index}",
+                        id=tc.get("id") or f"tc_{uuid4().hex}",
                         name=tc["name"],
                         arguments=json.dumps(tc.get("args") or {}, ensure_ascii=False),
                     )
@@ -1207,6 +1227,8 @@ class Agent:
         }
 
     def _fail_run(self, error_type: str, message: str) -> None:
+        self.activity.status = "failed"
+        self.activity.error = message
         self._record_trace(
             TraceEventType.RUN_FAILED,
             {"error_type": error_type, "message": message},
@@ -1228,7 +1250,33 @@ class Agent:
         self._fail_run(RuntimeErrorType.CONTEXT_ERROR.value, message or "context_error")
         return "context_error"
 
+    async def _emit_token(self, text: str) -> None:
+        self.activity.pending_text += text
+        if self.on_token is not None:
+            await self.on_token(text)
+
     async def run(self, user_input: str) -> str:
+        self.activity.reset()
+        try:
+            answer = await self._run(user_input)
+            self.activity.final_output = answer
+            await self.activity.finish(
+                "failed" if self.activity.status == "failed" else "completed", self.activity.error
+            )
+            return answer
+        except (Exception, asyncio.CancelledError) as exc:
+            # 已生成但尚未落库的正文也保留，刷新后可以继续检查中断前的工作。
+            if self.activity.pending_text:
+                self._persist_message(
+                    MessageRole.ASSISTANT, self.activity.pending_text, intermediate=True
+                )
+            cancelled = isinstance(exc, asyncio.CancelledError)
+            await self.activity.finish("cancelled" if cancelled else "failed", str(exc) or "运行已停止")
+            if cancelled:
+                self._update_run_status(RunStatus.CANCELLED)
+            raise
+
+    async def _run(self, user_input: str) -> str:
         user_input = sanitize_unicode_text(user_input)
         self._record_trace(
             TraceEventType.RUN_STARTED,
@@ -1274,7 +1322,11 @@ class Agent:
         await self._ensure_mcp_tools_registered()
         run_message_start = len(self.messages)
         self.messages.append(Message(role=MessageRole.USER, content=user_input))
-        self._persist_message(MessageRole.USER, user_input)
+        user_record = self._persist_message(MessageRole.USER, user_input)
+        self.activity.user_message_id = (user_record or {}).get("message_id")
+        await self.activity.emit("run_started", {
+            "user_message_id": self.activity.user_message_id,
+        })
         self.context.add_content(
             f"user_{len(self.messages)}",
             user_input,
@@ -1287,6 +1339,11 @@ class Agent:
         self.last_run_usage = None
 
         for iteration in range(self.max_iterations):
+            self.activity.iteration = iteration
+            self.activity.prepares = {}
+            await self.activity.emit("text_segment", {
+                "segment_id": f"{self.activity.run_id}:{iteration}",
+            })
             requires_explicit_finish = bool(used_tool_names)
             task_instruction = None
             if requires_explicit_finish:
@@ -1365,7 +1422,7 @@ class Agent:
                     and not response.tool_calls
                     and self.on_token is not None
                 ):
-                    await self.on_token(response.content)
+                    await self._emit_token(response.content)
             else:
                 try:
                     response = await self.llm.chat(
@@ -1407,6 +1464,9 @@ class Agent:
                 )
 
             if response.tool_calls:
+                for tc in response.tool_calls:
+                    if not tc.id:
+                        tc.id = f"tc_{uuid4().hex}"
                 tool_calls = [self._tool_call_to_dict(tc) for tc in response.tool_calls]
                 self.messages.append(
                     Message(
@@ -1461,7 +1521,7 @@ class Agent:
                     continue
                 fallback = "I couldn't generate a response. Please try again."
                 if self.on_token is not None:
-                    await self.on_token(fallback)
+                    await self._emit_token(fallback)
                 self.messages.append(
                     Message(role=MessageRole.ASSISTANT, content=fallback, reasoning_content="")
                 )
@@ -1476,7 +1536,7 @@ class Agent:
         self.context.compress_l3()
         message = "已达到最大迭代次数。请改写请求，或把任务拆成更小的步骤后重试。"
         if self.on_token is not None:
-            await self.on_token(message)
+            await self._emit_token(message)
         self.messages.append(
             Message(role=MessageRole.ASSISTANT, content=message, reasoning_content="")
         )
@@ -1493,6 +1553,8 @@ class Agent:
             error_type=RuntimeErrorType.MAX_ITERATIONS_REACHED.value,
             error_message=message,
         )
+        self.activity.status = "failed"
+        self.activity.error = message
         return message
 
     async def _complete_response(
@@ -1503,7 +1565,7 @@ class Agent:
         emit_token: bool = False,
     ) -> str:
         if emit_token and self.on_token is not None:
-            await self.on_token(response_content)
+            await self._emit_token(response_content)
         self.messages.append(
             Message(
                 role=MessageRole.ASSISTANT,
@@ -1599,6 +1661,7 @@ class Agent:
         )
         if self.on_tool_call is not None:
             await self.on_tool_call(tc.name, params)
+        await self.activity.requested(tc, params)
 
         policy_result = self._evaluate_tool_policy(definition, tc.name, canonical_name, params)
         if policy_result is not None:
@@ -1639,10 +1702,11 @@ class Agent:
             if decision == "allow_always":
                 self._persist_always_allow(tc, policy_result)
             return None
+        timed_out = self.activity.calls.get(tc.id, {}).get("approval", {}).get("timed_out")
         return ToolResult(
             success=False,
             output="",
-            error="用户拒绝了本次工具调用。",
+            error="工具授权等待超时，本次调用未执行。" if timed_out else "用户拒绝了本次工具调用。",
             metadata={
                 "policy_action": "denied_by_user",
                 "matched_rule": policy_result.matched_rule,
@@ -1712,7 +1776,13 @@ class Agent:
             params=self._last_approval_params,
             reason=policy_result.reason,
             risk_level=policy_result.risk_level,
+            call_id=tc.id,
         )
+        await self.activity.update(tc.id, status="waiting_approval", approval={
+            "request_id": request.request_id, "tool_name": tc.name,
+            "risk_level": request.risk_level, "reason": request.reason,
+            "params_preview": request.params_preview(), "decision": None,
+        })
         self._record_trace(
             TraceEventType.APPROVAL_REQUIRED,
             {
@@ -1728,11 +1798,13 @@ class Agent:
             self.config.tool_policy, "approval_timeout_seconds", 120
         )
         decision = "deny"
+        timed_out = False
         try:
             decision = await asyncio.wait_for(
                 self.approval_handler(request), timeout=timeout_seconds
             )
         except (TimeoutError, asyncio.TimeoutError):
+            timed_out = True
             decision = "deny"
             logger.warning(f"审批等待超时（{timeout_seconds}s），按拒绝处理: {tc.name}")
         except Exception:
@@ -1742,6 +1814,12 @@ class Agent:
             self._update_run_status(RunStatus.RUNNING)
         if decision not in APPROVAL_DECISIONS:
             decision = "deny"
+        await self.activity.update(tc.id, approval={
+            "request_id": request.request_id, "tool_name": tc.name,
+            "risk_level": request.risk_level, "reason": request.reason,
+            "params_preview": request.params_preview(), "decision": decision,
+            "timed_out": timed_out,
+        })
         self._record_trace(
             TraceEventType.APPROVAL_RESOLVED,
             {
@@ -1775,9 +1853,7 @@ class Agent:
         params = self._parse_tool_arguments(tc)
         policy_result = await self._pre_execute_tool(tc, params)
         started_at = perf_counter()
-        result = await self._resolve_policy_denial(tc, policy_result)
-        if result is None:
-            result = await self._execute_tool_handler(tc, params)
+        result = await self.activity.execute(tc, params, policy_result)
         duration_ms = (perf_counter() - started_at) * 1000
         await self._record_tool_result(tc, result, duration_ms)
         return result
@@ -1838,7 +1914,8 @@ class Agent:
             )
 
         prepared: list[tuple[ToolCallResult, dict[str, Any], ToolPolicyResult | None]] = []
-        for tc in tool_calls:
+        for index, tc in enumerate(tool_calls):
+            self._tool_index = index
             params = self._parse_tool_arguments(tc)
             prepared.append((tc, params, await self._pre_execute_tool(tc, params)))
 
@@ -1847,12 +1924,10 @@ class Agent:
         async def _run(index: int) -> None:
             tc, params, policy_result = prepared[index]
             started_at = perf_counter()
-            result = self._plan_gate_result(tc)
-            if result is None:
-                result = await self._resolve_policy_denial(tc, policy_result)
-            if result is None:
-                result = await self._execute_tool_handler(tc, params)
-            results[index] = (result, (perf_counter() - started_at) * 1000)
+            result = await self.activity.execute(tc, params, policy_result)
+            duration_ms = (perf_counter() - started_at) * 1000
+            results[index] = (result, duration_ms)
+            await self._notify_tool_result(tc, result, duration_ms)
 
         # 计划评审放在本批最后串行执行，评审时其他工具结果已产出
         review_indices = {
@@ -1881,7 +1956,7 @@ class Agent:
         conclude: tuple[ToolCallResult, ToolResult] | None = None
         for index, (tc, _, _) in enumerate(prepared):
             result, duration_ms = results[index]
-            await self._record_tool_result(tc, result, duration_ms)
+            await self._record_tool_result(tc, result, duration_ms, notify=False)
             if result.metadata.get("conclude_turn") and conclude is None:
                 conclude = (tc, result)
 
@@ -1935,8 +2010,15 @@ class Agent:
         if self.on_tool_prepare is not None:
             await self.on_tool_prepare(tool_name, params, metadata)
 
-    async def _record_tool_result(
+    async def _notify_tool_result(
         self, tc: ToolCallResult, result: ToolResult, duration_ms: float
+    ) -> None:
+        await self.activity.result(tc, result, duration_ms)
+        if self.on_tool_result is not None:
+            await self.on_tool_result(tc.name, result)
+
+    async def _record_tool_result(
+        self, tc: ToolCallResult, result: ToolResult, duration_ms: float, *, notify: bool = True
     ) -> None:
         if self.memory_service is not None and hasattr(self.memory_service, "record_tool_usage"):
             try:
@@ -1949,8 +2031,8 @@ class Agent:
                 )
             except Exception:
                 logger.exception("记录工具使用统计失败")
-        if self.on_tool_result is not None:
-            await self.on_tool_result(tc.name, result)
+        if notify:
+            await self._notify_tool_result(tc, result, duration_ms)
 
         raw_tool_output = result.output if result.success else f"Error: {result.error}"
         tool_output = sanitize_unicode_text(raw_tool_output)
@@ -2036,9 +2118,9 @@ class Agent:
         tool_calls: list[dict[str, Any]] | None = None,
         intermediate: bool = False,
         reasoning_content: str | None = None,
-    ) -> None:
+    ) -> dict[str, Any] | None:
         try:
-            self.history_store.append_message(
+            record = self.history_store.append_message(
                 conversation_id=self.conversation_id,
                 source=self.source,
                 role=role.value,
@@ -2049,8 +2131,12 @@ class Agent:
                 intermediate=intermediate,
                 reasoning_content=reasoning_content,
             )
+            if role == MessageRole.ASSISTANT and content:
+                self.activity.pending_text = self.activity.pending_text.removeprefix(content)
+            return record
         except Exception:
             logger.exception("写入对话历史失败")
+            return None
 
     def _new_conversation_id(self) -> str:
         return uuid4().hex

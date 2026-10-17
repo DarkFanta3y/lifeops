@@ -275,6 +275,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
                 "plan_mode": _conversation_plan_mode(app, conversation_id),
                 "messages": _strip_private_message_fields(messages),
                 "intermediate_messages": _strip_private_message_fields(intermediate_messages),
+                "tool_executions": _execution_snapshots(app.state.history_store, all_messages),
             }
 
         items = all_messages["items"]
@@ -285,6 +286,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
             "plan_mode": _conversation_plan_mode(app, conversation_id),
             "messages": _strip_private_message_fields(messages),
             "intermediate_messages": _strip_private_message_fields(intermediate_messages),
+            "tool_executions": _execution_snapshots(app.state.history_store, items),
             "total": all_messages["total"],
             "limit": all_messages["limit"],
             "offset": all_messages["offset"],
@@ -999,6 +1001,16 @@ def _hydrate_messages(records: list[dict[str, Any]]) -> list[Message]:
     return messages
 
 
+def _execution_snapshots(store: Any, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    reader = getattr(store, "get_tool_executions", None)
+    if reader is None:
+        return []
+    ids = [record["tool_call_id"] for record in records if record.get("tool_call_id")]
+    ids.extend(call["id"] for record in records for call in record.get("tool_calls", [])
+               if call.get("id"))
+    return reader(ids)
+
+
 def _strip_private_message_fields(value: Any) -> Any:
     if isinstance(value, list):
         return [_strip_private_message_fields(item) for item in value]
@@ -1144,6 +1156,8 @@ async def _generate_sse_messages(
     queue: asyncio.Queue[str] = asyncio.Queue()
     next_event_id = 0
     previous_on_tool_prepare = getattr(agent, "on_tool_prepare", None)
+    previous_on_activity = getattr(agent, "on_activity", None)
+    structured_activity = getattr(agent, "activity", None) is not None
     previous_on_tool_call = getattr(agent, "on_tool_call", None)
     previous_on_tool_result = getattr(agent, "on_tool_result", None)
     previous_on_token = getattr(agent, "on_token", None)
@@ -1177,14 +1191,14 @@ async def _generate_sse_messages(
                 "status": metadata.get("status"),
                 "has_args": metadata.get("has_args", params is not None),
             }
-        line = make_sse(event_type, payload)
+        line = None if structured_activity and event_type == "tool_prepare" else make_sse(event_type, payload)
         if line is not None:
             await queue.put(line)
         if previous_on_tool_prepare is not None:
             await previous_on_tool_prepare(tool_name, params, metadata)
 
     async def on_tool_call(tool_name: str, params: dict[str, Any]) -> None:
-        line = make_sse(
+        line = None if structured_activity else make_sse(
             "tool_call",
             {
                 "name": tool_name,
@@ -1207,7 +1221,7 @@ async def _generate_sse_messages(
             "error": result.error,
             "metadata": result.metadata,
         }
-        line = make_sse("tool_result", payload)
+        line = None if structured_activity else make_sse("tool_result", payload)
         if line is not None:
             await queue.put(line)
         if not result.success:
@@ -1227,6 +1241,17 @@ async def _generate_sse_messages(
         if previous_on_token is not None:
             await previous_on_token(token)
 
+    async def on_activity(kind: str, data: dict[str, Any]) -> None:
+        if kind == "tool_call":
+            data = {**data, "name": data["tool_name"], "params": data.get("args", {})}
+        elif kind == "tool_result":
+            data = {**data, "result": data.get("output", "")}
+        line = make_sse(kind, data)
+        if line is not None:
+            await queue.put(line)
+        if previous_on_activity is not None:
+            await previous_on_activity(kind, data)
+
     async def approval_handler(request: ApprovalRequest) -> str:
         if pending_approvals is None:
             return "deny"
@@ -1234,6 +1259,8 @@ async def _generate_sse_messages(
         pending_approvals[request.request_id] = (future, request)
         payload = {
             "request_id": request.request_id,
+            "call_id": request.call_id,
+            "run_id": run_id,
             "tool_name": request.tool_name,
             "canonical_name": request.canonical_name,
             "params_preview": request.params_preview(),
@@ -1250,7 +1277,8 @@ async def _generate_sse_messages(
             pending_approvals.pop(request.request_id, None)
             line = make_sse(
                 "approval_resolved",
-                {"request_id": request.request_id, "decision": decision},
+                {"request_id": request.request_id, "call_id": request.call_id,
+                 "decision": decision},
                 always_send=True,
             )
             if line is not None:
@@ -1258,6 +1286,7 @@ async def _generate_sse_messages(
         return decision
 
     agent.on_tool_prepare = on_tool_prepare
+    agent.on_activity = on_activity
     agent.on_tool_call = on_tool_call
     agent.on_tool_result = on_tool_result
     agent.on_token = on_token
@@ -1269,7 +1298,8 @@ async def _generate_sse_messages(
         own_plan_reviews.add(request.request_id)
         line = make_sse(
             "plan_review_required",
-            {"request_id": request.request_id, "title": request.title, "plan": request.plan},
+            {"request_id": request.request_id, "title": request.title, "plan": request.plan,
+             "call_id": request.call_id, "run_id": run_id},
             always_send=True,
         )
         if line is not None:
@@ -1282,7 +1312,8 @@ async def _generate_sse_messages(
             own_plan_reviews.discard(request.request_id)
             line = make_sse(
                 "plan_review_resolved",
-                {"request_id": request.request_id, "decision": decision.decision},
+                {"request_id": request.request_id, "call_id": request.call_id,
+                 "decision": decision.decision},
                 always_send=True,
             )
             if line is not None:
@@ -1380,7 +1411,7 @@ async def _generate_sse_messages(
                 name=f"web-memory-finalize-{conversation_id}",
             )
 
-        status_value = "completed"
+        status_value = getattr(getattr(agent, "activity", None), "status", "completed")
         if runtime_store is not None and run_id is not None:
             run = runtime_store.get_run(run_id)
             if run is not None:
@@ -1399,6 +1430,13 @@ async def _generate_sse_messages(
             done_payload["memory"] = memory_counts
         yield make_sse("done", done_payload, always_send=True)
     finally:
+        if not run_task.done():
+            run_task.cancel()
+            try:
+                await run_task
+            except asyncio.CancelledError:
+                pass
+        agent.on_activity = previous_on_activity
         agent.on_tool_prepare = previous_on_tool_prepare
         agent.on_tool_call = previous_on_tool_call
         agent.on_tool_result = previous_on_tool_result

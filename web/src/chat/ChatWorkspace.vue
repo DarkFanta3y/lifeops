@@ -1,13 +1,15 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
-import BubbleList from '@element-plus-x/BubbleList/index.js';
+import BubbleList from './ChatMessageList.vue';
+import TurnContent from './TurnContent.vue';
+import './activity.css';
 import Sender from '@element-plus-x/Sender/index.js';
-import { Document, CopyDocument, Download, Check, Close, Tools, Top, Calendar, Search, EditPen, RefreshRight, Link, Memo, PieChart, Headset, VideoPause } from '@element-plus/icons-vue';
+import { Document, CopyDocument, Download, Close, Top, Calendar, Search, EditPen, RefreshRight, Link, Memo, PieChart, Headset, VideoPause } from '@element-plus/icons-vue';
 import { approveRequest, deleteLastTurn, fetchRagSources, reviewPlan, sendChatMessage } from '../api.js';
 import { downloadMarkdown } from '../download.js';
 import MarkdownRenderer from '../MarkdownRenderer.vue';
 import RunStatusBar from './RunStatusBar.vue';
-import { collectSources, updateStreamParts } from './stream.js';
+import { collectSources, settleStreamParts, updateStreamParts } from './stream.js';
 import { createRunTracker, createSpeedMeter, estimateTokens, usageStats } from './runMetrics.js';
 import { findCommand, matchCommands, parsePlanCommand } from './commands.js';
 import { speak, speechSupported, stopSpeaking, toSpeechText } from './speech.js';
@@ -29,6 +31,17 @@ const bubbleList = ref(null);
 const composer = ref(null);
 const loggingOpen = ref(false);
 const streamLogs = ref([]);
+const activeStatus = ref('completed');
+function savedMode() {
+  try { return localStorage.getItem('lifeops.workDetails') === 'detailed' ? 'detailed' : 'standard'; }
+  catch { return 'standard'; }
+}
+const detailMode = ref(savedMode());
+function preserveLayout(change) { return bubbleList.value?.preserveLayout(change) || change(); }
+function setDetailMode(mode) {
+  preserveLayout(() => { detailMode.value = mode; });
+  try { localStorage.setItem('lifeops.workDetails', mode); } catch { /* 无持久化权限时保留会话内偏好 */ }
+}
 const hour = new Date().getHours();
 const greeting = hour < 5 ? '夜深了' : hour < 12 ? '上午好' : hour < 18 ? '下午好' : '晚上好';
 const suggestions = [
@@ -102,6 +115,7 @@ const items = computed(() => {
 });
 const logs = computed(() => [...props.intermediateMessages, ...streamLogs.value]);
 const historicalTodos = computed(() => {
+  if (props.messages.some(message => message.parts?.some(part => part.toolName === 'todo_write'))) return [];
   for (const log of [...props.intermediateMessages].reverse()) {
     if (log.tool_name !== 'todo_write') continue;
     try { const value = JSON.parse(log.content); if (Array.isArray(value.todos)) return value.todos; }
@@ -117,9 +131,16 @@ function updateAssistant(updater) {
   emit('update:messages', props.messages.map(message => message.message_id === assistantId ? updater(message) : message));
 }
 function receive(type, data) {
-  parts = updateStreamParts(parts, type, data);
-  updateAssistant(message => ({ ...message, parts, pending: false,
-    content: parts.filter(part => part.kind === 'text').map(part => part.text).join('') }));
+  if (type === 'run_finished') activeStatus.value = data.status;
+  const update = () => {
+    parts = updateStreamParts(parts, type, data);
+    const final = parts.filter(part => part.kind === 'text' && part.final);
+    updateAssistant(message => ({ ...message, parts, pending: false, turnStatus: activeStatus.value,
+      keepProcessOpen: type === 'run_finished' ? !bubbleList.value?.isFollowing() : message.keepProcessOpen,
+      turnError: type === 'run_finished' ? data.error : message.turnError,
+      content: (final.length ? final : parts.filter(part => part.kind === 'text')).map(part => part.text).join('') }));
+  };
+  if (type === 'run_finished') preserveLayout(update); else update();
   if (type === 'token') { speedMeter.add(data); runTracker.onToken(); trackRunStats(); }
   if (type === 'tool_call') { runTracker.onToolCall(data.tool_name || data.name); trackRunStats(); }
   if (type === 'tool_result') runTracker.onToolResult();
@@ -131,10 +152,10 @@ function receive(type, data) {
     reviewFeedback.value = ''; feedbackOpen.value = false;
   }
   if (type === 'tool_call') streamLogs.value = [...streamLogs.value, { role: 'assistant', tool_calls: [
-    { function: { name: data.tool_name, arguments: JSON.stringify(data.args ?? data.params ?? {}) } },
+    { id: data.call_id, function: { name: data.tool_name, arguments: JSON.stringify(data.args ?? data.params ?? {}) } },
   ] }];
   if (type === 'tool_result') streamLogs.value = [...streamLogs.value, { role: 'tool', tool_name: data.tool_name,
-    content: `${data.error || ''}${data.output || data.result || ''}`, metadata: data.metadata }];
+    tool_call_id: data.call_id, content: `${data.error || ''}${data.output || data.result || ''}`, metadata: data.metadata }];
 }
 // base / logStart 供重新生成使用：删除末轮后 props 尚未刷新，需显式传入裁剪后的消息与日志长度。
 async function send(text = draft.value, { base = props.messages, logStart = props.intermediateMessages.length } = {}) {
@@ -142,12 +163,12 @@ async function send(text = draft.value, { base = props.messages, logStart = prop
   if (!text || sending.value || props.disabled) return;
   draft.value = ''; editing.value = false; stopSpeech();
   sending.value = true; emit('running', true); emit('error', '');
-  resetRunStats();
+  resetRunStats(); activeStatus.value = 'running';
   parts = []; turnLogStart = logStart;
   assistantId = crypto.randomUUID();
   const user = { message_id: crypto.randomUUID(), role: 'user', content: text };
   emit('update:messages', [...base, user,
-    { message_id: assistantId, role: 'assistant', content: '', parts: [], pending: true }]);
+    { message_id: assistantId, role: 'assistant', content: '', parts: [], pending: true, turnStatus: 'running' }]);
   controller = new AbortController();
   let retractUser = false, memory;
   await nextTick(); bubbleList.value?.scrollToBottom();
@@ -155,23 +176,27 @@ async function send(text = draft.value, { base = props.messages, logStart = prop
     const payload = await sendChatMessage({ message: text, conversationId: props.conversationId,
       planMode: props.planMode, signal: controller.signal, onToken: data => receive('token', data),
       onToolCall: data => receive('tool_call', data), onToolResult: data => receive('tool_result', data),
+      onActivity: (type, data) => receive(type, data),
       onApproval: data => receive('approval_required', data),
       onApprovalResolved: data => receive('approval_resolved', data),
       onPlanReview: data => receive('plan_review_required', data),
       onPlanReviewResolved: data => receive('plan_review_resolved', data),
       onPlanModeChanged: data => emit('update:planMode', Boolean(data.active)) });
     memory = payload?.memory;
+    activeStatus.value = payload?.status || (activeStatus.value === 'running' ? 'completed' : activeStatus.value);
     const usage = usageStats(payload?.usage);
     if (usage) runStats.value = { ...runStats.value, tokens: usage.tokens, cacheHit: usage.cacheHit };
     emit('done', payload);
   } catch (err) {
+    activeStatus.value = err.name === 'AbortError' ? 'cancelled' : 'failed';
+    updateAssistant(message => ({ ...message, turnError: err.name === 'AbortError' ? '运行已停止' : err.message }));
     if (err.name !== 'AbortError') emit('error', err.message);
     retractUser = err.name !== 'AbortError' && !parts.length;
     if (!parts.length) draft.value = text;
   } finally {
-    const settled = parts.map(part => part.kind === 'tool' && part.result === undefined
-      ? { ...part, interrupted: true } : part);
-    updateAssistant(message => ({ ...message, pending: false, parts: settled, memory }));
+    parts = settleStreamParts(parts, activeStatus.value);
+    updateAssistant(message => ({ ...message, pending: false, parts, memory, turnStatus: activeStatus.value,
+      content: parts.filter(part => part.kind === 'text' && part.final).map(part => part.text).join('') }));
     if (!parts.length) emit('update:messages', props.messages.filter(message => message.message_id !== assistantId
       && (!retractUser || message.message_id !== user.message_id)));
     emit('settled-logs', [...props.intermediateMessages, ...streamLogs.value]);
@@ -276,7 +301,7 @@ watch(() => !sourceNames.value && items.value.some(item => item.sources.some(sou
 }, { immediate: true });
 // 输入框在空状态与对话态之间会重建，切换后把焦点还给它。
 watch(() => props.messages.length, async (length, previous) => {
-  await nextTick(); bubbleList.value?.scrollToBottom();
+  await nextTick();
   if (!previous !== !length) composer.value?.querySelector('textarea')?.focus();
 });
 onBeforeUnmount(() => { controller?.abort(); stopSpeech(); });
@@ -285,6 +310,10 @@ onBeforeUnmount(() => { controller?.abort(); stopSpeech(); });
 <template>
   <section class="workspace chat-workspace" :class="{ 'chat-empty': !messages.length }">
     <Teleport defer to="#header-actions">
+      <div v-if="messages.length" class="activity-mode" role="group" aria-label="工作过程显示模式">
+        <button v-for="mode in ['standard', 'detailed']" :key="mode" type="button" :aria-pressed="detailMode === mode"
+          @click="setDetailMode(mode)">{{ mode === 'standard' ? '标准' : '详细' }}</button>
+      </div>
       <el-button v-if="conversationId" text :icon="PieChart" @click="emit('context', 'drawer')">上下文</el-button>
       <el-button v-if="messages.length" text :icon="Document" @click="loggingOpen = true">运行日志</el-button>
     </Teleport>
@@ -300,10 +329,11 @@ onBeforeUnmount(() => { controller?.abort(); stopSpeech(); });
         <template #content="{ item }">
           <div :data-slot="item.role === 'assistant' ? 'lifeops-assistant-message' : 'lifeops-user-message'">
             <div v-if="item.role === 'user'" class="user-content">{{ item.content }}</div>
-            <template v-else-if="item.parts?.length">
-              <template v-for="(part, index) in item.parts" :key="index">
-                <MarkdownRenderer v-if="part.kind === 'text'" :content="part.text" />
-                <div v-else-if="part.toolName === 'exit_plan_mode' && (part.review || part.args?.plan)"
+            <TurnContent v-else-if="item.parts?.length" :parts="item.parts" :mode="detailMode"
+              :status="item.turnStatus" :error="item.turnError" :keep-process-open="item.keepProcessOpen"
+              :running="sending && item.isLast" @layout="preserveLayout">
+              <template #control="{ part }">
+                <div v-if="part.toolName === 'exit_plan_mode' && (part.review || part.args?.plan)"
                   class="plan-card" :role="part.review && !part.review.decision && !part.interrupted ? 'alertdialog' : undefined"
                   aria-label="计划评审" data-slot="lifeops-plan-review-card">
                   <div class="plan-head"><strong>{{ part.review?.title || '计划' }}</strong>
@@ -332,18 +362,8 @@ onBeforeUnmount(() => { controller?.abort(); stopSpeech(); });
                     <el-button :disabled="approving" @click="decide(part.approval.request_id, 'allow_always')">总是允许</el-button>
                     <el-button type="primary" :loading="approving" @click="decide(part.approval.request_id, 'allow_once')">允许一次</el-button></div>
                 </div>
-                <div v-else-if="part.todos" class="todo-card" data-slot="lifeops-todo-card"><strong>任务计划</strong>
-                  <p v-for="(todo, i) in part.todos" :key="i" :class="{ completed: todo.status === 'completed' }">
-                    {{ todo.status === 'completed' ? '✓' : todo.status === 'in_progress' ? '◷' : '○' }} {{ todo.content }}</p>
-                </div>
-                <details v-else class="tool-card" :class="{ failed: part.isError }">
-                  <summary><el-icon><Close v-if="part.isError" /><Check v-else-if="part.result !== undefined" /><Tools v-else /></el-icon>
-                    {{ part.toolName }} <span>{{ part.interrupted ? '已中断' : part.result !== undefined ? (part.isError ? '失败' : '已完成') : '执行中' }}</span></summary>
-                  <strong>参数</strong><pre>{{ print(part.args) }}</pre>
-                  <template v-if="part.result !== undefined"><strong>结果</strong><pre>{{ print(part.result) }}</pre></template>
-                </details>
               </template>
-            </template>
+            </TurnContent>
             <MarkdownRenderer v-else :content="item.content" />
           </div>
         </template>

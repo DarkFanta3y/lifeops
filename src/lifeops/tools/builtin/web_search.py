@@ -106,6 +106,12 @@ def create_web_search_tool(registry: ToolRegistry, config: AppConfig | None = No
                     lines.append(f"   {snippet}")
                 lines.append("")
 
-            return ToolResult(success=True, output="\n".join(lines))
+            return ToolResult(success=True, output="\n".join(lines), metadata={
+                "results": [
+                    {"title": item.get("title", "无标题"), "url": item.get("link", ""),
+                     "snippet": item.get("snippet", "")}
+                    for item in organic
+                ],
+            })
 
     registry.register(definition, _handler)

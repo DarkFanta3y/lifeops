@@ -1524,6 +1524,37 @@ class ConversationHistoryStoreSQLite:
         digest = sha1(value.encode("utf-8")).hexdigest()[:16]
         return f"{prefix}_{digest}"
 
+    def append_tool_execution(self, call_id: str, snapshot: dict[str, Any]) -> None:
+        """保存展示用生命周期快照；不改变模型历史和既有表结构。"""
+        self._conn.execute(
+            "INSERT INTO tool_results (tool_call_id, result, created_at) VALUES (?, ?, ?)",
+            (call_id, json.dumps(self._sanitize_unicode_data(snapshot), ensure_ascii=False), self._now()),
+        )
+        self._conn.commit()
+
+    def get_tool_executions(self, call_ids: list[str]) -> list[dict[str, Any]]:
+        """批量读取各调用最后一份快照，兼容过去没有结构化结果的记录。"""
+        snapshots = []
+        unique_ids = list(dict.fromkeys(call_ids))
+        for start in range(0, len(unique_ids), 200):
+            batch = unique_ids[start:start + 200]
+            marks = ",".join("?" for _ in batch)
+            rows = self._conn.execute(
+                "SELECT r.result FROM tool_results r JOIN ("
+                "SELECT MAX(id) AS id FROM tool_results "
+                f"WHERE tool_call_id IN ({marks}) GROUP BY tool_call_id"
+                ") latest ON latest.id = r.id ORDER BY r.id",
+                batch,
+            ).fetchall()
+            for row in rows:
+                try:
+                    value = json.loads(row[0])
+                except (TypeError, ValueError):
+                    continue
+                if isinstance(value, dict) and value.get("call_id"):
+                    snapshots.append(value)
+        return snapshots
+
     def _fetch_tool_calls(self, cursor: sqlite3.Cursor, message_id: int) -> list[dict]:
         cursor.execute(
             "SELECT tool_call_id, tool_name, arguments FROM tool_calls "

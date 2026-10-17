@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import os
+import signal
 from collections import deque
 from time import perf_counter
 from typing import Any
@@ -106,24 +108,29 @@ async def _run_foreground_shell(validated: BashParams) -> ToolResult:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             cwd=validated.workdir,
+            start_new_session=os.name == "posix",
         )
     except Exception as e:
         return ToolResult(success=False, output="", error=str(e))
 
     try:
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
+    except asyncio.CancelledError:
+        if process.returncode is None:
+            await _kill_foreground_shell(process)
+        raise
     except asyncio.TimeoutError:
-        process.kill()
-        try:
-            await process.wait()
-        except ProcessLookupError:
-            pass
+        await _kill_foreground_shell(process)
         return ToolResult(success=False, output="", error=f"Command timed out after {timeout}s")
 
     max_chars = _bash_max_output_chars()
     output, truncated = _truncate_output(stdout.decode("utf-8", errors="replace"), max_chars)
     error_output = stderr.decode("utf-8", errors="replace")
-    metadata: dict[str, Any] = {}
+    metadata: dict[str, Any] = {
+        "returncode": process.returncode,
+        "workdir": os.path.abspath(validated.workdir or os.getcwd()),
+        "stderr": error_output,
+    }
     if truncated:
         metadata["truncated"] = True
 
@@ -135,6 +142,17 @@ async def _run_foreground_shell(validated: BashParams) -> ToolResult:
         error=f"Exit code {process.returncode}: {error_output}",
         metadata=metadata,
     )
+
+
+async def _kill_foreground_shell(process: asyncio.subprocess.Process) -> None:
+    try:
+        if os.name == "posix":
+            os.killpg(process.pid, signal.SIGKILL)
+        else:
+            process.kill()
+    except ProcessLookupError:
+        pass
+    await process.wait()
 
 
 async def _start_background_shell(command: str, workdir: str | None) -> ToolResult:

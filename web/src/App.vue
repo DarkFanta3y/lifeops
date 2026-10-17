@@ -5,6 +5,7 @@ import { Coin, DataAnalysis, Search, Plus, Fold, Expand, ArrowDown, EditPen, Dow
 import Conversations from '@element-plus-x/Conversations/index.js';
 import { fetchConversations, fetchConversationCursor, deleteConversation, renameConversation } from './api.js';
 import { downloadMarkdown } from './download.js';
+import { restoreConversation } from './chat/stream.js';
 import { mergeUniqueById } from './pagination.js';
 
 const ChatWorkspace = defineAsyncComponent(() => import('./chat/ChatWorkspace.vue'));
@@ -100,18 +101,21 @@ async function selectConversation(item) {
   try {
     let before = null;
     const cursors = new Set();
-    let history = [], logs = [];
+    let history = [], logs = [], executions = [];
     while (true) {
       const payload = await fetchConversationCursor(id, 50, before);
       if (generation !== historyGeneration) return;
       if (before === null) planMode.value = Boolean(payload.plan_mode);
       history = [...(payload.messages || []), ...history];
       logs = [...(payload.intermediate_messages || []), ...logs];
+      executions = [...(payload.tool_executions || []), ...executions];
       if (!payload.has_more) break;
       if (!payload.next_before_id || cursors.has(payload.next_before_id)) throw new Error('历史分页游标无效，请重试');
       before = payload.next_before_id; cursors.add(before);
     }
-    messages.value = history; intermediate.value = logs;
+    messages.value = restoreConversation(history, logs, executions);
+    const snapshots = new Map(executions.map(item => [item.call_id, item]));
+    intermediate.value = logs.map(log => ({ ...log, metadata: snapshots.get(log.tool_call_id)?.metadata || log.metadata }));
   } catch (err) { if (generation === historyGeneration) error.value = err.message; }
   finally { if (generation === historyGeneration) historyLoading.value = false; }
 }

@@ -8,7 +8,8 @@
     "build": "vite build && node scripts/check-bundle-budget.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --test src/pagination.test.mjs src/chat/stream.test.mjs src/chat/speech.test.mjs src/chat/commands.test.mjs src/chat/runMetrics.test.mjs src/context/context.test.mjs",
-    "test:ui": "node scripts/smoke-ui.mjs"
+    "test:ui": "node scripts/smoke-ui.mjs",
+    "test:activity": "node scripts/activity-ui.mjs"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",

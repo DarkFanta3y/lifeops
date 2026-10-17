@@ -55,7 +55,7 @@ export function searchMessages(query, limit = 20, offset = 0) {
 
 export async function sendChatMessage({
   message, conversationId, planMode, signal, onToken, onApproval, onApprovalResolved,
-  onToolCall, onToolResult, onPlanReview, onPlanReviewResolved, onPlanModeChanged,
+  onToolCall, onToolResult, onActivity, onPlanReview, onPlanReviewResolved, onPlanModeChanged,
 }) {
   const response = await fetch(`${API_BASE}/api/chat`, {
     method: "POST",
@@ -124,6 +124,8 @@ export async function sendChatMessage({
           if (event.data && typeof event.data === "object") {
             onToolResult?.(event.data);
           }
+        } else if (['tool_prepare', 'tool_status', 'run_started', 'run_finished', 'text_segment', 'answer_start'].includes(event.type)) {
+          if (event.data && typeof event.data === 'object') onActivity?.(event.type, event.data);
         } else if (event.type === "error") {
           const errorMsg =
             typeof event.data === "string"
