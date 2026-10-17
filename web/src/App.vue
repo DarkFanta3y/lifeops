@@ -1,9 +1,10 @@
 <script setup>
 import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue';
 import zhCn from 'element-plus/es/locale/lang/zh-cn';
-import { Coin, DataAnalysis, Search, Plus, Fold, Expand, ArrowDown, EditPen, Download, Delete } from '@element-plus/icons-vue';
+import { Coin, Cpu, DataAnalysis, Search, Plus, Fold, Expand, ArrowDown, EditPen, Download, Delete } from '@element-plus/icons-vue';
 import Conversations from '@element-plus-x/Conversations/index.js';
-import { fetchConversations, fetchConversationCursor, deleteConversation, renameConversation } from './api.js';
+import { fetchConversations, fetchConversationCursor, deleteConversation, renameConversation,
+  fetchModels, setActiveModel, clearActiveModel } from './api.js';
 import { downloadMarkdown } from './download.js';
 import { restoreConversation } from './chat/stream.js';
 import { mergeUniqueById } from './pagination.js';
@@ -11,6 +12,7 @@ import { mergeUniqueById } from './pagination.js';
 const ChatWorkspace = defineAsyncComponent(() => import('./chat/ChatWorkspace.vue'));
 const DatabaseWorkspace = defineAsyncComponent(() => import('./workspaces/DatabaseWorkspace.vue'));
 const InsightsWorkspace = defineAsyncComponent(() => import('./workspaces/InsightsWorkspace.vue'));
+const ModelsWorkspace = defineAsyncComponent(() => import('./workspaces/ModelsWorkspace.vue'));
 const ContextDrawer = defineAsyncComponent(() => import('./context/components/ContextDrawer.vue'));
 const ContextModal = defineAsyncComponent(() => import('./context/components/ContextModal.vue'));
 const contextDrawer = ref(false);
@@ -41,9 +43,22 @@ let searchGeneration = 0;
 const nav = [
   { key: 'insights', label: '上下文洞察', icon: DataAnalysis },
   { key: 'database', label: '知识库', icon: Coin },
+  { key: 'models', label: '模型管理', icon: Cpu },
 ];
 const title = computed(() => view.value === 'chat' ? selectedTitle.value
   : nav.find(item => item.key === view.value)?.label);
+const modelProviders = ref([]);
+const activeModel = ref(null);
+const modelFallback = ref(null);
+const modelReady = ref(false);
+const activeModelKey = computed(() => activeModel.value
+  ? `${activeModel.value.provider_id}::${activeModel.value.model_id}` : '');
+const activeModelLabel = computed(() => activeModel.value
+  ? `${activeModel.value.provider_name} · ${activeModel.value.model_name || activeModel.value.model_id}`
+  : `默认 · ${modelFallback.value?.model || '环境变量'}`);
+const modelOptions = computed(() => modelProviders.value.flatMap(provider => (provider.models || [])
+  .map(model => ({ value: `${provider.provider_id}::${model.model_id}`,
+    label: `${provider.name} · ${model.name || model.model_id}` }))));
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
 const keys = isMac ? { search: '⌘K', newChat: '⌘⇧O' } : { search: 'Ctrl K', newChat: 'Ctrl Shift O' };
 const groupOrder = ['今天', '昨天', '7 天内', '更早'];
@@ -170,6 +185,33 @@ async function chatDone(payload) {
   if (payload?.title) selectedTitle.value = payload.title;
   await refreshConversations();
 }
+async function loadModelState() {
+  try {
+    const payload = await fetchModels();
+    modelProviders.value = payload.providers || [];
+    activeModel.value = payload.active || null;
+    modelFallback.value = payload.fallback || null;
+    modelReady.value = true;
+  } catch {
+    // 后端尚未升级或不支持模型接口时隐藏选择器，不打断对话。
+    if (!modelReady.value) modelReady.value = false;
+  }
+}
+async function switchModel(command) {
+  if (running.value || !command || command === activeModelKey.value) return;
+  try {
+    if (command === '__env__') {
+      await clearActiveModel();
+    } else {
+      const separator = command.indexOf('::');
+      await setActiveModel(command.slice(0, separator), command.slice(separator + 2));
+    }
+    await loadModelState();
+    ElMessage.success(`当前模型：${activeModelLabel.value}`);
+  } catch (err) {
+    error.value = err.message;
+  }
+}
 async function searchPage(offset = 0, generation = searchGeneration) {
   if (!query.value.trim()) return;
   if (offset && searchLoading.value) return;
@@ -200,8 +242,9 @@ function shortcut(event) {
   if (key === 'k' && !event.shiftKey) { event.preventDefault(); openSearch(); }
   else if (key === 'o' && event.shiftKey) { event.preventDefault(); newChat(); }
 }
-onMounted(() => { refreshConversations(); window.addEventListener('keydown', shortcut); });
+onMounted(() => { refreshConversations(); loadModelState(); window.addEventListener('keydown', shortcut); });
 onUnmounted(() => window.removeEventListener('keydown', shortcut));
+watch(view, value => { if (value === 'chat') loadModelState(); });
 </script>
 
 <template>
@@ -252,7 +295,23 @@ onUnmounted(() => window.removeEventListener('keydown', shortcut));
             </el-dropdown-menu></template>
           </el-dropdown>
           <h1 v-else>{{ title }}</h1>
-          <div id="header-actions" />
+          <div id="header-actions">
+            <el-dropdown v-if="view === 'chat' && modelReady" trigger="click" :disabled="running" @command="switchModel">
+              <button class="model-trigger" aria-label="切换当前模型" :disabled="running">
+                <el-icon><Cpu /></el-icon><span>{{ activeModelLabel }}</span><el-icon><ArrowDown /></el-icon>
+              </button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="__env__" :disabled="!activeModel">
+                    环境变量默认 · {{ modelFallback?.model || 'LLM_MODEL' }}
+                  </el-dropdown-item>
+                  <el-dropdown-item v-for="option in modelOptions" :key="option.value" :command="option.value"
+                    :disabled="option.value === activeModelKey">{{ option.label }}</el-dropdown-item>
+                  <el-dropdown-item v-if="!modelOptions.length" disabled>还没有配置模型提供商</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
         </header>
         <el-alert v-if="error" :title="error" type="error" show-icon closable @close="error = ''" />
         <div class="content" v-loading="historyLoading">
@@ -260,6 +319,7 @@ onUnmounted(() => window.removeEventListener('keydown', shortcut));
             :intermediate-messages="intermediate" :disabled="historyLoading" @running="running = $event"
             @done="chatDone" @settled-logs="intermediate = $event" @error="error = $event" @context="openContext" @command="chatCommand" />
           <InsightsWorkspace v-else-if="view === 'insights'" @open="openInsightSession" />
+          <ModelsWorkspace v-else-if="view === 'models'" />
           <DatabaseWorkspace v-else />
         </div>
       </main>

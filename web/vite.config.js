@@ -12,7 +12,7 @@ const elementResolvers = ElementPlusResolver().map(resolver => ({
     const result = await resolver.resolve(name);
     if (result?.from !== 'element-plus/es') return result;
     const component = result.name.replace(/^El/, '').replace(/Directive$/, '').replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
-    return { ...result, from: `element-plus/es/components/${({ 'form-item': 'form', 'table-column': 'table', 'radio-button': 'radio', 'radio-group': 'radio', 'descriptions-item': 'descriptions', step: 'steps', 'dropdown-menu': 'dropdown', 'dropdown-item': 'dropdown' })[component] || component}/index.mjs` };
+    return { ...result, from: `element-plus/es/components/${({ 'form-item': 'form', 'table-column': 'table', 'radio-button': 'radio', 'radio-group': 'radio', 'descriptions-item': 'descriptions', step: 'steps', 'dropdown-menu': 'dropdown', 'dropdown-item': 'dropdown', option: 'select' })[component] || component}/index.mjs` };
   },
 }));
 
@@ -23,8 +23,8 @@ export default defineConfig({
   ],
   // 预热懒加载页面的组件样式，避免首次切页触发依赖重优化并刷新会话。
   optimizeDeps: { include: [
-    ...'base loading config-provider dialog empty input alert icon button message-box message tag form form-item pagination table table-column radio-group radio-button result input-number slider tree upload steps step switch drawer descriptions descriptions-item dropdown dropdown-menu dropdown-item tooltip'.split(' ').map(name => `element-plus/es/components/${name}/style/css`),
-    ...'loading config-provider dialog empty input alert icon button message-box message tag form pagination table radio result input-number slider tree upload steps switch drawer descriptions dropdown tooltip'.split(' ').map(name => `element-plus/es/components/${name}/index.mjs`),
+    ...'base loading config-provider dialog empty input alert icon button message-box message tag form form-item pagination table table-column radio-group radio-button result input-number slider tree upload steps step switch drawer descriptions descriptions-item dropdown dropdown-menu dropdown-item tooltip select checkbox'.split(' ').map(name => `element-plus/es/components/${name}/style/css`),
+    ...'loading config-provider dialog empty input alert icon button message-box message tag form pagination table radio result input-number slider tree upload steps switch drawer descriptions dropdown tooltip select checkbox'.split(' ').map(name => `element-plus/es/components/${name}/index.mjs`),
   ] },
   // 1.3.0 根入口有 Markdown/高亮副作用，按模板实际使用的三个组件加载。
   resolve: { alias: { '@element-plus-x': new URL('./node_modules/vue-element-plus-x/dist/es', import.meta.url).pathname } },

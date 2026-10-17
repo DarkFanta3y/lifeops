@@ -230,6 +230,8 @@ class AppConfig(BaseSettings):
     web: WebConfig = Field(default_factory=WebConfig)
     history_path: str = ".lifeops/conversations.jsonl"
     db_path: str = ".lifeops/conversations.db"
+    # Web 控制台中维护的模型提供商目录，独立于 .env 的 LLM_* 配置
+    models_path: str = ".lifeops/models.json"
     # 配置后使用 MySQL；留空仅用于兼容本地 SQLite 测试和旧数据迁移。
     database_url: str = Field(default="", repr=False)
     debug: bool = False

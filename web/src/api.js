@@ -256,6 +256,53 @@ export function fetchTools() {
   return request("/api/tools");
 }
 
+export function fetchModels() {
+  return request("/api/models");
+}
+
+export function createModelProvider(provider) {
+  return request("/api/models/providers", {
+    method: "POST",
+    body: JSON.stringify(provider),
+  });
+}
+
+export function updateModelProvider(providerId, fields) {
+  return request(`/api/models/providers/${providerId}`, {
+    method: "PATCH",
+    body: JSON.stringify(fields),
+  });
+}
+
+export function deleteModelProvider(providerId) {
+  return request(`/api/models/providers/${providerId}`, {
+    method: "DELETE",
+  });
+}
+
+export function fetchAvailableModels({ providerId, apiBase, protocol, apiKey }) {
+  return request("/api/models/available", {
+    method: "POST",
+    body: JSON.stringify({
+      provider_id: providerId || undefined,
+      api_base: apiBase,
+      protocol,
+      api_key: apiKey || undefined,
+    }),
+  });
+}
+
+export function setActiveModel(providerId, modelId) {
+  return request("/api/models/active", {
+    method: "PUT",
+    body: JSON.stringify({ provider_id: providerId, model_id: modelId }),
+  });
+}
+
+export function clearActiveModel() {
+  return request("/api/models/active", { method: "DELETE" });
+}
+
 export function parseSSEMessages(rawText) {
   if (!rawText) return [];
 

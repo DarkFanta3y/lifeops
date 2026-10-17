@@ -93,6 +93,9 @@ const server = createServer(async (req, res) => {
     if (query === '慢') await new Promise(resolve => setTimeout(resolve, 500));
     json({ conversations: rows.slice(offset, offset + limit), total: rows.length }); return;
   }
+  if (path === '/api/models') {
+    json({ providers: [], active: null, fallback: { model: 'smoke-model', api_base: 'https://example.com/v1', has_api_key: true }, protocols: [] }); return;
+  }
   if (path === '/api/context/overview') {
     const day = new Date().toISOString().slice(0, 10);
     json({ range: url.searchParams.get('range') || '7d', kpi: { sessions: 1, requests: 1, billed: 270, cost: null, cacheHit: 0.4, usage },

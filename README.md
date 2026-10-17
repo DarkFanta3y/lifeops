@@ -18,7 +18,8 @@ LifeOps 是一个本地优先的 AI 生活助手智能体，把流式对话、�
 ## 功能亮点
 
 - **流式对话**：SSE 逐 token 渲染，支持生成中停止；工具参数到齐前只做安全预热，兼容需要回传 `reasoning_content` 的思考模式模型。
-- **Web 控制台**：Vue 3 + Element Plus X，提供聊天、历史、上下文洞察、知识库与运行日志；对话流右侧按提问生成快速导航横条，悬停预览、点击定位。
+- **Web 控制台**：Vue 3 + Element Plus X，提供聊天、历史、上下文洞察、知识库、模型管理与运行日志；对话流右侧按提问生成快速导航横条，悬停预览、点击定位。
+- **模型管理**：在 Web 控制台维护多家模型提供商，支持 OpenAI Chat Completions / OpenAI Responses / Anthropic Messages 协议、密钥脱敏、拉取模型目录与一键切换当前模型；未配置时回退 `.env` 的 `LLM_*`。
 - **会话历史**：保存消息与中文短标题，按「今天 / 昨天 / 7 天内 / 更早」分组，支持搜索、重命名、导出与删除。
 - **「/」命令**：输入 `/` 打开菜单，支持过滤、↑↓ 选择、回车 / Tab 执行、Esc 关闭：`/new`、`/search`、`/context`、`/logs`、`/regenerate`、`/rename`、`/export`、`/plan`；除 `/plan` 外均在前端执行。
 - **工具过程展示**：参考 DeepSeek Harness，以紧凑中文动作行展示调用，支持整轮 / 连续分组 / 单次调用三层折叠，标准与详细两档，参数、结果与 diff 内联查看。
@@ -83,7 +84,7 @@ RAG 把本地 Markdown 知识库索引到 ChromaDB 与 BM25。DATABASE 页面上
 
 ## Web 控制台
 
-LifeOps 以本地 Web 控制台为主要入口：FastAPI 提供会话、聊天、Skill、工具、记忆、RAG 与数据源接口，前端通过 SSE 接收流式回答与工具事件。
+LifeOps 以本地 Web 控制台为主要入口：FastAPI 提供会话、聊天、Skill、工具、记忆、RAG、模型与数据源接口，前端通过 SSE 接收流式回答与工具事件。
 
 ![LifeOps Web 控制台](assets/web.png)
 
@@ -103,6 +104,15 @@ SSE 保留 `token`、`tool_call`、`tool_result`、`done`，调用事件补充 `
 ![工具调用 Logging](assets/logging.png)
 
 以上截图使用浏览器验收的隔离示例数据。
+
+### 模型管理
+
+导航栏「模型管理」集中维护推理提供商。配置保存在 `.lifeops/models.json`（可用 `LIFEOPS_MODELS_PATH` 覆盖，文件权限为 `0600`），不写入数据库，也不覆盖 `.env`：
+
+- **添加提供商**：填写 Provider ID、显示名称、API 地址、API 协议和 API 密钥；「模型目录」支持手动添加模型 ID，或从提供商的 `/models` 接口拉取后批量勾选。API 密钥只在保存与运行时使用，列表接口只返回是否已保存和末四位提示。
+- **三种协议**：OpenAI Chat Completions 复用现有 `LLMClient`；OpenAI Responses 与 Anthropic Messages 由 `src/lifeops/llm/` 下的适配器转换为同一套流式事件，支持工具调用、usage 与思考内容回传。
+- **当前模型**：在提供商详情抽屉中把任一模型设为当前模型，运行时即时重建 LLM 客户端并同步到记忆服务与已创建的会话 Agent；对话页顶栏的模型下拉可直接切换，或「恢复环境变量默认」回到 `.env` 的 `LLM_*` 配置。未设置当前模型时行为与旧版一致。
+- **接口**：`GET /api/models`、`POST /api/models/providers`、`PATCH/DELETE /api/models/providers/{id}`、`POST /api/models/available`、`PUT/DELETE /api/models/active`。
 
 ### 上下文洞察
 
@@ -249,8 +259,9 @@ lifeops/
 │   ├── agent.py                 # Agent 核心调度器
 │   ├── context_insight/         # 上下文快照记录与洞察查询
 │   ├── history.py               # 本地会话历史
+│   ├── model_registry.py        # 模型提供商与当前模型注册表
 │   ├── core/                    # 配置与分层上下文
-│   ├── llm/                     # OpenAI 兼容 LLM 客户端
+│   ├── llm/                     # LLM 客户端与 OpenAI / Anthropic 协议适配
 │   ├── memory/                  # 长期记忆、偏好和知识图谱
 │   ├── rag/                     # Markdown RAG 索引与检索
 │   ├── runtime/                 # run/trace、工具策略和失败分类

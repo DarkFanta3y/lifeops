@@ -31,8 +31,15 @@ from lifeops.context_insight import ContextSnapshotStore
 from lifeops.context_insight.api import register_context_routes
 from lifeops.core.config import PROJECT_ROOT, AppConfig, clear_proxy_env
 from lifeops.core.context_manager import ContextManager
+from lifeops.llm.factory import build_llm_client, fetch_available_models
 from lifeops.llm.types import Message, MessageRole
 from lifeops.memory import MemoryService
+from lifeops.model_registry import (
+    PROTOCOL_LABELS,
+    ModelProtocol,
+    ModelRegistry,
+    ModelRegistryError,
+)
 from lifeops.rag.embeddings import SentenceTransformerEmbeddingProvider
 from lifeops.rag.importer import extract_zip_archive, preview_markdown
 from lifeops.rag.indexer import RAGIndexer
@@ -164,6 +171,50 @@ class RAGImportStartRequest(BaseModel):
         return _validate_rag_source_text(value)
 
 
+class ModelEntryRequest(BaseModel):
+    model_id: str = Field(min_length=1, max_length=200)
+    name: str = Field(default="", max_length=200)
+    context_window: int | None = Field(default=None, ge=1, le=10_000_000)
+    max_output_tokens: int | None = Field(default=None, ge=1, le=1_000_000)
+
+    model_config = {"str_strip_whitespace": True}
+
+
+class CreateModelProviderRequest(BaseModel):
+    provider_id: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")
+    name: str = Field(min_length=1, max_length=100)
+    api_base: str = Field(min_length=1, max_length=2000)
+    protocol: ModelProtocol = "openai_chat"
+    api_key: str = Field(default="", max_length=10000)
+    models: list[ModelEntryRequest] = Field(default_factory=list)
+
+    model_config = {"str_strip_whitespace": True}
+
+
+class UpdateModelProviderRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    api_base: str | None = Field(default=None, min_length=1, max_length=2000)
+    protocol: ModelProtocol | None = None
+    api_key: str | None = Field(default=None, max_length=10000)
+    models: list[ModelEntryRequest] | None = None
+
+    model_config = {"str_strip_whitespace": True}
+
+
+class AvailableModelsRequest(BaseModel):
+    provider_id: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_-]{0,63}$")
+    api_base: str = Field(min_length=1, max_length=2000)
+    protocol: ModelProtocol = "openai_chat"
+    api_key: str | None = Field(default=None, max_length=10000)
+
+    model_config = {"str_strip_whitespace": True}
+
+
+class ActiveModelRequest(BaseModel):
+    provider_id: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")
+    model_id: str = Field(min_length=1, max_length=200)
+
+
 class MemorySearchRequest(BaseModel):
     query: str = Field(min_length=1)
     top_k: int | None = Field(default=None, ge=1)
@@ -193,6 +244,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
         trace_max_payload_chars=app_config.runtime.trace_max_payload_chars,
     )
     app.state.context_store = ContextSnapshotStore(app.state.history_store)
+    app.state.model_registry = ModelRegistry(app_config.models_path)
     app.state.tool_policy_engine = ToolPolicyEngine(
         app_config.tool_policy,
         policy_file=PolicyFileStore(app_config.tool_policy.path),
@@ -200,7 +252,7 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
     app.state.web_agents = {}
     app.state.pending_approvals: dict[str, tuple[asyncio.Future, ApprovalRequest]] = {}
     app.state.pending_plan_reviews: dict[str, tuple[asyncio.Future, PlanReviewRequest]] = {}
-    app.state.services = _create_agent_services(app_config)
+    app.state.services = _create_agent_services(app_config, app.state.model_registry)
     app.state.memory_service = MemoryService(
         app.state.history_store,
         app.state.services.llm,
@@ -754,6 +806,93 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
         asset_file = _resolve_rag_asset(app.state.config, asset_path)
         return FileResponse(asset_file)
 
+    def _model_registry() -> ModelRegistry:
+        return app.state.model_registry
+
+    def _raise_model_error(error: ModelRegistryError) -> None:
+        raise HTTPException(status_code=error.status_code, detail=error.message)
+
+    @app.get("/api/models")
+    async def list_models() -> dict[str, Any]:
+        registry = _model_registry()
+        config: AppConfig = app.state.config
+        return {
+            "providers": registry.list_providers(),
+            "active": registry.active_public(),
+            "fallback": {
+                "model": config.llm.model,
+                "api_base": config.llm.api_base,
+                "has_api_key": bool(config.llm.api_key),
+            },
+            "protocols": [
+                {"value": value, "label": label} for value, label in PROTOCOL_LABELS.items()
+            ],
+        }
+
+    @app.post("/api/models/providers", status_code=status.HTTP_201_CREATED)
+    async def create_model_provider(request: CreateModelProviderRequest) -> dict[str, Any]:
+        try:
+            provider = _model_registry().create_provider(request.model_dump())
+        except ModelRegistryError as error:
+            _raise_model_error(error)
+        return {"provider": provider}
+
+    @app.patch("/api/models/providers/{provider_id}")
+    async def update_model_provider(
+        provider_id: str, request: UpdateModelProviderRequest
+    ) -> dict[str, Any]:
+        try:
+            provider = _model_registry().update_provider(
+                provider_id, request.model_dump(exclude_unset=True)
+            )
+        except ModelRegistryError as error:
+            _raise_model_error(error)
+        _apply_active_model(app)
+        return {"provider": provider, "active": _model_registry().active_public()}
+
+    @app.delete("/api/models/providers/{provider_id}")
+    async def delete_model_provider(provider_id: str) -> dict[str, Any]:
+        if not _model_registry().delete_provider(provider_id):
+            raise HTTPException(status_code=404, detail="提供商不存在")
+        _apply_active_model(app)
+        return {"deleted": True, "active": _model_registry().active_public()}
+
+    @app.post("/api/models/available")
+    async def available_models(request: AvailableModelsRequest) -> dict[str, Any]:
+        api_key = request.api_key or ""
+        if not api_key and request.provider_id:
+            provider = _model_registry().get_provider(request.provider_id)
+            if provider is not None:
+                api_key = provider.api_key
+        try:
+            models = await fetch_available_models(
+                request.api_base, request.protocol, api_key
+            )
+        except ModelRegistryError as error:
+            _raise_model_error(error)
+        return {"models": models}
+
+    @app.put("/api/models/active")
+    async def set_active_model(request: ActiveModelRequest) -> dict[str, Any]:
+        try:
+            active = _model_registry().set_active(request.provider_id, request.model_id)
+        except ModelRegistryError as error:
+            _raise_model_error(error)
+        try:
+            _apply_active_model(app)
+        except Exception as error:
+            _model_registry().clear_active()
+            _apply_active_model(app)
+            logger.exception("切换当前模型失败")
+            raise HTTPException(status_code=500, detail=f"切换模型失败：{error}") from error
+        return {"active": active}
+
+    @app.delete("/api/models/active")
+    async def clear_active_model() -> dict[str, Any]:
+        _model_registry().clear_active()
+        _apply_active_model(app)
+        return {"active": None}
+
     @app.get("/api/tools/policy")
     async def tools_policy() -> dict[str, Any]:
         return default_policy_summary(app.state.config.tool_policy.mode)
@@ -789,9 +928,9 @@ def _lifespan(config: AppConfig):
     return lifespan
 
 
-def _create_agent_services(config: AppConfig) -> AgentServices:
-    from lifeops.agent import LLMClient as AgentLLMClient
-
+def _create_agent_services(
+    config: AppConfig, model_registry: ModelRegistry | None = None
+) -> AgentServices:
     base_tool_registry = ToolRegistry()
     register_all_builtin_tools(base_tool_registry, config)
     mcp_manager = MCPManager()
@@ -800,20 +939,39 @@ def _create_agent_services(config: AppConfig) -> AgentServices:
             mcp_manager.load_from_config(config.mcp.servers)
         if config.mcp.presets.strip() and "PYTEST_CURRENT_TEST" not in os.environ:
             mcp_manager.load_presets(config.mcp.presets)
-    llm = AgentLLMClient(
-        api_key=config.llm.api_key,
-        model=config.llm.model,
-        api_base=config.llm.api_base,
-        max_tokens=config.llm.max_tokens,
-        temperature=config.llm.temperature,
-        timeout=config.llm.timeout,
-        stream_usage=config.llm.stream_usage,
-    )
+    resolved = model_registry.resolve_active() if model_registry is not None else None
+    llm = build_llm_client(config, resolved)
+    if resolved is not None:
+        logger.info("使用模型注册表中的当前模型：%s / %s", resolved.provider_name, resolved.model_id)
     return AgentServices(
         llm=llm,
         base_tool_registry=base_tool_registry,
         mcp_manager=mcp_manager,
     )
+
+
+def _apply_active_model(app: FastAPI) -> None:
+    """把注册表中的当前模型应用到共享 LLM、记忆服务和已创建的会话 Agent。"""
+    config: AppConfig = app.state.config
+    resolved = app.state.model_registry.resolve_active()
+    llm = build_llm_client(config, resolved)
+    services = app.state.services
+    services.llm = llm
+    memory_service = getattr(app.state, "memory_service", None)
+    if memory_service is not None:
+        memory_service.llm = llm
+        summarizer = getattr(memory_service, "summarizer", None)
+        if summarizer is not None:
+            summarizer.llm = llm
+    for agent in getattr(app.state, "web_agents", {}).values():
+        agent.llm = llm
+        matcher = getattr(agent, "skill_matcher", None)
+        if matcher is not None:
+            matcher.llm = llm
+    if resolved is None:
+        logger.info("当前模型已回退到环境变量配置：%s", config.llm.model)
+    else:
+        logger.info("当前模型已切换：%s / %s", resolved.provider_name, resolved.model_id)
 
 
 def _create_memory_embedding_provider(config: AppConfig) -> Any | None:
