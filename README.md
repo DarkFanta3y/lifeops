@@ -137,7 +137,9 @@ LifeOps 按 Agent Skills 标准扫描项目级 `.agents/skills/` 与用户级 `~
 
 内置工具包括命令执行（`run_in_background` / `bash_output` / `bash_kill`，超时自动终止，输出超限保留头尾）、文件读写（创建 / 替换 / 追加）、`grep` 与 `glob`、网页搜索和本地知识库检索。修改已有文件前必须先用 `file_read` 读过（会话级 `FileEditGuard`），`old_text` 必须唯一，结果以 unified diff 写入 metadata。工具参数 schema 保留 `minLength`、`enum`、`pattern`、`additionalProperties: false` 等约束。
 
-内置工具、MCP 工具与 Skill 伪工具注册到统一工具表，执行层保留完整 registry；发送给 LLM 的 `tools` 每轮裁剪到最多 20 个，核心工具优先，MCP 工具按输入、已激活 Skill、`allowed-tools`、名称 / 描述与领域词做确定性匹配。MCP 的 function name 只使用合法 wire name（如 `mcp_github_search_repositories`），策略与日志保留 canonical name（`mcp.github.search_repositories`）。
+内置工具、MCP 工具与 Skill 伪工具注册到统一工具表，执行层保留完整 registry；发送给 LLM 的 `tools` 每轮最多 20 个，按「核心工具 → Skill 的 `allowed-tools` 指定 MCP 工具 → 本轮已调用 MCP 工具 → 其余候选」排序。指定和已调用组内按相关性降序排列；其余候选保留原有类别 / 风险优先级，同优先级再比较相关性，同分按注册顺序排列。所有组统一受数量上限约束，`allowed-tools` 仅影响筛选，不授予执行权限。
+
+MCP 相关性仍按当前提问、已激活 Skill、工具名称 / 描述和领域词做本地确定性匹配：英文匹配完整词或短语，兼容大小写与点、下划线、短横线分隔，避免 `price` 误命中 `pr`；中文用 jieba 分词匹配共同词并过滤通用词、标点和纯数字。用户与 Skill 文本每次筛选各分词一次，不增加模型调用；分词不提供跨语言翻译或同义词推理。模型协议适配器保留已选工具的顺序。MCP 的 function name 只使用合法 wire name（如 `mcp_github_search_repositories`），策略与日志保留 canonical name（`mcp.github.search_repositories`）。
 
 每轮请求还会估算 system、历史与工具 schema 的 token 预算，超限时裁剪最旧历史并压缩当前运行的工具输出；无法安全压缩时返回 `context_error`。除手写 `LIFEOPS_MCP_SERVERS` 外，`LIFEOPS_MCP_PRESETS` 支持无需 API Key 的基础 MCP，推荐 `context7,playwright,memory,sequential_thinking,filesystem`；同名手写 Server 优先于预设。
 
