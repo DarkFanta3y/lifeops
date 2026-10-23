@@ -1,11 +1,11 @@
 /* 交互与紧凑比例参考 DeepSeek Harness 1517a4db；Vue 实现见本目录 NOTICE.md。 */
 .activity-turn, .logging-entries {
-  --activity-text: var(--el-text-color-regular, #555e6c);
-  --activity-muted: var(--el-text-color-secondary, #8b929e);
-  --activity-border: var(--el-border-color-lighter, #e9ecf0);
-  --activity-surface: var(--el-fill-color-light, #f7f8fa);
-  --activity-error: var(--el-color-danger, #e45656);
-  --activity-success: var(--el-color-success, #399563);
+  --activity-text: var(--el-text-color-regular, #60646c);
+  --activity-muted: var(--el-text-color-secondary, #60646c);
+  --activity-border: var(--el-border-color-lighter, #ebebef);
+  --activity-surface: var(--el-fill-color-light, #f9f9fb);
+  --activity-error: var(--el-color-danger, #e5484d);
+  --activity-success: var(--el-color-success, #218358);
 }
 .activity-turn { min-width: 0; width: 100%; }
 .activity-turn button, .logging-entries .activity-tool button { color: inherit; }
@@ -27,17 +27,17 @@
 .activity-tool-icon, .activity-chevron { flex: 0 0 14px; }
 .activity-tool-title, .activity-suffix, .activity-state, .activity-diff-totals { flex-shrink: 0; font-weight: 400; }
 .activity-tool-target { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.activity-separator, .activity-state, .activity-suffix { color: var(--activity-muted); }
-.activity-state, .activity-diff-totals { font-size: 11px; }
+.activity-state, .activity-suffix { color: var(--activity-muted); }
+.activity-state, .activity-diff-totals { font-size: 12px; }
 .activity-diff-totals b { color: var(--activity-success); font-weight: 400; }
 .activity-diff-totals i { color: var(--activity-error); font-style: normal; }
 .activity-tool[data-state=failed] .activity-state, .activity-error { color: var(--activity-error); }
 .activity-tool[data-state=interrupted] .activity-state, .activity-tool[data-state=incomplete] .activity-state { color: var(--el-color-warning, #b88230); }
 .activity-tool[data-state=running] .activity-tool-target, .activity-tool[data-state=preparing] .activity-tool-target { animation: activity-pulse 1.6s ease-in-out infinite; }
-.activity-tool-body { border-left: 1px solid var(--activity-border); padding: 8px 0 8px 20px; margin: 4px 0 8px 6px; min-width: 0; }
-.activity-facts { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--activity-muted); font-size: 11px; overflow-wrap: anywhere; margin: 0 0 8px; }
-.activity-section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--activity-muted); font-size: 11px; margin: 8px 0; }
-.activity-section-head button, .activity-expand { border: 0; background: none; color: var(--el-color-primary) !important; padding: 2px 0; font-size: 11px; }
+.activity-tool-body { border-left: .5px solid var(--activity-border); padding: 8px 0 8px 20px; margin: 4px 0 8px 6px; min-width: 0; }
+.activity-facts { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--activity-muted); font-size: 12px; overflow-wrap: anywhere; margin: 0 0 8px; }
+.activity-section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--activity-muted); font-size: 12px; margin: 8px 0; }
+.activity-section-head button, .activity-expand { border: 0; background: none; color: var(--el-color-primary) !important; padding: 2px 0; font-size: 12px; }
 .activity-code, .activity-raw pre { background: var(--activity-surface); color: var(--activity-text); margin: 0; padding: 10px 12px; border: 1px solid var(--activity-border); border-radius: 6px; max-height: min(480px, 55vh); overflow: auto; font-size: 12px; line-height: 1.7; tab-size: 4; white-space: pre; }
 .activity-code code { font: inherit; }
 .activity-code .added { color: var(--activity-success); }
@@ -50,7 +50,7 @@
 .activity-links { margin: 0; padding-left: 20px; }
 .activity-links a { color: var(--el-color-primary); }
 .activity-links p, .activity-error, .activity-receipt { font-size: 12px; margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.activity-copy-status { color: var(--activity-muted); font-size: 11px; }
+.activity-copy-status { color: var(--activity-muted); font-size: 12px; }
 .activity-answer { margin-top: 12px; }
 .activity-answer:first-child { margin-top: 0; }
 .activity-mode { display: inline-flex; border: 1px solid var(--el-border-color-lighter, #e9ecf0); border-radius: 6px; padding: 2px; gap: 2px; margin-right: 8px; }

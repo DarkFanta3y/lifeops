@@ -1,5 +1,5 @@
 <script setup>
-// 运行指标状态栏：轮次/步骤 · 生成速率 · Token 总量 · 缓存命中率 · 进度环。
+// 运行指标状态栏：轮次步骤、生成速率、Token 总量、缓存命中率与进度环。
 // 纯展示组件，全部数据由 Props 传入，便于在 Agent 运行过程中响应式更新。
 import { computed } from 'vue';
 import { Timer, Coin } from '@element-plus/icons-vue';
@@ -30,13 +30,12 @@ const dashOffset = computed(() =>
     <span class="rs-item" title="本轮任务的执行轮次（LLM 调用）与工具步骤数">
       <el-icon :size="13"><Timer /></el-icon>{{ rounds }} 轮 {{ steps }} 步
     </span>
-    <span class="rs-item" title="按滑动窗口估算的实时生成速率"><span class="rs-sep">·</span>{{ speedText }}</span>
+    <span class="rs-item" title="按滑动窗口估算的实时生成速率">{{ speedText }}</span>
     <span class="rs-item" title="本次运行消耗的 Token 总量（每次 LLM 调用结算后累计，调用进行中按已流入字符估算）">
-      <span class="rs-sep">·</span><el-icon :size="13"><Coin /></el-icon>{{ tokenText }} tok
+      <el-icon :size="13"><Coin /></el-icon>{{ tokenText }} tok
     </span>
-    <span class="rs-item" title="命中提示词缓存的 Token 占全部提示词 Token 的比例（运行中随已结算的调用刷新）"><span class="rs-sep">·</span>缓存命中率 {{ hitText }}</span>
+    <span class="rs-item" title="命中提示词缓存的 Token 占全部提示词 Token 的比例（运行中随已结算的调用刷新）">缓存命中率 {{ hitText }}</span>
     <span class="rs-item" title="任务进度（当前轮次 / 最大轮次上限）">
-      <span class="rs-sep">·</span>
       <svg class="rs-ring" :class="{ running }" viewBox="0 0 20 20" aria-hidden="true">
         <circle class="rs-ring-track" cx="10" cy="10" :r="RING_RADIUS" />
         <circle v-if="running" class="rs-ring-spin" cx="10" cy="10" :r="RING_RADIUS" />
@@ -50,10 +49,10 @@ const dashOffset = computed(() =>
 <style scoped>
 /* 暗色/亮色自适应：跟随系统偏好，同时兼容 Element Plus 的 html.dark 主题类。 */
 .run-status {
-  --rs-text: #9096a0;
-  --rs-icon: #a0a8b4;
-  --rs-accent: #0057ff;
-  --rs-track: #00000014;
+  --rs-text: var(--slate-11, #60646c);
+  --rs-icon: var(--slate-10, #80838d);
+  --rs-accent: var(--accent, #0057ff);
+  --rs-track: var(--slate-a3, #0000330f);
 }
 /* 兼容 Element Plus 的 html.dark 主题类；系统级暗色由下方媒体查询覆盖。 */
 :global(html.dark) .run-status {
@@ -75,7 +74,7 @@ const dashOffset = computed(() =>
   align-items: center;
   justify-content: center;
   flex-wrap: wrap;
-  gap: 4px 10px;
+  gap: 4px 0;
   width: 100%;
   max-width: 768px;
   flex-shrink: 0;
@@ -86,9 +85,11 @@ const dashOffset = computed(() =>
   text-align: center;
   user-select: none;
 }
-.rs-item { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.rs-item { display: inline-flex; align-items: center; gap: 4px; padding: 0 10px; white-space: nowrap; }
+/* 指标之间用发丝线分隔；首个不加，换行行首也不加。 */
+.rs-item + .rs-item { border-left: .5px solid var(--rs-track); }
+@media (max-width: 600px) { .rs-item { padding: 0 8px; } .rs-item:nth-child(2) { display: none; } .rs-item:nth-child(3) { border-left: 0; padding-left: 0; } }
 .rs-item .el-icon { color: var(--rs-icon); }
-.rs-sep { margin-right: 6px; opacity: .7; }
 .rs-ring { width: 14px; height: 14px; transform: rotate(-90deg); }
 .rs-ring circle { fill: none; stroke-width: 2.6; }
 .rs-ring-track { stroke: var(--rs-track); }
@@ -96,4 +97,6 @@ const dashOffset = computed(() =>
 .rs-ring-spin { stroke: var(--rs-accent); stroke-linecap: round; stroke-dasharray: 8 36; opacity: .55;
   animation: rs-spin 1.1s linear infinite; transform-origin: center; }
 @keyframes rs-spin { to { transform: rotate(360deg); } }
+/* 窄屏收起次要指标，避免状态栏折成多行。 */
+@media (max-width: 600px) { .rs-item:nth-child(2) { display: none; } }
 </style>

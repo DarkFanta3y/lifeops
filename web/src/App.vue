@@ -105,6 +105,11 @@ function newChat() {
   view.value = 'chat'; selectedId.value = null; selectedTitle.value = '';
   messages.value = []; intermediate.value = []; error.value = ''; historyLoading.value = false;
   planMode.value = false;
+  collapseSidebarOnNarrow();
+}
+// 窄屏下侧栏常驻会挤压内容区，选中目标后收起。
+function collapseSidebarOnNarrow() {
+  if (window.innerWidth < 760) collapsed.value = true;
 }
 async function selectConversation(item) {
   if (running.value) return;
@@ -113,6 +118,7 @@ async function selectConversation(item) {
   view.value = 'chat'; selectedId.value = id; selectedTitle.value = item.title || '';
   messages.value = []; intermediate.value = []; error.value = ''; historyLoading.value = true;
   searchOpen.value = false; planMode.value = false;
+  collapseSidebarOnNarrow();
   try {
     let before = null;
     const cursors = new Set();
@@ -265,7 +271,8 @@ watch(view, value => { if (value === 'chat') loadModelState(); });
             <el-icon><Search /></el-icon><span v-if="!collapsed">搜索对话</span><kbd v-if="!collapsed">{{ keys.search }}</kbd>
           </button>
           <button v-for="item in nav" :key="item.key" :disabled="running" :aria-label="item.label"
-            :class="{ active: view === item.key }" :title="collapsed ? item.label : undefined" @click="view = item.key">
+            :class="{ active: view === item.key }" :title="collapsed ? item.label : undefined"
+            @click="view = item.key; collapseSidebarOnNarrow()">
             <el-icon><component :is="item.icon" /></el-icon><span v-if="!collapsed">{{ item.label }}</span>
           </button>
         </nav>
@@ -277,7 +284,7 @@ watch(view, value => { if (value === 'chat') loadModelState(); });
             :style="{ width: '100%', height: '100%', padding: '0', backgroundColor: 'transparent' }"
             :load-more="loadMore" :load-more-loading="listMoreLoading"
             :items-style="{ borderRadius: '10px', margin: '3px 8px', padding: '10px 12px' }"
-            :items-active-style="{ backgroundColor: '#fff', color: '#0057ff', boxShadow: '0 1px 2px #0000000d' }"
+            :items-active-style="{ backgroundColor: '#fff', color: '#0057ff' }"
             :items-hover-style="{ backgroundColor: '#00000009' }"
             @change="selectConversation" @menu-command="removeConversation" />
           <p v-else-if="!listLoading" class="muted empty-history">暂无对话记录</p>
