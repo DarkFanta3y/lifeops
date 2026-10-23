@@ -57,10 +57,10 @@ function previewText(turn) {
   width: 12px;
   height: 2px;
   border-radius: 2px;
-  background: #dcdfe5;
-  transition: width .15s ease, background-color .15s ease;
+  background: var(--slate-5, #d9d9e0);
+  transition: width .2s ease-out, background-color .2s ease-out;
 }
-.turn-nav-item:hover .turn-nav-bar { width: 16px; background: #a9b0ba; }
+.turn-nav-item:hover .turn-nav-bar { width: 16px; background: var(--slate-8, #b9bbc6); }
 .turn-nav-item.active .turn-nav-bar { width: 18px; height: 3px; background: var(--el-color-primary); }
 .turn-nav-item:focus-visible { border-radius: 4px; outline: 2px solid var(--el-color-primary); outline-offset: 0; }
 @media (prefers-reduced-motion: reduce) { .turn-nav-bar { transition: none; } }

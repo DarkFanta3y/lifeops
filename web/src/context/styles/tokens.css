@@ -1,23 +1,23 @@
-/* dsh 设计变量 → LifeOps 色板的映射层：照搬的 dsh-context 样式表只引用这些变量。 */
+/* dsh 设计变量 → LifeOps 色板的映射层：照搬的 dsh-context 样式表只引用这些变量。色值统一走 Radix UI Colors 令牌（web/src/main.js 引入）。 */
 :root {
-  --dsw-alias-bg-base: #fff;
+  --dsw-alias-bg-base: var(--slate-1, #fcfcfd);
   --dsw-alias-bg-layer-1: #fff;
-  --dsw-alias-bg-layer-2: #f6f7f9;
+  --dsw-alias-bg-layer-2: var(--slate-3, #f0f0f3);
   --dsw-alias-bg-mask-1: #0000004d;
-  --dsw-alias-border-l1: #0000001a;
-  --dsw-alias-border-l2: #0000000f;
-  --dsw-alias-brand-primary: #0057ff;
-  --dsw-alias-button-primary-fill: #0057ff;
-  --dsw-alias-interactive-bg-hover: #0000000a;
-  --dsw-alias-interactive-bg-active: #00000012;
-  --dsw-alias-label-primary: #191919;
+  --dsw-alias-border-l1: var(--slate-a3, #0000330f);
+  --dsw-alias-border-l2: var(--slate-a2, #00005506);
+  --dsw-alias-brand-primary: var(--accent, #0057ff);
+  --dsw-alias-button-primary-fill: var(--accent, #0057ff);
+  --dsw-alias-interactive-bg-hover: var(--slate-a2, #00005506);
+  --dsw-alias-interactive-bg-active: var(--slate-a3, #0000330f);
+  --dsw-alias-label-primary: var(--slate-12, #1c2024);
   --dsw-alias-label-primary-foreground: #fff;
-  --dsw-alias-label-secondary: #6b7280;
-  --dsw-alias-label-tertiary: #a4aab4;
-  --dsw-alias-state-business-primary: #0057ff;
-  --dsw-alias-state-error-primary: #e5484d;
-  --dsw-alias-state-success-primary: #16a34a;
-  --dsw-alias-state-warn-primary: #f59e0b;
+  --dsw-alias-label-secondary: var(--slate-11, #60646c);
+  --dsw-alias-label-tertiary: var(--slate-10, #80838d);
+  --dsw-alias-state-business-primary: var(--accent, #0057ff);
+  --dsw-alias-state-error-primary: var(--red-9, #e5484d);
+  --dsw-alias-state-success-primary: var(--green-9, #30a46c);
+  --dsw-alias-state-warn-primary: var(--amber-11, #ab6400);
   --dsw-font-family-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --dsw-shadow-lv3: 0 6px 20px #0000001f;
   --ds-font-family-code: ui-monospace, SFMono-Regular, Menlo, monospace;
