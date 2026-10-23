@@ -18,7 +18,7 @@ const bands = computed(() => {
     const leftPct = cursor / total.value * 100;
     cursor += s.end - s.start;
     return { key: i, kind: s.kind, leftPct, widthPct: (s.end - s.start) / total.value * 100,
-      tip: `${t(TIMING_LABEL[s.kind])} ${fmtDuration(s.end - s.start)} · ${fmtTime(s.start)}` };
+      tip: `${t(TIMING_LABEL[s.kind])} ${fmtDuration(s.end - s.start)}，${fmtTime(s.start)}` };
   });
 });
 const hovering = computed(() => props.hoverKey !== null && bands.value.some(b => b.kind === props.hoverKey));

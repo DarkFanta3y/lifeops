@@ -249,7 +249,7 @@ function toggleJson(key) {
                     <div v-for="p in paramsOf(e)" :key="p.name" class="lc-ts-param-row">
                       <span class="lc-ts-param-name">{{ p.name }}</span>
                       <span class="lc-ts-param-type">{{ p.type }}</span>
-                      <span :class="p.required ? 'lc-ts-param-req' : 'lc-ts-param-req-off'">{{ p.required ? '✓' : '·' }}</span>
+                      <span :class="p.required ? 'lc-ts-param-req' : 'lc-ts-param-req-off'">{{ p.required ? '✓' : '—' }}</span>
                       <span v-if="p.desc" class="lc-ts-param-desc">{{ p.desc }}</span>
                     </div>
                   </div>
@@ -276,7 +276,7 @@ function toggleJson(key) {
                   </div>
                   <TextSection :label="t('block.result')" :text="e.content?.text || ''" :clipped="e.content?.clipped" />
                 </template>
-                <TextSection v-else :label="catLabel(c.key) + ' · ' + e.name" :text="e.content?.text || ''"
+                <TextSection v-else :label="catLabel(c.key) + '：' + e.name" :text="e.content?.text || ''"
                   :clipped="e.content?.clipped" :markdown="c.key === 'skill' || c.key === 'inject'" />
               </div>
             </div>

@@ -113,7 +113,7 @@ export function eventLabel(ev) {
   if (ev.kind === 'prune') return t('ev.prune', { detail: ev.detail || t('form.' + (ev.form || 'trim')) });
   if (ev.kind === 'model') return t('ev.model', { a: ev.from || '?', b: ev.to || '?' });
   if (ev.kind === 'mode') return t('ev.mode.' + (ev.name || '?'), { n: ev.count ?? 0 });
-  if (ev.sub === 'skill') return t('ev.skill', { name: ev.name || '?' }) + (ev.form ? ' · ' + t('form.' + ev.form) : '');
+  if (ev.sub === 'skill') return t('ev.skill', { name: ev.name || '?' }) + (ev.form ? '，' + t('form.' + ev.form) : '');
   return ev.name || ev.detail || '';
 }
 

@@ -21,7 +21,7 @@ function groupTitle(entry) { return activitySummary(entry.parts, props.running);
   <div class="activity-turn" :class="{ 'activity-detailed': mode === 'detailed' }">
     <div v-if="process.length" class="activity-turn-head">
       <button v-if="canFold && mode !== 'detailed'" type="button" :aria-expanded="!folded" @click="changeLayout(() => { turnOpen = folded; })">
-        <el-icon><ArrowRight v-if="folded" /><ArrowDown v-else /></el-icon><span>工作过程 · {{ title }}</span>
+        <el-icon><ArrowRight v-if="folded" /><ArrowDown v-else /></el-icon><span>工作过程：{{ title }}</span>
       </button>
       <span v-else class="activity-turn-status">{{ running ? '正在处理' : status === 'failed' ? '运行失败' : status === 'cancelled' ? '运行已停止' : status === 'incomplete' ? '过程记录不完整' : '工作过程' }}</span>
     </div>

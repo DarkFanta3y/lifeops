@@ -19,7 +19,7 @@ const rows = computed(() => shown.value.map(p => ({
   key: p.key, color: p.color,
   label: p.key === 'output' ? t('tokens.output') : catLabel(p.key),
   pct: fmtShare(p.value, total.value),
-  count: p.key === 'output' ? `${fmt(p.value)} · ${t('tokens.outputNote')}` : '≈' + fmt(p.value),
+  count: p.key === 'output' ? `${fmt(p.value)}，${t('tokens.outputNote')}` : '≈' + fmt(p.value),
 })));
 </script>
 

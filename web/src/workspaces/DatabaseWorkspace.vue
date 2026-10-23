@@ -131,7 +131,7 @@ onUnmounted(() => { disposed = true; ++previewGeneration; clearTimeout(pollTimer
 
 <template>
   <section class="workspace database-workspace">
-    <div class="toolbar"><div><p class="eyebrow">资料与记忆</p><h2>本地知识库 <span class="count">{{ sources.length }}</span></h2></div>
+    <div class="toolbar"><div><h2>本地知识库 <span class="count">{{ sources.length }}</span></h2></div>
       <div class="actions"><el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         <el-button v-if="importId && status" @click="wizard = true">查看入库进度</el-button>
         <el-button type="primary" :icon="Plus" :disabled="['processing', 'failed'].includes(status)" @click="openCreate">新增本地知识库</el-button></div></div>
@@ -177,7 +177,7 @@ onUnmounted(() => { disposed = true; ++previewGeneration; clearTimeout(pollTimer
         <div><el-radio-group v-model="strategy" :disabled="busy" @change="loadPreview"><el-radio-button value="heading">按标题切块</el-radio-button><el-radio-button value="fixed">固定大小</el-radio-button></el-radio-group>
           <div v-if="strategy === 'fixed'" class="chunk-control"><el-slider v-model="chunkSize" :min="150" :max="900" :disabled="busy" @change="loadPreview" />
             <el-input-number v-model="chunkSize" :min="150" :max="900" :disabled="busy" @change="loadPreview" /></div>
-          <div class="chunk-list"><article v-for="(chunk, index) in preview?.chunks || []" :key="index"><strong>块 {{ index + 1 }} · {{ chunk.heading_breadcrumb }}</strong><pre>{{ chunk.content }}</pre></article></div></div></div>
+          <div class="chunk-list"><article v-for="(chunk, index) in preview?.chunks || []" :key="index"><strong>块 {{ index + 1 }}：{{ chunk.heading_breadcrumb }}</strong><pre>{{ chunk.content }}</pre></article></div></div></div>
       <div v-else class="import-status"><el-result :icon="status === 'completed' ? 'success' : status === 'failed' ? 'error' : 'info'"
         :title="status === 'completed' ? '处理完成' : status === 'failed' ? '处理失败' : '正在处理知识库'"
         :sub-title="status === 'completed' ? '知识库将在下次重启服务后加载。' : '正在切片、生成向量并建立 BM25 索引，关闭弹窗不会中断处理。'" /></div>

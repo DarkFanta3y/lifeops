@@ -185,7 +185,7 @@ try {
   assert.equal(await page.locator('[data-slot=lifeops-assistant-message] table').count(), 1);
   await click('复制回答'); assert.match(await page.evaluate(() => navigator.clipboard.readText()), /你好/);
   const download = page.waitForEvent('download'); await click('导出 Markdown'); assert.equal((await download).suggestedFilename(), 'LifeOps-回答.md');
-  await click('运行日志'); await waitText('工具调用 · bash'); await page.waitForTimeout(300);
+  await click('运行日志'); await waitText('工具调用：bash'); await page.waitForTimeout(300);
   await page.screenshot({ path: `${screenshots}/logging.png` });
   await page.getByRole('dialog').getByRole('button', { name: '关闭此对话框' }).click(); await page.getByRole('dialog').waitFor({ state: 'hidden' });
   await page.screenshot({ path: `${screenshots}/chat.png` }); console.log('OK SSE、审批、工具、计划、Markdown、复制导出、Logging');
@@ -212,7 +212,7 @@ try {
   assert.equal(dualDecisions.get('b'), 'allow_always');
   console.log('OK 各审批卡片分别提交正确请求');
   await page.locator('[data-slot=lifeops-composer] textarea').fill('重生成测试'); await page.locator('[data-slot=lifeops-composer] textarea').press('Enter');
-  await waitText('第 1 次回答'); await waitText('来源：工作笔记'); await waitText('已载入记忆：偏好 3 · 摘要 1');
+  await waitText('第 1 次回答'); await waitText('来源：工作笔记'); await waitText('已载入记忆：偏好 3，摘要 1');
   const turns = await page.locator('[data-slot=lifeops-user-message]').count();
   await click('重新生成'); await waitText('第 2 次回答');
   // done 未带 usage 时，运行中的 usage 事件也要累计出 Token 与缓存命中率

@@ -36,7 +36,7 @@ const view = computed(() => {
   const countOf = (ms, times) => {
     const dur = fmtDuration(ms);
     if (!times) return dur;
-    return ms > 0 ? `${dur} · ${times}` : times;
+    return ms > 0 ? `${dur}，${times}` : times;
   };
   return {
     segments: slices.map(s => ({ key: s.key, color: TIMING_COLOR[s.key], value: share(s.ring) })),

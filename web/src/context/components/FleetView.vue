@@ -61,13 +61,13 @@ function metaOf(node) {
   const bits = [];
   if (node.durationMs !== null && node.durationMs !== undefined) bits.push(fmtDurationCompact(node.durationMs));
   if (node.requests > 0) bits.push(t('agents.steps', { n: node.requests }));
-  return bits.join(' · ');
+  return bits.join('，');
 }
 function metricOf(node) {
   const bits = [];
   if (node.billed > 0) bits.push(fmt(node.billed));
   if (node.cost !== null && node.cost !== undefined) bits.push(fmtCost(node.cost));
-  return bits.join(' · ') || '—';
+  return bits.join('，') || '—';
 }
 function pin(id) { pinnedId.value = pinnedId.value === id ? null : id; }
 function toggleExpand(id) {

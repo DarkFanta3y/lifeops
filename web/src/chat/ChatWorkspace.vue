@@ -94,7 +94,7 @@ function sourcesOf(message, index) {
 function memoryText(memory) {
   if (!memory) return '';
   return [['偏好', memory.preferences], ['摘要', memory.summaries], ['实体', memory.entities]]
-    .filter(([, count]) => count > 0).map(([label, count]) => `${label} ${count}`).join(' · ');
+    .filter(([, count]) => count > 0).map(([label, count]) => `${label} ${count}`).join('，');
 }
 const items = computed(() => {
   const lastIndex = props.messages.length - 1;
@@ -106,7 +106,7 @@ const items = computed(() => {
       loading: Boolean(message.pending && !message.parts?.length),
       isLast: index === lastIndex, isLastUser: index === lastUserIndex, sources,
       sourceText: sources.map(source => source.kind === 'web' ? '联网搜索'
-        : sourceNames.value?.[source.id] || source.id || '知识库').join(' · '),
+        : sourceNames.value?.[source.id] || source.id || '知识库').join('、'),
       memoryText: memoryText(message.memory) };
   });
 });
@@ -423,8 +423,8 @@ onBeforeUnmount(() => { controller?.abort(); stopSpeech(); });
     <el-dialog v-model="loggingOpen" title="回答中间信息" width="min(1000px, 94vw)" destroy-on-close>
       <el-empty v-if="!logs.length" description="暂无中间信息" />
       <div v-else class="logging-entries"><details v-for="(log, index) in logs" :key="index" :open="index === 0">
-        <summary>{{ log.tool_calls?.length ? '工具调用' : log.role === 'tool' ? '工具结果' : '中间信息' }} ·
-          {{ log.tool_name || log.tool_calls?.map(call => call.function?.name).join(', ') || log.role }}</summary>
+        <summary>{{ (log.tool_calls?.length ? '工具调用' : log.role === 'tool' ? '工具结果' : '中间信息') + '：'
+          + (log.tool_name || log.tool_calls?.map(call => call.function?.name).join(', ') || log.role) }}</summary>
         <div v-for="(call, i) in log.tool_calls || []" :key="i"><strong>{{ call.function?.name }}</strong>
           <p v-if="call.id">调用 ID：{{ call.id }}</p><pre>{{ call.function?.arguments }}</pre></div>
         <MarkdownRenderer :content="log.content || ''" /><pre v-if="log.metadata?.diff">{{ log.metadata.diff }}</pre>

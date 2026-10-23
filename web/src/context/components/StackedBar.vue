@@ -54,7 +54,7 @@ const tip = computed(() => {
   if (!hovering.value) return null;
   if (props.hoverKey === 'free' && free.value > 0) {
     const pct = free.value / scale.value * 100;
-    return { head: t('overview.free'), figure: `${fmt(free.value)} · ${Math.round(pct)}% ${t('overview.ofWindow')}`,
+    return { head: t('overview.free'), figure: `${fmt(free.value)}，${Math.round(pct)}% ${t('overview.ofWindow')}`,
       leftPct: (total.value / scale.value * 100) + pct / 2 };
   }
   let acc = 0;
@@ -65,7 +65,7 @@ const tip = computed(() => {
       const count = p.raw ?? p.value;
       return {
         head: p.label ?? catLabel(p.key),
-        figure: `≈${fmt(count)} · ${rawTotal > 0 ? Math.round(count / rawTotal * 100) : 0}% ${t('overview.ofUsed')}`,
+        figure: `≈${fmt(count)}，${rawTotal > 0 ? Math.round(count / rawTotal * 100) : 0}% ${t('overview.ofUsed')}`,
         leftPct: acc + widths.value[i] / 2,
       };
     }

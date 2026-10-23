@@ -32,8 +32,8 @@ const apiBasePattern = /^https?:\/\/\S+$/i;
 
 const selectedProvider = computed(() => providers.value.find(item => item.provider_id === selectedId.value) || null);
 const activeLabel = computed(() => {
-  if (active.value) return `${active.value.provider_name} · ${active.value.model_name || active.value.model_id}`;
-  return `环境变量默认 · ${fallback.value?.model || '未配置'}`;
+  if (active.value) return `${active.value.provider_name} ${active.value.model_name || active.value.model_id}`;
+  return `环境变量默认 ${fallback.value?.model || '未配置'}`;
 });
 const validForm = computed(() => {
   if (!providerIdPattern.test(form.value.provider_id) || !form.value.name.trim()) return false;
@@ -160,7 +160,7 @@ async function makeActive(provider, model) {
   try {
     await setActiveModel(provider.provider_id, model.model_id);
     await load();
-    ElMessage.success(`已切换到 ${provider.name} · ${model.name || model.model_id}`);
+    ElMessage.success(`已切换到 ${provider.name} ${model.name || model.model_id}`);
   } catch (err) {
     error.value = err.message;
   }
@@ -230,7 +230,6 @@ onMounted(load);
   <section class="workspace models-workspace">
     <div class="toolbar">
       <div>
-        <p class="eyebrow">推理与供应商</p>
         <h2>模型管理 <span class="count">{{ providers.length }}</span></h2>
       </div>
       <div class="actions">

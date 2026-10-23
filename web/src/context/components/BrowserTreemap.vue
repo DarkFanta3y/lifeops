@@ -60,7 +60,7 @@ const tip = computed(() => {
   if (tipKey.value === null) return null;
   const catHit = tree.value.find(lc => 'cat:' + lc.c.cat === tipKey.value);
   if (catHit) {
-    return { head: catLabel(catHit.c.cat), fig: `≈${fmt(catHit.c.tokens)} · ${Math.round(catHit.c.tokens / total.value * 100)}% ${t('overview.ofUsed')}`,
+    return { head: catLabel(catHit.c.cat), fig: `≈${fmt(catHit.c.tokens)}，${Math.round(catHit.c.tokens / total.value * 100)}% ${t('overview.ofUsed')}`,
       note: t('browser.items', { n: catHit.c.blocks.reduce((s, b) => s + b.count, 0) }),
       cx: catHit.x + catHit.w / 2, top: catHit.y, bottom: catHit.y + catHit.h };
   }
@@ -68,7 +68,7 @@ const tip = computed(() => {
     const hit = lc.blocks.find(lb => lb.b.key === tipKey.value);
     if (hit) {
       return { head: hit.b.count > 1 ? `${hit.b.label} ×${hit.b.count}` : hit.b.label,
-        fig: `≈${fmt(hit.b.tokens)} · ${Math.round(hit.b.tokens / total.value * 100)}% ${t('overview.ofUsed')}`,
+        fig: `≈${fmt(hit.b.tokens)}，${Math.round(hit.b.tokens / total.value * 100)}% ${t('overview.ofUsed')}`,
         cx: hit.px + hit.sw / 2, top: hit.py, bottom: hit.py + hit.sh };
     }
   }

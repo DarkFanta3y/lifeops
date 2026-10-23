@@ -23,7 +23,7 @@ export function toolPresentation(part) {
   else if (['search', 'web', 'knowledge'].includes(kind)) summary = args.query || args.pattern || summary;
   else if (kind === 'skill') summary = args.name || summary;
   else if (kind === 'agent') summary = args.description || args.prompt || summary;
-  else if (kind === 'generic') summary = [part.toolName, summary].filter(Boolean).join(' · ');
+  else if (kind === 'generic') summary = [part.toolName, summary].filter(Boolean).join(' ');
   let suffix = '';
   if (kind === 'read' && Number.isFinite(metadata.shown_lines)) suffix = `${metadata.shown_lines} 行`;
   if (kind === 'search' && Number.isFinite(metadata.total_matches ?? metadata.count)) suffix = `${metadata.total_matches ?? metadata.count} 条`;
@@ -69,7 +69,7 @@ export function processEntries(parts) {
 export function activitySummary(parts, running = false) {
   const unique = [...new Map(parts.map((part, i) => [part.callId || part.prepareKey || i, part])).values()];
   const live = unique.findLast(part => ['preparing', 'running', 'waiting_approval', 'queued'].includes(part.status));
-  if (running && live) { const model = toolPresentation(live); return `${model.title} · ${model.summary}`; }
+  if (running && live) { const model = toolPresentation(live); return `${model.title}，${model.summary}`; }
   const counts = new Map();
   for (const part of unique) {
     const title = toolPresentation(part).title;

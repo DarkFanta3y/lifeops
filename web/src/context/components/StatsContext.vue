@@ -165,7 +165,7 @@ watch(() => [props.data, props.files], () => nextTick(measure));
               {{ prices ? t('stats.costTip') : t('stats.costUnset') }}
               <span class="lc-stat-tip-row">{{ t('stats.billedTip') }}</span>
               <span v-if="prices" class="lc-stat-tip-row">
-                {{ t('stats.costPriceHead') }}{{ t('stats.costMiss') }} ¥{{ prices.input }} · {{ t('stats.costHit') }} ¥{{ prices.cache ?? prices.input }} · {{ t('stats.costOut') }} ¥{{ prices.output ?? prices.input }}
+                {{ t('stats.costPriceHead') }}{{ t('stats.costMiss') }} ¥{{ prices.input }}，{{ t('stats.costHit') }} ¥{{ prices.cache ?? prices.input }}，{{ t('stats.costOut') }} ¥{{ prices.output ?? prices.input }}
               </span>
             </span>
           </div>

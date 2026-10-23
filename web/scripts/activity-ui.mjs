@@ -87,7 +87,7 @@ try {
   await page.getByText('工具展示验收', { exact: true }).click();
   await page.getByText('文件已更新，详细变更可在工作过程中查看。', { exact: true }).waitFor();
   assert.equal(await page.locator('[data-slot=lifeops-tool-row]:visible').count(), 0);
-  await page.getByRole('button', { name: /^工作过程 ·/ }).click();
+  await page.getByRole('button', { name: /^工作过程：/ }).click();
   await page.locator('.activity-group-head').click();
   assert.equal(await page.locator('[data-slot=lifeops-tool-row]:visible').count(), 2);
   const read = page.locator('[data-slot=lifeops-tool-row]').first();
@@ -144,9 +144,9 @@ try {
   await fetch(mock + '/continue-scroll'); await page.waitForTimeout(100);
   assert.equal(await viewport.evaluate(el => el.scrollTop), before);
   await fetch(mock + '/finish-scroll');
-  await page.getByRole('button', { name: /^工作过程 ·/ }).waitFor();
+  await page.getByRole('button', { name: /^工作过程：/ }).waitFor();
   assert.equal(await viewport.evaluate(el => el.scrollTop), before);
-  assert.equal(await page.getByRole('button', { name: /^工作过程 ·/ }).getAttribute('aria-expanded'), 'true');
+  assert.equal(await page.getByRole('button', { name: /^工作过程：/ }).getAttribute('aria-expanded'), 'true');
   assert.deepEqual(errors, []);
   console.log('通过：三层折叠、8 行预览、完整展开/复制、模式保持、历史 diff、键盘、窄屏/暗色、实时审批、完成折叠、失败原因与阅读位置保持');
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }

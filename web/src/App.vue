@@ -54,11 +54,11 @@ const modelReady = ref(false);
 const activeModelKey = computed(() => activeModel.value
   ? `${activeModel.value.provider_id}::${activeModel.value.model_id}` : '');
 const activeModelLabel = computed(() => activeModel.value
-  ? `${activeModel.value.provider_name} · ${activeModel.value.model_name || activeModel.value.model_id}`
-  : `默认 · ${modelFallback.value?.model || '环境变量'}`);
+  ? `${activeModel.value.provider_name} ${activeModel.value.model_name || activeModel.value.model_id}`
+  : `默认 ${modelFallback.value?.model || '环境变量'}`);
 const modelOptions = computed(() => modelProviders.value.flatMap(provider => (provider.models || [])
   .map(model => ({ value: `${provider.provider_id}::${model.model_id}`,
-    label: `${provider.name} · ${model.name || model.model_id}` }))));
+    provider: provider.name, model: model.name || model.model_id }))));
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
 const keys = isMac ? { search: '⌘K', newChat: '⌘⇧O' } : { search: 'Ctrl K', newChat: 'Ctrl Shift O' };
 const groupOrder = ['今天', '昨天', '7 天内', '更早'];
@@ -298,15 +298,18 @@ watch(view, value => { if (value === 'chat') loadModelState(); });
           <div id="header-actions">
             <el-dropdown v-if="view === 'chat' && modelReady" trigger="click" :disabled="running" @command="switchModel">
               <button class="model-trigger" aria-label="切换当前模型" :disabled="running">
-                <el-icon><Cpu /></el-icon><span>{{ activeModelLabel }}</span><el-icon><ArrowDown /></el-icon>
+                <el-icon><Cpu /></el-icon>
+                <span>{{ activeModel?.provider_name || '默认' }}</span>
+                <span class="model-name">{{ activeModel?.model_name || activeModel?.model_id || modelFallback?.model || '环境变量' }}</span>
+                <el-icon><ArrowDown /></el-icon>
               </button>
               <template #dropdown>
                 <el-dropdown-menu>
                   <el-dropdown-item command="__env__" :disabled="!activeModel">
-                    环境变量默认 · {{ modelFallback?.model || 'LLM_MODEL' }}
+                    环境变量默认 {{ modelFallback?.model || 'LLM_MODEL' }}
                   </el-dropdown-item>
                   <el-dropdown-item v-for="option in modelOptions" :key="option.value" :command="option.value"
-                    :disabled="option.value === activeModelKey">{{ option.label }}</el-dropdown-item>
+                    :disabled="option.value === activeModelKey">{{ option.provider }} {{ option.model }}</el-dropdown-item>
                   <el-dropdown-item v-if="!modelOptions.length" disabled>还没有配置模型提供商</el-dropdown-item>
                 </el-dropdown-menu>
               </template>

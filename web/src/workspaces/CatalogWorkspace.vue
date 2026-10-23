@@ -39,7 +39,7 @@ onMounted(load);
 
 <template>
   <section class="workspace catalog-workspace">
-    <div class="toolbar"><div><p class="eyebrow">{{ kind === 'skills' ? '能力扩展' : '执行能力' }}</p>
+    <div class="toolbar"><div>
       <h2>{{ kind === 'skills' ? 'Skill 列表' : '工具与 MCP' }} <span class="count">{{ rows.length }}</span></h2></div>
       <div class="actions"><el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         <el-button v-if="kind === 'skills'" type="primary" :icon="Plus" @click="form = blankSkill(); modal = true">新增 Skill</el-button>

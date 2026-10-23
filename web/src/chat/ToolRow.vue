@@ -20,9 +20,9 @@ async function copy(value, label) {
 <template>
   <div class="activity-tool" :data-state="model.state" data-slot="lifeops-tool-row" data-reading-anchor>
     <button type="button" class="activity-tool-summary" :aria-expanded="expanded" :disabled="model.state === 'preparing'"
-      :title="`${model.title} · ${model.summary} · ${model.statusText}`" @click="changeLayout(() => { expanded = !expanded; })">
+      :title="`${model.title}，${model.summary}，${model.statusText}`" @click="changeLayout(() => { expanded = !expanded; })">
       <el-icon class="activity-tool-icon"><component :is="icons[model.kind] || Tools" /></el-icon>
-      <span class="activity-tool-title">{{ model.title }}</span><span class="activity-separator">·</span>
+      <span class="activity-tool-title">{{ model.title }}</span>
       <span class="activity-tool-target">{{ model.summary }}</span>
       <span v-if="model.suffix" class="activity-suffix">{{ model.suffix }}</span>
       <span v-if="model.counts && !part.isError" class="activity-diff-totals"><b>+{{ model.counts.added }}</b> <i>−{{ model.counts.removed }}</i></span>

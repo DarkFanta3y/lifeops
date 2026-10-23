@@ -48,7 +48,7 @@ const response = computed(() => {
   if (!r) return null;
   return { tag: r.calls?.length ? r.calls.join(' › ') : null, text: r.text || '' };
 });
-function factTitle(tag, text) { return tag !== null ? (text ? tag + ' · ' + text : tag) : text; }
+function factTitle(tag, text) { return tag !== null ? (text ? tag + '：' + text : tag) : text; }
 function locate(cat, isResponse) { if (props.locatable) emit('locate', { seq: req.value.seq, cat, isResponse }); }
 </script>
 
